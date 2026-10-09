@@ -35,6 +35,7 @@ public class ModCreativeTabs {
                         output.accept(ModItems.DNA_SYRINGE.get());
                         output.accept(ModItems.NUTRIENT_SOLUTION.get());
                         output.accept(ModItems.OPERATION_PHOENIX_POD.get());
+                        output.accept(ModItems.PERSONAL_SPACE_GATE.get());
                     })
                     .build());
 }

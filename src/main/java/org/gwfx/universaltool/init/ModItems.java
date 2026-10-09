@@ -63,4 +63,7 @@ public class ModItems {
 
     public static final DeferredItem<BlockItem> OPERATION_PHOENIX_POD = ITEMS.register("operation_phoenix_pod",
             () -> new BlockItem(ModBlocks.OPERATION_PHOENIX_POD.get(), new Item.Properties().rarity(Rarity.EPIC)));
+
+    public static final DeferredItem<BlockItem> PERSONAL_SPACE_GATE = ITEMS.register("personal_space_gate",
+            () -> new BlockItem(ModBlocks.PERSONAL_SPACE_GATE.get(), new Item.Properties().rarity(Rarity.RARE)));
 }

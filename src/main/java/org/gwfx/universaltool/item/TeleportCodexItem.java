@@ -1,6 +1,5 @@
 package org.gwfx.universaltool.item;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -14,7 +13,7 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.client.ClientWaypointCache;
-import org.gwfx.universaltool.client.CodexScreen;
+import org.gwfx.universaltool.client.ClientScreens;
 import org.gwfx.universaltool.init.ModItems;
 import org.gwfx.universaltool.network.SyncWaypointsPayload;
 import org.gwfx.universaltool.waypoint.WaypointData;
@@ -59,7 +58,7 @@ public class TeleportCodexItem extends Item {
     }
 
     private void openClientScreen() {
-        Minecraft.getInstance().setScreen(new CodexScreen());
+        ClientScreens.openCodex();
     }
 
     @Override

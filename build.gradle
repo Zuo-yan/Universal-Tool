@@ -47,6 +47,22 @@ neoForge {
     version = project.neo_version
 
     runs {
+        islandVisual {
+            client()
+            gameDirectory = project.layout.buildDirectory.dir('island-visual')
+            systemProperty 'universal_tool.islandVisual', 'true'
+            systemProperty 'universal_tool.islandRestartOnly', providers.gradleProperty('islandRestartOnly').orElse('false').get()
+            programArgument '--width'
+            programArgument '1280'
+            programArgument '--height'
+            programArgument '800'
+        }
+        islandGameTest {
+            type = 'gameTestServer'
+            gameDirectory = project.layout.buildDirectory.dir('island-gametest')
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            systemProperty 'universal_tool.islandTests', 'true'
+        }
         client {
             client()
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
@@ -66,9 +82,8 @@ neoForge {
 }
 
 dependencies {
-    // 运行环境中添加 JEI
+    // Compile the optional JEI integration without making JEI a runtime requirement.
     compileOnly "curse.maven:jei-238222:8964989"
-    runtimeOnly "curse.maven:jei-238222:8964989"
 }
 
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {

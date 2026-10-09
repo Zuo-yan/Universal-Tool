@@ -1,0 +1,20 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "universal_tool:block/personal_space_gate",
+      "y": 0
+    },
+    "facing=east": {
+      "model": "universal_tool:block/personal_space_gate",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "universal_tool:block/personal_space_gate",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "universal_tool:block/personal_space_gate",
+      "y": 270
+    }
+  }
+}
