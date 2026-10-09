@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " P ",
+    "ASH",
+    " V "
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:wooden_pickaxe"
+    },
+    "A": {
+      "item": "minecraft:wooden_axe"
+    },
+    "S": {
+      "item": "minecraft:wooden_sword"
+    },
+    "H": {
+      "item": "minecraft:wooden_hoe"
+    },
+    "V": {
+      "item": "minecraft:wooden_shovel"
+    }
+  },
+  "result": {
+    "id": "universal_tool:wooden_universal_tool",
+    "count": 1
+  }
+}

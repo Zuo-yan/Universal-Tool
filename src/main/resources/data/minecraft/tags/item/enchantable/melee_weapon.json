@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "universal_tool:wooden_universal_tool",
+    "universal_tool:stone_universal_tool",
+    "universal_tool:iron_universal_tool",
+    "universal_tool:golden_universal_tool",
+    "universal_tool:diamond_universal_tool",
+    "universal_tool:netherite_universal_tool"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "universal_tool:item/netherite_universal_tool"
+  }
+}

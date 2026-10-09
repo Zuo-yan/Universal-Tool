@@ -1,0 +1,94 @@
+{
+  "variants": {
+    "facing=north,half=lower,state=empty": {
+      "model": "universal_tool:block/operation_phoenix_pod_bottom_empty"
+    },
+    "facing=north,half=lower,state=cultivating": {
+      "model": "universal_tool:block/operation_phoenix_pod_bottom_liquid"
+    },
+    "facing=north,half=lower,state=ready": {
+      "model": "universal_tool:block/operation_phoenix_pod_bottom_liquid"
+    },
+    "facing=north,half=upper,state=empty": {
+      "model": "universal_tool:block/operation_phoenix_pod_top_empty"
+    },
+    "facing=north,half=upper,state=cultivating": {
+      "model": "universal_tool:block/operation_phoenix_pod_top_liquid"
+    },
+    "facing=north,half=upper,state=ready": {
+      "model": "universal_tool:block/operation_phoenix_pod_top_liquid"
+    },
+    "facing=east,half=lower,state=empty": {
+      "model": "universal_tool:block/operation_phoenix_pod_bottom_empty",
+      "y": 90
+    },
+    "facing=east,half=lower,state=cultivating": {
+      "model": "universal_tool:block/operation_phoenix_pod_bottom_liquid",
+      "y": 90
+    },
+    "facing=east,half=lower,state=ready": {
+      "model": "universal_tool:block/operation_phoenix_pod_bottom_liquid",
+      "y": 90
+    },
+    "facing=east,half=upper,state=empty": {
+      "model": "universal_tool:block/operation_phoenix_pod_top_empty",
+      "y": 90
+    },
+    "facing=east,half=upper,state=cultivating": {
+      "model": "universal_tool:block/operation_phoenix_pod_top_liquid",
+      "y": 90
+    },
+    "facing=east,half=upper,state=ready": {
+      "model": "universal_tool:block/operation_phoenix_pod_top_liquid",
+      "y": 90
+    },
+    "facing=south,half=lower,state=empty": {
+      "model": "universal_tool:block/operation_phoenix_pod_bottom_empty",
+      "y": 180
+    },
+    "facing=south,half=lower,state=cultivating": {
+      "model": "universal_tool:block/operation_phoenix_pod_bottom_liquid",
+      "y": 180
+    },
+    "facing=south,half=lower,state=ready": {
+      "model": "universal_tool:block/operation_phoenix_pod_bottom_liquid",
+      "y": 180
+    },
+    "facing=south,half=upper,state=empty": {
+      "model": "universal_tool:block/operation_phoenix_pod_top_empty",
+      "y": 180
+    },
+    "facing=south,half=upper,state=cultivating": {
+      "model": "universal_tool:block/operation_phoenix_pod_top_liquid",
+      "y": 180
+    },
+    "facing=south,half=upper,state=ready": {
+      "model": "universal_tool:block/operation_phoenix_pod_top_liquid",
+      "y": 180
+    },
+    "facing=west,half=lower,state=empty": {
+      "model": "universal_tool:block/operation_phoenix_pod_bottom_empty",
+      "y": 270
+    },
+    "facing=west,half=lower,state=cultivating": {
+      "model": "universal_tool:block/operation_phoenix_pod_bottom_liquid",
+      "y": 270
+    },
+    "facing=west,half=lower,state=ready": {
+      "model": "universal_tool:block/operation_phoenix_pod_bottom_liquid",
+      "y": 270
+    },
+    "facing=west,half=upper,state=empty": {
+      "model": "universal_tool:block/operation_phoenix_pod_top_empty",
+      "y": 270
+    },
+    "facing=west,half=upper,state=cultivating": {
+      "model": "universal_tool:block/operation_phoenix_pod_top_liquid",
+      "y": 270
+    },
+    "facing=west,half=upper,state=ready": {
+      "model": "universal_tool:block/operation_phoenix_pod_top_liquid",
+      "y": 270
+    }
+  }
+}

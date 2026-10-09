@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " P ",
+    "ASH",
+    " V "
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:iron_pickaxe"
+    },
+    "A": {
+      "item": "minecraft:iron_axe"
+    },
+    "S": {
+      "item": "minecraft:iron_sword"
+    },
+    "H": {
+      "item": "minecraft:iron_hoe"
+    },
+    "V": {
+      "item": "minecraft:iron_shovel"
+    }
+  },
+  "result": {
+    "id": "universal_tool:iron_universal_tool",
+    "count": 1
+  }
+}

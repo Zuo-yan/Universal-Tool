@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "up": "universal_tool:block/polymerizer_top",
+    "down": "universal_tool:block/polymerizer_bottom",
+    "north": "universal_tool:block/polymerizer_front",
+    "east": "universal_tool:block/polymerizer_side",
+    "south": "universal_tool:block/polymerizer_side",
+    "west": "universal_tool:block/polymerizer_side",
+    "particle": "universal_tool:block/polymerizer_front"
+  }
+}

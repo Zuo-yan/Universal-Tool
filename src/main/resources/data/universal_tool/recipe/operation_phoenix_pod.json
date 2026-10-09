@@ -1,0 +1,46 @@
+{
+  "type": "universal_tool:polymerizing",
+  "ingredients": [
+    {
+      "item": "minecraft:totem_of_undying"
+    },
+    {
+      "item": "minecraft:iron_block"
+    },
+    {
+      "item": "minecraft:iron_block"
+    },
+    {
+      "item": "minecraft:iron_block"
+    },
+    {
+      "item": "minecraft:iron_block"
+    },
+    {
+      "item": "minecraft:smooth_stone"
+    },
+    {
+      "item": "minecraft:smooth_stone"
+    },
+    {
+      "item": "minecraft:smooth_stone"
+    },
+    {
+      "item": "minecraft:glass"
+    },
+    {
+      "item": "minecraft:glass"
+    },
+    {
+      "item": "minecraft:redstone_block"
+    },
+    {
+      "item": "minecraft:redstone_block"
+    }
+  ],
+  "result": {
+    "id": "universal_tool:operation_phoenix_pod",
+    "count": 1
+  },
+  "duration": 40
+}

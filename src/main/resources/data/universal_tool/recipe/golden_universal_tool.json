@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " P ",
+    "ASH",
+    " V "
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:golden_pickaxe"
+    },
+    "A": {
+      "item": "minecraft:golden_axe"
+    },
+    "S": {
+      "item": "minecraft:golden_sword"
+    },
+    "H": {
+      "item": "minecraft:golden_hoe"
+    },
+    "V": {
+      "item": "minecraft:golden_shovel"
+    }
+  },
+  "result": {
+    "id": "universal_tool:golden_universal_tool",
+    "count": 1
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "universal_tool:item/golden_universal_tool"
+  }
+}

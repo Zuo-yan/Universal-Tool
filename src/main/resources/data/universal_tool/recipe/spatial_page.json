@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " P ",
+    "E#E",
+    " P "
+  ],
+  "key": {
+    "#": {
+      "item": "minecraft:paper"
+    },
+    "E": {
+      "item": "minecraft:ender_pearl"
+    },
+    "P": {
+      "item": "minecraft:amethyst_shard"
+    }
+  },
+  "result": {
+    "id": "universal_tool:spatial_page",
+    "count": 1
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "universal_tool:block/universal_polymerizer"
+    },
+    "facing=east": {
+      "model": "universal_tool:block/universal_polymerizer",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "universal_tool:block/universal_polymerizer",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "universal_tool:block/universal_polymerizer",
+      "y": 270
+    }
+  }
+}
