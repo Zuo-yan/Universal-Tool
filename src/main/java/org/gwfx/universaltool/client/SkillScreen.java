@@ -1119,6 +1119,8 @@ public class SkillScreen extends Screen {
             case ModSkills.ARMOR_PIERCING -> "破甲穿透";
             case ModSkills.BLOODTHIRST -> "近战吸血";
             case ModSkills.ITEM_MAGNET -> "引力拾取";
+            case ModSkills.DIAMOND_BULWARK -> "护甲强化";
+            case ModSkills.DAMAGE_CLAMP -> "单次限伤";
             default -> "特殊能力";
         };
     }

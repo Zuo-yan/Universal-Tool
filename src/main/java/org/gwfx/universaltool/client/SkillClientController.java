@@ -40,6 +40,7 @@ public final class SkillClientController {
     public static void tick(ClientTickEvent.Post event) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) {
+            ClientSkillCache.clear();
             if (wasCasting) cancelCharge();
             return;
         }

@@ -56,6 +56,8 @@ public final class SkillStatFormatter {
             case ModSkills.ARMOR_PIERCING -> "穿透 " + (15 * safeLevel) + "% 目标护甲";
             case ModSkills.BLOODTHIRST -> "近战吸血 " + (5 * safeLevel) + "%";
             case ModSkills.ITEM_MAGNET -> (5 + 2 * safeLevel) + "格 物品经验吸附半径";
+            case ModSkills.DIAMOND_BULWARK -> "+" + (int) SkillManager.bulwarkArmor(safeLevel) + " 护甲 · +" + (int) SkillManager.bulwarkToughness(safeLevel) + " 护甲韧性";
+            case ModSkills.DAMAGE_CLAMP -> "单次最终伤害上限：最大生命值的 " + Math.round(SkillManager.damageClampRatio(safeLevel) * 100) + "%";
             default -> "无";
         };
     }

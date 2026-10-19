@@ -1427,7 +1427,36 @@ public final class SkillManager {
     private static final ResourceLocation IRON_PHYSIQUE_MODIFIER_ID = ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "iron_physique");
     private static final ResourceLocation SWIFT_PACE_MODIFIER_ID = ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "swift_pace");
 
+    private static final ResourceLocation BULWARK_ID = ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "diamond_bulwark");
+
+    public static double bulwarkArmor(int level) { return level <= 0 ? 0 : level == 1 ? 6 : level == 2 ? 12 : 20; }
+    public static double bulwarkToughness(int level) { return level <= 1 ? 0 : level == 2 ? 4 : 8; }
+    public static float damageClampRatio(int level) { return level <= 0 ? 1 : level == 1 ? 0.5F : level == 2 ? 0.4F : 0.3F; }
+
+    private static void updateBulwark(ServerPlayer player, int rank) {
+        var armor = player.getAttribute(Attributes.ARMOR);
+        var toughness = player.getAttribute(Attributes.ARMOR_TOUGHNESS);
+        if (armor != null) {
+            armor.removeModifier(BULWARK_ID);
+            if (rank > 0) armor.addTransientModifier(new AttributeModifier(BULWARK_ID, bulwarkArmor(rank), AttributeModifier.Operation.ADD_VALUE));
+        }
+        if (toughness != null) {
+            toughness.removeModifier(BULWARK_ID);
+            if (rank > 0) toughness.addTransientModifier(new AttributeModifier(BULWARK_ID, bulwarkToughness(rank), AttributeModifier.Operation.ADD_VALUE));
+        }
+    }
+
+    @SubscribeEvent(priority = net.neoforged.bus.api.EventPriority.LOWEST)
+    public static void clampFinalDamage(LivingDamageEvent.Pre event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (event.getSource().is(net.minecraft.world.damagesource.DamageTypes.FELL_OUT_OF_WORLD)
+                || event.getSource().is(net.minecraft.world.damagesource.DamageTypes.GENERIC_KILL)) return;
+        int rank = equippedLevel(player, ModSkills.DAMAGE_CLAMP);
+        if (rank > 0) event.setNewDamage(Math.min(event.getNewDamage(), player.getMaxHealth() * damageClampRatio(rank)));
+    }
+
     static void applyPassiveEffects(ServerPlayer player) {
+        updateBulwark(player, equippedLevel(player, ModSkills.DIAMOND_BULWARK));
         int mining = equippedLevel(player, ModSkills.FOCUS_MINING);
         if (mining > 0) {
             player.addEffect(new MobEffectInstance(MobEffects.DIG_SPEED, 45, mining - 1, true, false, true));
@@ -1519,6 +1548,7 @@ public final class SkillManager {
 
 
     private static void clearAllSkillEffects(ServerPlayer player) {
+        updateBulwark(player, 0);
 
         if (GUARDS.remove(player.getUUID()) != null) {
             broadcastGuardEffect(player, CounterGuardEffectPayload.Action.CLEAR);
@@ -2027,14 +2057,6 @@ public final class SkillManager {
                 Component.translatable("message.universal_tool.skills.unlocked",
 
                         Component.translatable(definition.translationKey())), true));
-
-        if (levels > 0) {
-
-            player.displayClientMessage(Component.translatable("message.universal_tool.skills.level_up",
-
-                    data.level()), true);
-
-        }
 
         if (levels > 0 || immediate) sync(player);
 

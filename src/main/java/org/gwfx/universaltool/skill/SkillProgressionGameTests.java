@@ -30,12 +30,55 @@ import java.util.UUID;
 @PrefixGameTestTemplate(false)
 public final class SkillProgressionGameTests {
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
+    public static void migrationAndDefense(GameTestHelper helper) {
+        CompoundTag old = new CompoundTag();
+        old.putInt("Level", 9);
+        old.putLong("Experience", 175);
+        old.putInt("SkillPoints", 11);
+        PlayerSkillData data = new PlayerSkillData();
+        data.deserialize(old);
+        helper.assertTrue(data.experience() == 700, "Half-level progress must be preserved");
+        data.deserialize(data.serialize());
+        helper.assertTrue(data.experience() == 700, "Migration must run only once");
+        old.putInt("Level", 40);
+        old.putInt("SkillPoints", 62);
+        old.putLong("ExperienceAtMaxLevel", 999999);
+        data.deserialize(old);
+        helper.assertTrue(data.level() == 40 && data.experience() == 0, "Old capped XP must not advance levels");
+        data.addExperience(data.experienceForNextLevel());
+        helper.assertTrue(data.skillPoints() == 62, "No duplicate point grants");
+        data.addExperience(1_000_000);
+        helper.assertTrue(data.level() == 50 && data.skillPoints() == 68, "Migrated graduation budget must be 68");
+        ServerLevel world = helper.getLevel();
+        ServerPlayer player = mockPlayer(world.getServer(), world, "defense-test");
+        var skills = SkillManager.data(player);
+        skills.maximizeAllSkills();
+        skills.addToLoadout(false, ModSkills.DIAMOND_BULWARK);
+        SkillManager.applyPassiveEffects(player);
+        helper.assertTrue(player.getArmorValue() == 20, "Rank three armor must be 20");
+        helper.assertTrue(player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR_TOUGHNESS) == 8, "Rank three toughness must be 8");
+        skills.removeFromLoadout(false, 0);
+        skills.addToLoadout(false, ModSkills.DAMAGE_CLAMP);
+        SkillManager.applyPassiveEffects(player);
+        helper.assertTrue(player.getArmorValue() == 0, "Unequip must remove armor");
+        player.setInvulnerable(false);
+        for (int tick = 0; tick < 65; tick++) player.tick();
+        player.setHealth(20);
+        player.hurt(world.damageSources().generic(), 100);
+        helper.assertTrue(Math.abs(player.getHealth() - 14) < 0.01, "Actual damage must cap at six HP, health=" + player.getHealth());
+        player.invulnerableTime = 0;
+        player.hurt(world.damageSources().fellOutOfWorld(), 100);
+        helper.assertTrue(player.getHealth() == 0, "Void must bypass cap");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
     public static void milestonePointsAreNotSkippedOnMultiLevelAward(GameTestHelper helper) {
         PlayerSkillData data = new PlayerSkillData();
         // Level 1 -> 10 in one award must still pay the level-5 and level-10 milestone points.
         int needed = 0;
         for (int level = 1; level < 10; level++) {
-            needed += 150 + (level - 1) * 25;
+            needed += 600 + (level - 1) * 100;
         }
         int gained = data.addExperience(needed);
         helper.assertTrue(gained == 9, "Award must cross exactly nine levels, got " + gained);
@@ -135,7 +178,7 @@ public final class SkillProgressionGameTests {
         PlayerSkillData data = new PlayerSkillData();
         helper.assertTrue(data.activeSlotCount() == PlayerSkillData.BASE_ACTIVE_SLOTS,
                 "Below level 10 the active slots must stay at the base count");
-        data.addExperience(100_000);
+        data.addExperience(1_000_000);
         helper.assertTrue(data.level() == PlayerSkillData.MAX_LEVEL,
                 "A large award must reach the cap");
         helper.assertTrue(data.activeSlotCount() == PlayerSkillData.MAX_ACTIVE_SLOTS,

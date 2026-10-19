@@ -11,7 +11,7 @@ import java.util.Optional;
  *
  * <p>Every skill has three levels. Costs are tuned so the full point budget at
  * {@link PlayerSkillData#MAX_LEVEL} exactly covers learning everything to max level:
- * 9 actives x (1+1+2) + 4 passives x (1+1+1) = 48 points.
+ * 8 actives x (1+1+2) + 12 passives x (1+1+1) = 68 points.
  */
 public final class ModSkills {
     public static final String COUNTER_GUARD = "counter_guard";
@@ -33,6 +33,9 @@ public final class ModSkills {
     public static final String ARMOR_PIERCING = "armor_piercing";
     public static final String BLOODTHIRST = "bloodthirst";
     public static final String ITEM_MAGNET = "item_magnet";
+
+    public static final String DIAMOND_BULWARK = "diamond_bulwark";
+    public static final String DAMAGE_CLAMP = "damage_clamp";
 
     public static final int MAX_SKILL_LEVEL = 3;
 
@@ -61,6 +64,8 @@ public final class ModSkills {
         passive(ARMOR_PIERCING, "unlock.armor_piercing");
         passive(BLOODTHIRST, "unlock.bloodthirst");
         passive(ITEM_MAGNET, "unlock.item_magnet");
+        passive(DIAMOND_BULWARK, "unlock.diamond_bulwark");
+        passive(DAMAGE_CLAMP, "unlock.damage_clamp");
     }
 
     private static void active(String id, int cooldownTicks, int chargeTicks, String unlockKey) {

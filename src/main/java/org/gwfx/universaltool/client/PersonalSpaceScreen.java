@@ -124,6 +124,11 @@ public class PersonalSpaceScreen extends Screen {
     private boolean submitting;
     private int submitTimeout;
 
+    // Compatibility with the owner-aware screen payload; the existing layout stays unchanged.
+    public PersonalSpaceScreen(BlockPos gatePos, int mode, String ownerName, String environmentId) {
+        this(gatePos, mode);
+    }
+
     public PersonalSpaceScreen(BlockPos gatePos, int mode) {
         super(titleFor(mode));
         this.gatePos = gatePos;

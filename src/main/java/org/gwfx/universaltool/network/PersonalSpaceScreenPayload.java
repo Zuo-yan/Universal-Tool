@@ -29,6 +29,10 @@ public record PersonalSpaceScreenPayload(BlockPos gatePos, int mode, String owne
             ByteBufCodecs.STRING_UTF8, PersonalSpaceScreenPayload::environmentId,
             PersonalSpaceScreenPayload::new);
 
+    public PersonalSpaceScreenPayload(BlockPos gatePos, int mode) {
+        this(gatePos, mode, "", "");
+    }
+
     @Override
     public Type<? extends CustomPacketPayload> type() {
         return TYPE;

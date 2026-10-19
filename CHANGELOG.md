@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.3 - 2026-10-19
+
+- Added Diamond Bulwark and Damage Clamp passives, with equipment-aware armor and final-hit damage limits.
+- Raised the level cap to 50 and balanced the full skill budget at 68 points.
+- Quadrupled linear XP requirements; migrated old progress without reclaiming earned skills or points.
+- Level-up notifications display the current skill-menu key binding and play a sound.
+
 ## 1.2.2 - 2026-10-19
 
 - Counter Guard now renders three independently orbiting ward shields around the protected player.

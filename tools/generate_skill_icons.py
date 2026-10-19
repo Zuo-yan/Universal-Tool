@@ -272,6 +272,24 @@ def item_magnet() -> Image.Image:
     return frame(icon, (100, 150, 230, 255))
 
 
+def diamond_bulwark() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.polygon(((10, 7), (14, 9), (18, 9), (22, 7), (26, 13), (22, 16), (21, 25), (11, 25), (10, 16), (6, 13)), fill=(67, 181, 192, 255), outline=(175, 250, 255, 255))
+    d.line((16, 10, 16, 23), fill=(25, 97, 124, 255), width=2)
+    return frame(icon, (103, 225, 236, 255))
+
+
+def damage_clamp() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.polygon(((16, 25), (7, 15), (7, 11), (11, 8), (16, 11), (21, 8), (25, 11), (25, 15)), fill=(208, 74, 99, 255))
+    d.line((6, 17, 26, 17), fill=(255, 224, 128, 255), width=3)
+    d.line((6, 14, 6, 21), fill=(255, 224, 128, 255), width=2)
+    d.line((26, 14, 26, 21), fill=(255, 224, 128, 255), width=2)
+    return frame(icon, (225, 150, 97, 255))
+
+
 ICONS = {
     "counter_guard": counter_guard,
     "gravity_well": gravity_well,
@@ -291,6 +309,8 @@ ICONS = {
     "armor_piercing": armor_piercing,
     "bloodthirst": bloodthirst,
     "item_magnet": item_magnet,
+    "diamond_bulwark": diamond_bulwark,
+    "damage_clamp": damage_clamp,
 }
 
 

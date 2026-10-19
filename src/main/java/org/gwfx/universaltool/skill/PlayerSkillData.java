@@ -23,10 +23,9 @@ import java.util.function.Consumer;
 public final class PlayerSkillData {
     /**
      * Cap chosen so the total point budget exactly covers learning every skill to max level.
-     * Budget = {@link #INITIAL_POINTS} + (MAX_LEVEL - 1) + floor(MAX_LEVEL / {@link #MILESTONE_INTERVAL})
-     *        = 1 + 39 + 8 = 48, which equals {@link ModSkills#totalCost()}.
+     * Budget = 1 initial + 49 levels + 18 milestone points = 68, matching the catalog.
      */
-    public static final int MAX_LEVEL = 40;
+    public static final int MAX_LEVEL = 50;
     public static final int INITIAL_LEVEL = 1;
     public static final int INITIAL_POINTS = 1;
     public static final int MAX_ACTIVE_SLOTS = 6;
@@ -41,6 +40,8 @@ public final class PlayerSkillData {
     public static final String SERVER_CLOCK_KEY = "ServerNowMillis";
 
     private int level = INITIAL_LEVEL;
+    private int awardedPoints = INITIAL_POINTS;
+    private static final int PROGRESSION_VERSION = 2;
     private long experience;
     private long experienceAtLevelStart;
     private long experienceAtMaxLevel;
@@ -65,17 +66,17 @@ public final class PlayerSkillData {
     public List<String> passiveLoadout() { return List.copyOf(passiveLoadout); }
     public int selectedActive() { return selectedActive; }
 
-    /** Smooth linear curve: 150 XP for the first level, then +25 per level. */
+    /** Smooth linear curve: 600 XP for the first level, then +100 per level. */
     public int experienceForNextLevel() {
         if (level >= MAX_LEVEL) return 0;
-        return 150 + (level - 1) * 25;
+        return 600 + (level - 1) * 100;
     }
 
     public static int milestoneBonus(int targetLevel) {
         if (targetLevel % MILESTONE_INTERVAL != 0) return 0;
         if (targetLevel >= MAX_LEVEL) return 5;
-        if (targetLevel % 10 == 0) return 3;
-        return 2;
+        if (targetLevel % 10 == 0) return 2;
+        return 1;
     }
 
     public static int totalMilestoneBonuses() {
@@ -91,12 +92,18 @@ public final class PlayerSkillData {
         return INITIAL_POINTS + (MAX_LEVEL - 1) + totalMilestoneBonuses();
     }
 
+    public static int pointBudgetAtLevel(int target) {
+        int total = INITIAL_POINTS + target - 1;
+        for (int i = 1; i <= target; i++) total += milestoneBonus(i);
+        return total;
+    }
+
     public int activeSlotCount() {
         return level >= ACTIVE_SLOTS_UNLOCK_LEVEL ? MAX_ACTIVE_SLOTS : BASE_ACTIVE_SLOTS;
     }
 
     public int passiveSlotCount() {
-        if (level >= MAX_LEVEL) return MAX_PASSIVE_SLOTS;
+        if (level >= 40) return MAX_PASSIVE_SLOTS;
         if (level >= 30) return 7;
         if (level >= 20) return 6;
         if (level >= 10) return 5;
@@ -139,7 +146,10 @@ public final class PlayerSkillData {
             experienceAtLevelStart += need;
             level++;
             gained++;
-            skillPoints += 1 + milestoneBonus(level);
+            int due = pointBudgetAtLevel(level);
+            int grant = Math.max(0, due - awardedPoints);
+            skillPoints += grant;
+            awardedPoints += grant;
             unlockEligibleSkills(onUnlock);
         }
         if (level >= MAX_LEVEL) {
@@ -213,6 +223,7 @@ public final class PlayerSkillData {
     /** Sets growth to the level cap and fills every formal skill within the point budget. */
     public int maximizeAllSkills() {
         level = MAX_LEVEL;
+        awardedPoints = totalPointBudget();
         experience = 0;
         skillPoints = totalPointBudget() - ModSkills.totalCost();
         boolean needsActiveUnlock = false;
@@ -387,6 +398,8 @@ public final class PlayerSkillData {
     public CompoundTag serialize() {
         CompoundTag tag = new CompoundTag();
         tag.putInt("Level", level);
+        tag.putInt("ProgressionVersion", PROGRESSION_VERSION);
+        tag.putInt("AwardedPoints", awardedPoints);
         tag.putLong("Experience", experience);
         tag.putLong("ExperienceAtLevelStart", experienceAtLevelStart);
         tag.putLong("ExperienceAtMaxLevel", experienceAtMaxLevel);
@@ -433,6 +446,17 @@ public final class PlayerSkillData {
                 int value = learned.getInt(id);
                 if (ModSkills.find(id).isPresent() && value > 0) levels.put(id, value);
             }
+        }
+        int spent = 0;
+        for (var entry : levels.entrySet()) {
+            SkillDefinition def = ModSkills.find(entry.getKey()).orElseThrow();
+            for (int i = 1; i <= entry.getValue(); i++) spent += def.costAt(i);
+        }
+        awardedPoints = Math.max(skillPoints + spent, tag.getInt("AwardedPoints"));
+        if (tag.getInt("ProgressionVersion") < PROGRESSION_VERSION) {
+            if (level < 40) experience = experience * 4;
+            else experience = 0;
+            experienceAtMaxLevel = 0;
         }
         activeLoadout.clear();
         passiveLoadout.clear();
