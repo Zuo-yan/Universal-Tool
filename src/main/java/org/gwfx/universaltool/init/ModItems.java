@@ -19,6 +19,17 @@ public class ModItems {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(UniversalToolMod.MODID);
 
     // 基础万能工具
+    // 技能投掷与模型物品
+    public static final DeferredItem<Item> LIGHTNING_SPEAR = ITEMS.register("lightning_spear",
+            () -> new Item(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
+
+    /**
+     * Render-only item used by the Counter Guard client effect.
+     * It is hidden from creative tabs and never appears in player inventories.
+     */
+    public static final DeferredItem<Item> COUNTER_GUARD_SHIELD = ITEMS.register("counter_guard_shield",
+            () -> new Item(new Item.Properties().stacksTo(1)));
+
     public static final DeferredItem<UniversalToolItem> WOODEN_UNIVERSAL_TOOL = ITEMS.register("wooden_universal_tool",
             () -> new UniversalToolItem(Tiers.WOOD, UniversalToolItem.properties(Tiers.WOOD, 88, 6.0F, -3.1F)));
 

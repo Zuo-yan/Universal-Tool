@@ -1,0 +1,12 @@
+{
+  "skill.lightning_spear_throw": {
+    "category": "player",
+    "subtitle": "subtitles.universal_tool.skill.lightning_spear_throw",
+    "sounds": [
+      {
+        "name": "universal_tool:skill/lightning_spear_throw",
+        "stream": false
+      }
+    ]
+  }
+}

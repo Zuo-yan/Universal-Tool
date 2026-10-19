@@ -1,0 +1,8 @@
+{
+  "credit": "Counter Guard shield render proxy",
+  "parent": "builtin/entity",
+  "textures": {
+    "0": "universal_tool:item/counter_guard_shield",
+    "particle": "universal_tool:item/counter_guard_shield"
+  }
+}

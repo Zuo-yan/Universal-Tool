@@ -63,6 +63,12 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
             systemProperty 'universal_tool.islandTests', 'true'
         }
+        islandGameTestUnlocked {
+            type = 'gameTestServer'
+            gameDirectory = project.layout.buildDirectory.dir('island-gametest-unlocked-2')
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            systemProperty 'universal_tool.islandTests', 'true'
+        }
         client {
             client()
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
@@ -82,8 +88,9 @@ neoForge {
 }
 
 dependencies {
-    // Compile the optional JEI integration without making JEI a runtime requirement.
+    // Compile the optional integration and include JEI in development runs.
     compileOnly "curse.maven:jei-238222:8964989"
+    runtimeOnly "curse.maven:jei-238222:8964989"
 }
 
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {

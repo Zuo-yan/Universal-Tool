@@ -7,7 +7,7 @@ import org.gwfx.universaltool.UniversalToolMod;
 public final class ModPacketHandler {
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("3");
+        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("8");
 
         // 客户端发往服务端
         registrar.playToServer(SaveWaypointPayload.TYPE, SaveWaypointPayload.STREAM_CODEC, SaveWaypointPayload::handle);
@@ -18,6 +18,19 @@ public final class ModPacketHandler {
                 PersonalSpaceActionPayload::handle);
         registrar.playToServer(PersonalDimensionReadyPayload.TYPE, PersonalDimensionReadyPayload.STREAM_CODEC,
                 PersonalDimensionReadyPayload::handle);
+        registrar.playToServer(SkillActionPayload.TYPE, SkillActionPayload.STREAM_CODEC, SkillActionPayload::handle);
+        registrar.playToServer(SelectActiveSkillPayload.TYPE, SelectActiveSkillPayload.STREAM_CODEC,
+                SelectActiveSkillPayload::handle);
+        registrar.playToServer(CastActiveSkillPayload.TYPE, CastActiveSkillPayload.STREAM_CODEC,
+                CastActiveSkillPayload::handle);
+        registrar.playToServer(CancelChargePayload.TYPE, CancelChargePayload.STREAM_CODEC,
+                CancelChargePayload::handle);
+        registrar.playToServer(RequestSkillScreenPayload.TYPE, RequestSkillScreenPayload.STREAM_CODEC,
+                RequestSkillScreenPayload::handle);
+
+        registrar.playToClient(OreSightPayload.TYPE, OreSightPayload.STREAM_CODEC, OreSightPayload::handle);
+        registrar.playToClient(CounterGuardEffectPayload.TYPE, CounterGuardEffectPayload.STREAM_CODEC,
+                CounterGuardEffectPayload::handle);
 
         // 服务端发往客户端
         registrar.playToClient(SyncWaypointsPayload.TYPE, SyncWaypointsPayload.STREAM_CODEC, SyncWaypointsPayload::handle);
@@ -28,5 +41,9 @@ public final class ModPacketHandler {
                 PersonalSpaceResultPayload::handle);
         registrar.playToClient(PersonalDimensionSyncPayload.TYPE, PersonalDimensionSyncPayload.STREAM_CODEC,
                 PersonalDimensionSyncPayload::handle);
+        registrar.playToClient(SyncSkillDataPayload.TYPE, SyncSkillDataPayload.STREAM_CODEC,
+                SyncSkillDataPayload::handle);
+        registrar.playToClient(OpenSkillScreenPayload.TYPE, OpenSkillScreenPayload.STREAM_CODEC,
+                OpenSkillScreenPayload::handle);
     }
 }

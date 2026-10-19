@@ -36,6 +36,7 @@ public class ModCreativeTabs {
                         output.accept(ModItems.NUTRIENT_SOLUTION.get());
                         output.accept(ModItems.OPERATION_PHOENIX_POD.get());
                         output.accept(ModItems.PERSONAL_SPACE_GATE.get());
+                        output.accept(ModItems.LIGHTNING_SPEAR.get());
                     })
                     .build());
 }
