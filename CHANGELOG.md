@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.4 - 2026-10-20
+
+- Hid the internal Lightning Spear model item from the creative inventory; skill projectile rendering remains available.
+
 ## 1.2.3 - 2026-10-19
 
 - Added Diamond Bulwark and Damage Clamp passives, with equipment-aware armor and final-hit damage limits.
