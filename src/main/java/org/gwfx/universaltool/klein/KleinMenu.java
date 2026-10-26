@@ -18,6 +18,9 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.init.ModMenuTypes;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.fml.ModList;
 
 public final class KleinMenu extends AbstractContainerMenu {
     public static final int GRID_X = 8, GRID_Y = 42, PLAYER_X = 9, PLAYER_Y = 134, HOTBAR_Y = 193;
@@ -32,7 +35,9 @@ public final class KleinMenu extends AbstractContainerMenu {
     private final Map<Long, KleinEntryData> clientEntries = new LinkedHashMap<>();
     private final List<KleinEntryData> filtered = new ArrayList<>();
     private String query = "";
-    private boolean quantitySort = true, descending = true;
+    public static final int SORT_QUANTITY = 0, SORT_NAME = 1, SORT_MOD = 2;
+    private int sortMode = SORT_QUANTITY;
+    private boolean descending = true;
     private int scroll;
 
     public KleinMenu(int id, Inventory inventory, FriendlyByteBuf extra) {
@@ -103,6 +108,26 @@ public final class KleinMenu extends AbstractContainerMenu {
             if (amount.signum() > 0) {
                 carried.shrink(amount.intValue());
                 setCarried(carried);
+                savedData.changed();
+            }
+        } else if (action.operation() == KleinActionPayload.DEPOSIT_MATCHING) {
+            boolean anyChanged = false;
+            for (int i = 0; i < slots.size(); i++) {
+                Slot slot = slots.get(i);
+                if (slot.container == inventory && slot.getContainerSlot() != lockedInventorySlot && slot.hasItem()) {
+                    ItemStack item = slot.getItem();
+                    if (!(item.getItem() instanceof KleinBottleItem) && warehouse.containsType(item)) {
+                        BigInteger accepted = warehouse.insert(item, BigInteger.valueOf(item.getCount()));
+                        int count = accepted.intValue();
+                        if (count > 0) {
+                            slot.remove(count);
+                            slot.setChanged();
+                            anyChanged = true;
+                        }
+                    }
+                }
+            }
+            if (anyChanged) {
                 savedData.changed();
             }
         } else if (action.operation() == KleinActionPayload.EXTRACT_INVENTORY) {
@@ -208,21 +233,57 @@ public final class KleinMenu extends AbstractContainerMenu {
         refilter();
     }
 
-    public void setView(String query, boolean quantitySort, boolean descending) {
+    public void setView(String query, int sortMode, boolean descending) {
         this.query = query.length() > 64 ? query.substring(0, 64) : query;
-        this.quantitySort = quantitySort;
+        this.sortMode = sortMode;
         this.descending = descending;
         scroll = 0;
         refilter();
     }
 
+    public void setView(String query, boolean quantitySort, boolean descending) {
+        setView(query, quantitySort ? SORT_QUANTITY : SORT_NAME, descending);
+    }
+
     private void refilter() {
-        String needle = query.toLowerCase(Locale.ROOT);
+        String raw = query.trim();
         filtered.clear();
-        clientEntries.values().stream().filter(entry -> entry.template().getHoverName().getString().toLowerCase(Locale.ROOT).contains(needle)
-                || entry.template().getItem().toString().toLowerCase(Locale.ROOT).contains(needle)).forEach(filtered::add);
-        Comparator<KleinEntryData> comparator = quantitySort ? Comparator.comparing(KleinEntryData::amount)
-                : Comparator.comparing(entry -> entry.template().getHoverName().getString(), String.CASE_INSENSITIVE_ORDER);
+
+        if (raw.startsWith("@")) {
+            String modQuery = raw.substring(1).trim().toLowerCase(Locale.ROOT);
+            clientEntries.values().stream().filter(entry -> {
+                ResourceLocation key = BuiltInRegistries.ITEM.getKey(entry.template().getItem());
+                if (key.getNamespace().toLowerCase(Locale.ROOT).contains(modQuery)) return true;
+                return ModList.get().getModContainerById(key.getNamespace())
+                        .map(c -> c.getModInfo().getDisplayName().toLowerCase(Locale.ROOT).contains(modQuery))
+                        .orElse(false);
+            }).forEach(filtered::add);
+        } else if (raw.startsWith("#")) {
+            String tagQuery = raw.substring(1).trim().toLowerCase(Locale.ROOT);
+            clientEntries.values().stream().filter(entry ->
+                entry.template().getTags().anyMatch(tag ->
+                    tag.location().getPath().toLowerCase(Locale.ROOT).contains(tagQuery)
+                    || tag.location().toString().toLowerCase(Locale.ROOT).contains(tagQuery)
+                )
+            ).forEach(filtered::add);
+        } else {
+            String needle = raw.toLowerCase(Locale.ROOT);
+            clientEntries.values().stream().filter(entry ->
+                needle.isEmpty()
+                || entry.template().getHoverName().getString().toLowerCase(Locale.ROOT).contains(needle)
+                || BuiltInRegistries.ITEM.getKey(entry.template().getItem()).toString().toLowerCase(Locale.ROOT).contains(needle)
+            ).forEach(filtered::add);
+        }
+
+        Comparator<KleinEntryData> comparator;
+        if (sortMode == SORT_MOD) {
+            comparator = Comparator.comparing(entry -> BuiltInRegistries.ITEM.getKey(entry.template().getItem()).getNamespace(), String.CASE_INSENSITIVE_ORDER);
+            comparator = comparator.thenComparing(entry -> entry.template().getHoverName().getString(), String.CASE_INSENSITIVE_ORDER);
+        } else if (sortMode == SORT_NAME) {
+            comparator = Comparator.comparing(entry -> entry.template().getHoverName().getString(), String.CASE_INSENSITIVE_ORDER);
+        } else {
+            comparator = Comparator.comparing(KleinEntryData::amount);
+        }
         comparator = comparator.thenComparing(KleinEntryData::id);
         filtered.sort(descending ? comparator.reversed() : comparator);
     }
@@ -230,7 +291,8 @@ public final class KleinMenu extends AbstractContainerMenu {
     public List<KleinEntryData> filtered() { return filtered; }
     public int scroll() { return scroll; }
     public void scroll(int value) { scroll = Math.max(0, Math.min(value, Math.max(0, (filtered.size() + 8) / 9 - 4))); }
-    public boolean quantitySort() { return quantitySort; }
+    public int sortMode() { return sortMode; }
+    public boolean quantitySort() { return sortMode == SORT_QUANTITY; }
     public boolean descending() { return descending; }
     public int lockedInventorySlot() { return lockedInventorySlot; }
 

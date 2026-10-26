@@ -81,6 +81,25 @@ public final class KleinGameTests {
         helper.assertTrue(warehouse.entries().stream().anyMatch(e -> e.template().is(Items.EMERALD) && e.amount().intValue() == 64),
                 "Warehouse restored after insert");
 
+        // Action payload: quick deposit matching inventory items
+        player.getInventory().setItem(2, new ItemStack(Items.EMERALD, 32));
+        player.getInventory().setItem(3, new ItemStack(Items.DIAMOND, 16));
+        menu.handleAction(new KleinActionPayload(-1, KleinActionPayload.DEPOSIT_MATCHING, -1, 2));
+        helper.assertTrue(player.getInventory().getItem(2).isEmpty(), "Matching emeralds deposited from inventory");
+        helper.assertTrue(player.getInventory().getItem(3).getCount() == 16, "Non-matching diamonds kept in inventory");
+        helper.assertTrue(warehouse.entries().stream().filter(e -> e.template().is(Items.EMERALD)).findFirst().orElseThrow().amount().intValue() == 96, "Warehouse holds 64 + 32 = 96 emeralds");
+
+        // Client search filtering tests (@mod prefix and sorting)
+        menu.applySync(new KleinSyncPayload(java.util.List.of(
+                new KleinEntryData(emeraldId, new ItemStack(Items.EMERALD), BigInteger.valueOf(96)),
+                new KleinEntryData(2L, new ItemStack(Items.DIAMOND), BigInteger.valueOf(10))), true));
+        menu.setView("@minecraft", KleinMenu.SORT_QUANTITY, true);
+        helper.assertTrue(menu.filtered().size() == 2, "@minecraft prefix matches all vanilla entries");
+        menu.setView("@universal_tool", KleinMenu.SORT_QUANTITY, true);
+        helper.assertTrue(menu.filtered().isEmpty(), "@universal_tool matches nothing in this sample");
+        menu.setView("", KleinMenu.SORT_NAME, false);
+        helper.assertTrue(menu.filtered().size() == 2, "Empty query matches all");
+
         helper.succeed();
     }
 

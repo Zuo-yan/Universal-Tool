@@ -283,5 +283,8 @@
   "gui.universal_tool.klein.types": "物品种类：%s / ∞",
   "gui.universal_tool.klein.total": "完整数量：%s",
   "gui.universal_tool.klein.hint": "Shift 快速存取 · 滚轮 单件转移",
-  "gui.universal_tool.klein.inventory": "背包"
+  "gui.universal_tool.klein.inventory": "背包",
+  "gui.universal_tool.klein.sort_mod": "模组",
+  "gui.universal_tool.klein.quick_deposit": "一键存入背包匹配物品",
+  "gui.universal_tool.klein.clear_search": "清空搜索"
 }

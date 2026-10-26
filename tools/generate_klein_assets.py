@@ -136,6 +136,22 @@ def generate_klein_terminal_gui(output_path: Path):
     for c in range(9):
         draw_slot(8 + c * 18, 192)
 
+    # Right Action Buttons next to inventory (x=172..186):
+    # 1. Quick Deposit Button (172, 134, 185, 147)
+    draw.rectangle((172, 134, 185, 147), fill=(12, 26, 32, 255), outline=(184, 155, 92, 255))
+    draw.line((175, 137, 182, 137), fill=(112, 219, 230, 255))
+    draw.line((178, 138, 178, 143), fill=(112, 219, 230, 255))
+    draw.line((176, 141, 180, 141), fill=(112, 219, 230, 255))
+    im.putpixel((178, 144), (180, 255, 255, 255))
+    im.putpixel((177, 143), (112, 219, 230, 255))
+    im.putpixel((179, 143), (112, 219, 230, 255))
+
+    # 2. Clear Search Button (172, 152, 185, 165)
+    draw.rectangle((172, 152, 185, 165), fill=(12, 26, 32, 255), outline=(90, 70, 35, 255))
+    for d in range(0, 5):
+        im.putpixel((176 + d, 156 + d), (196, 95, 87, 255))
+        im.putpixel((176 + d, 160 - d), (196, 95, 87, 255))
+
     # 7. Atlas elements (x >= 200)
     # Lock frame (200, 0, 18x18)
     draw.rectangle((200, 0, 217, 17), outline=(222, 185, 122, 255))
@@ -153,10 +169,16 @@ def generate_klein_terminal_gui(output_path: Path):
     im.putpixel((200, 41), (200, 255, 255, 255))
     im.putpixel((217, 41), (200, 255, 255, 255))
 
-    # Scrollbar thumb (200, 48, 6x24)
-    for y in range(48, 48 + 24):
+    # Scrollbar thumb (200, 48, 6x72) - Full track coverage
+    for y in range(48, 48 + 72):
         for x in range(200, 206):
-            im.putpixel((x, y), (112, 219, 230, 255) if x in (201, 202, 203, 204) else (42, 115, 127, 255))
+            if y in (48, 48 + 71):
+                col = (180, 255, 255, 255) if x in (202, 203) else (42, 115, 127, 255)
+            elif x in (201, 202, 203, 204):
+                col = (112, 219, 230, 255)
+            else:
+                col = (42, 115, 127, 255)
+            im.putpixel((x, y), col)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     im.save(output_path)

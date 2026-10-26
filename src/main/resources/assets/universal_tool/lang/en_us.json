@@ -283,5 +283,8 @@
   "gui.universal_tool.klein.types": "Item types: %s / ∞",
   "gui.universal_tool.klein.total": "Exact amount: %s",
   "gui.universal_tool.klein.hint": "Shift: quick transfer · Wheel: single item",
-  "gui.universal_tool.klein.inventory": "Inventory"
+  "gui.universal_tool.klein.inventory": "Inventory",
+  "gui.universal_tool.klein.sort_mod": "Mod",
+  "gui.universal_tool.klein.quick_deposit": "Quick Deposit Matching Items",
+  "gui.universal_tool.klein.clear_search": "Clear Search"
 }

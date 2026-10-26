@@ -89,6 +89,12 @@ public final class KleinWarehouse {
         return result;
     }
 
+    public boolean containsType(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        ItemKey key = ItemKey.of(stack);
+        return stackableTypes.containsKey(key) || singleTypes.containsKey(key);
+    }
+
     public boolean containsBottle() {
         return entries.values().stream().anyMatch(entry -> entry.template.getItem() instanceof KleinBottleItem);
     }

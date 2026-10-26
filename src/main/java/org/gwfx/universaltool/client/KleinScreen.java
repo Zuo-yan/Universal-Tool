@@ -11,6 +11,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.klein.KleinActionPayload;
 import org.gwfx.universaltool.klein.KleinEntryData;
 import org.gwfx.universaltool.klein.KleinMenu;
 
@@ -21,6 +22,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private EditBox search;
     private KleinEntryData hovered;
     private boolean isDraggingScrollbar = false;
+    private int actionSequence = 0;
 
     public KleinScreen(KleinMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -35,7 +37,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         search.setBordered(false);
         search.setTextColor(TEXT);
         search.setHint(Component.translatable("gui.universal_tool.klein.search"));
-        search.setResponder(value -> menu.setView(value, menu.quantitySort(), menu.descending()));
+        search.setResponder(value -> menu.setView(value, menu.sortMode(), menu.descending()));
         addRenderableWidget(search);
     }
 
@@ -56,8 +58,12 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             g.fill(x + 178, y + 6, x + 188, y + 16, 0x60FF4040);
         }
 
-        // 4. Sort buttons (Quantity/Name toggle at 120..158, Direction toggle at 162..184)
-        String modeLabel = menu.quantitySort() ? "数量" : "名称";
+        // 4. Sort buttons (3-mode toggle at 120..158, Direction toggle at 162..184)
+        String modeLabel = switch (menu.sortMode()) {
+            case KleinMenu.SORT_NAME -> Component.translatable("gui.universal_tool.klein.name").getString();
+            case KleinMenu.SORT_MOD -> Component.translatable("gui.universal_tool.klein.sort_mod").getString();
+            default -> Component.translatable("gui.universal_tool.klein.quantity").getString();
+        };
         g.drawCenteredString(font, Component.literal(modeLabel), x + 139, y + 22, CYAN);
         border(g, x + 120, y + 19, 38, 14, CYAN);
 
@@ -68,7 +74,17 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         // 5. Inventory Section Label
         g.drawString(font, Component.literal("✧ ").append(Component.translatable("gui.universal_tool.klein.inventory")).append(" ✧"), x + 8, y + 122, BRASS, false);
 
-        // 6. Virtual Warehouse Grid: 9 columns x 4 rows = 36 slots at y=42..114
+        // 6. Right Action Buttons hover outline
+        boolean depositHover = mouseX >= x + 172 && mouseX < x + 186 && mouseY >= y + 134 && mouseY < y + 148;
+        if (depositHover) {
+            border(g, x + 172, y + 134, 14, 14, CYAN);
+        }
+        boolean clearHover = mouseX >= x + 172 && mouseX < x + 186 && mouseY >= y + 152 && mouseY < y + 166;
+        if (clearHover) {
+            border(g, x + 172, y + 152, 14, 14, 0xFFFF6060);
+        }
+
+        // 7. Virtual Warehouse Grid: 9 columns x 4 rows = 36 slots at y=42..114
         hovered = null;
         int start = menu.scroll() * 9;
         for (int cell = 0; cell < 36; cell++) {
@@ -87,15 +103,24 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             }
         }
 
-        // 7. Dynamic Scrollbar Thumb (track height=72)
+        // 8. Smart Scrollbar Thumb (track height=72)
         int trackY = y + KleinMenu.GRID_Y;
         int totalRows = Math.max(1, (menu.filtered().size() + 8) / 9);
-        int maxScroll = Math.max(1, totalRows - 4);
-        int thumbHeight = Math.max(14, 72 * 4 / totalRows);
-        int thumbY = trackY + (72 - thumbHeight) * menu.scroll() / maxScroll;
+        int maxScroll = Math.max(0, totalRows - 4);
+        int thumbHeight;
+        int thumbY;
+        if (maxScroll == 0) {
+            // Cannot scroll: full solid bar filling the entire track
+            thumbHeight = 72;
+            thumbY = trackY;
+        } else {
+            // Can scroll: shrink proportionally
+            thumbHeight = Math.max(14, Math.min(72, (int) Math.round((4.0 / totalRows) * 72)));
+            thumbY = trackY + (72 - thumbHeight) * menu.scroll() / maxScroll;
+        }
         g.blit(GUI_TEXTURE, x + 176, thumbY, 200, 48, 6, thumbHeight, 512, 512);
 
-        // 8. Locked bottle slot highlight & padlock badge from atlas
+        // 9. Locked bottle slot highlight & padlock badge from atlas
         for (int i = 0; i < menu.slots.size(); i++) {
             var slot = menu.slots.get(i);
             boolean isLocked = slot.container == menu.getSlot(0).container && slot.getContainerSlot() == menu.lockedInventorySlot();
@@ -113,6 +138,12 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         if (hovered != null) {
             g.renderTooltip(font, List.of(hovered.template().getHoverName(),
                     Component.translatable("gui.universal_tool.klein.total", hovered.amount().toString())), hovered.template().getTooltipImage(), mouseX, mouseY);
+        } else if (mouseX >= leftPos + 172 && mouseX < leftPos + 186) {
+            if (mouseY >= topPos + 134 && mouseY < topPos + 148) {
+                g.renderTooltip(font, Component.translatable("gui.universal_tool.klein.quick_deposit"), mouseX, mouseY);
+            } else if (mouseY >= topPos + 152 && mouseY < topPos + 166) {
+                g.renderTooltip(font, Component.translatable("gui.universal_tool.klein.clear_search"), mouseX, mouseY);
+            }
         }
     }
 
@@ -122,6 +153,25 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         // Close button
         if (button == 0 && mouseX >= leftPos + 178 && mouseX < leftPos + 189 && mouseY >= topPos + 6 && mouseY < topPos + 17) {
             onClose();
+            return true;
+        }
+
+        // Right-click inside search box to quickly clear search
+        if (button == 1 && mouseX >= leftPos + 8 && mouseX < leftPos + 116 && mouseY >= topPos + 19 && mouseY < topPos + 33) {
+            search.setValue("");
+            return true;
+        }
+
+        // Quick Deposit button
+        if (button == 0 && mouseX >= leftPos + 172 && mouseX < leftPos + 186 && mouseY >= topPos + 134 && mouseY < topPos + 148) {
+            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                    new KleinActionPayload(-1, KleinActionPayload.DEPOSIT_MATCHING, -1, ++actionSequence));
+            return true;
+        }
+
+        // Clear Search button
+        if (button == 0 && mouseX >= leftPos + 172 && mouseX < leftPos + 186 && mouseY >= topPos + 152 && mouseY < topPos + 166) {
+            search.setValue("");
             return true;
         }
 
@@ -141,14 +191,15 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             return true;
         }
 
-        // Sort buttons
+        // Sort buttons (3-mode toggle and direction toggle)
         if (button == 0 && mouseY >= topPos + 19 && mouseY < topPos + 33) {
             if (mouseX >= leftPos + 120 && mouseX < leftPos + 158) {
-                menu.setView(search.getValue(), !menu.quantitySort(), menu.descending());
+                int nextMode = (menu.sortMode() + 1) % 3;
+                menu.setView(search.getValue(), nextMode, menu.descending());
                 return true;
             }
             if (mouseX >= leftPos + 162 && mouseX < leftPos + 184) {
-                menu.setView(search.getValue(), menu.quantitySort(), !menu.descending());
+                menu.setView(search.getValue(), menu.sortMode(), !menu.descending());
                 return true;
             }
         }
