@@ -20,7 +20,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.init.ModMenuTypes;
 
 public final class KleinMenu extends AbstractContainerMenu {
-    public static final int GRID_X = 9, GRID_Y = 50, PLAYER_X = 49, PLAYER_Y = 172, HOTBAR_Y = 230;
+    public static final int GRID_X = 9, GRID_Y = 60, PLAYER_X = 50, PLAYER_Y = 189, HOTBAR_Y = 247;
     private final Inventory inventory;
     private final InteractionHand hand;
     private final int lockedInventorySlot;

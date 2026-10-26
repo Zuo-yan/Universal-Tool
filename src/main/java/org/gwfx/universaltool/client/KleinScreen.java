@@ -25,12 +25,12 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     public KleinScreen(KleinMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
         imageWidth = 260;
-        imageHeight = 264;
+        imageHeight = 286;
     }
 
     @Override protected void init() {
         super.init();
-        search = new EditBox(font, leftPos + 23, topPos + 26, 138, 14, Component.empty());
+        search = new EditBox(font, leftPos + 26, topPos + 26, 134, 12, Component.empty());
         search.setMaxLength(64);
         search.setBordered(false);
         search.setTextColor(TEXT);
@@ -42,32 +42,25 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     @Override protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         int x = leftPos, y = topPos;
 
-        // Render the full authentic GUI texture sheet:
+        // 1. Render base GUI texture
         g.blit(GUI_TEXTURE, x, y, 0, 0, imageWidth, imageHeight, 512, 512);
 
-        // Dynamic Header Title & Badge
-        g.drawString(font, Component.translatable("item.universal_tool.klein_bottle"), x + 28, y + 10, TEXT, false);
-        g.drawString(font, Component.literal("| ").append(Component.translatable("gui.universal_tool.klein.private")), x + 76, y + 10, 0xFF7D9DA8, false);
+        // 2. Header Title & Badge
+        g.drawString(font, Component.translatable("item.universal_tool.klein_bottle"), x + 28, y + 9, TEXT, false);
+        g.drawString(font, Component.literal("| ").append(Component.translatable("gui.universal_tool.klein.private")), x + 76, y + 9, 0xFF7D9DA8, false);
 
-        // Dynamic Section Headers
-        g.drawString(font, Component.literal("✧ ").append(Component.translatable("gui.universal_tool.klein.infinite")).append(" ✧"), x + 12, y + 36, BRASS, false);
-        g.drawString(font, Component.literal("✧ ").append(Component.translatable("gui.universal_tool.klein.inventory")).append(" ✧"), x + 12, y + 160, BRASS, false);
-
-        // Dynamic Footer Hint
-        String hint = Component.translatable("gui.universal_tool.klein.hint").getString();
-        g.drawString(font, hint, x + imageWidth - font.width(hint) - 14, y + 252, 0xFF6A868E, false);
-
-        // Dynamic close button hover:
+        // 3. Close button hover effect
         boolean closeHover = mouseX >= x + 241 && mouseX < x + 255 && mouseY >= y + 5 && mouseY < y + 19;
         if (closeHover) {
             g.fill(x + 242, y + 6, x + 254, y + 18, 0x60FF4040);
         }
 
-        // Dynamic Subheader item types counter:
+        // 4. Upper Section Divider Text: "✧ 无限仓储 ✧" and "物品类型: %s / ∞"
+        g.drawString(font, Component.literal("✧ ").append(Component.translatable("gui.universal_tool.klein.infinite")).append(" ✧"), x + 10, y + 45, BRASS, false);
         String typesStr = Component.translatable("gui.universal_tool.klein.types", menu.filtered().size()).getString();
-        g.drawString(font, typesStr, x + imageWidth - font.width(typesStr) - 18, y + 38, BRASS, false);
+        g.drawString(font, typesStr, x + imageWidth - font.width(typesStr) - 16, y + 45, BRASS, false);
 
-        // Dynamic Sort button labels & active highlights:
+        // 5. Sort button labels & active border highlights
         boolean nameActive = !menu.quantitySort();
         boolean qtyActive = menu.quantitySort();
         int nameColor = nameActive ? CYAN : TEXT;
@@ -83,7 +76,10 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             border(g, x + 200, y + 24, 38, 16, CYAN);
         }
 
-        // Virtual Grid: 13 columns x 6 rows = 78 slots
+        // 6. Lower Section Divider Text: "✧ 背包 ✧"
+        g.drawString(font, Component.literal("✧ ").append(Component.translatable("gui.universal_tool.klein.inventory")).append(" ✧"), x + 10, y + 172, BRASS, false);
+
+        // 7. Virtual Warehouse Grid: 13 columns x 6 rows = 78 slots at y=60..168
         hovered = null;
         int start = menu.scroll() * 13;
         for (int cell = 0; cell < 78; cell++) {
@@ -94,18 +90,15 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             if (index >= menu.filtered().size()) continue;
             KleinEntryData entry = menu.filtered().get(index);
             g.renderItem(entry.template(), sx + 1, sy + 1);
-            String count = compact(entry.amount());
-            int width = font.width(count);
-            g.fill(sx + 18 - width - 1, sy + 9, sx + 18, sy + 18, 0xD00B151A);
-            g.drawString(font, count, sx + 18 - width, sy + 9, 0xFFFFFFFF, false);
+            g.renderItemDecorations(font, entry.template(), sx + 1, sy + 1, compact(entry.amount()));
             if (isHovered) {
                 hovered = entry;
-                // Draw cyan glowing hover outline from texture sheet:
+                // Cyan glowing hover outline from texture sheet:
                 g.blit(GUI_TEXTURE, sx, sy, 280, 24, 18, 18, 512, 512);
             }
         }
 
-        // Dynamic Scrollbar Thumb
+        // 8. Dynamic Scrollbar Thumb
         int trackY = y + KleinMenu.GRID_Y;
         int totalRows = Math.max(1, (menu.filtered().size() + 12) / 13);
         int maxScroll = Math.max(1, totalRows - 6);
@@ -113,16 +106,20 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         int thumbY = trackY + (108 - thumbHeight) * menu.scroll() / maxScroll;
         g.blit(GUI_TEXTURE, x + 246, thumbY, 280, 48, 4, thumbHeight, 512, 512);
 
-        // Locked bottle slot highlight & padlock badge
+        // 9. Locked bottle slot highlight & padlock badge
         for (int i = 0; i < menu.slots.size(); i++) {
             var slot = menu.slots.get(i);
             boolean isLocked = slot.container == menu.getSlot(0).container && slot.getContainerSlot() == menu.lockedInventorySlot();
             if (isLocked) {
                 int sx = x + slot.x - 1, sy = y + slot.y - 1;
                 g.blit(GUI_TEXTURE, sx, sy, 280, 0, 18, 18, 512, 512);
-                g.blit(GUI_TEXTURE, sx + 9, sy + 9, 304, 0, 9, 9, 512, 512);
+                g.blit(GUI_TEXTURE, sx + 9, sy + 9, 304, 0, 9, 10, 512, 512);
             }
         }
+
+        // 10. Footer Hint Text
+        String hint = Component.translatable("gui.universal_tool.klein.hint").getString();
+        g.drawString(font, hint, x + (imageWidth - font.width(hint)) / 2, y + 271, 0xFF6A868E, false);
     }
 
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
@@ -219,7 +216,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private static void border(GuiGraphics g, int x, int y, int w, int h, int color) {
         g.fill(x, y, x + w, y + 1, color);
         g.fill(x, y + h - 1, x + w, y + h, color);
-        g.fill(x, y, x + 1, y + h, color);
+        g.fill(x, y + 1, x + 1, y + h, color);
         g.fill(x + w - 1, y, x + w, y + h, color);
     }
 }
