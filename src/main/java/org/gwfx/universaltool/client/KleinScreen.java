@@ -24,13 +24,13 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
 
     public KleinScreen(KleinMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        imageWidth = 260;
-        imageHeight = 286;
+        imageWidth = 194;
+        imageHeight = 216;
     }
 
     @Override protected void init() {
         super.init();
-        search = new EditBox(font, leftPos + 26, topPos + 26, 134, 12, Component.empty());
+        search = new EditBox(font, leftPos + 22, topPos + 20, 92, 12, Component.empty());
         search.setMaxLength(64);
         search.setBordered(false);
         search.setTextColor(TEXT);
@@ -42,48 +42,37 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     @Override protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         int x = leftPos, y = topPos;
 
-        // 1. Render base GUI texture
+        // 1. Base GUI Texture (194x216)
         g.blit(GUI_TEXTURE, x, y, 0, 0, imageWidth, imageHeight, 512, 512);
 
-        // 2. Header Title & Badge
-        g.drawString(font, Component.translatable("item.universal_tool.klein_bottle"), x + 28, y + 9, TEXT, false);
-        g.drawString(font, Component.literal("| ").append(Component.translatable("gui.universal_tool.klein.private")), x + 76, y + 9, 0xFF7D9DA8, false);
+        // 2. Compact Header: Title & Count Badge
+        g.drawString(font, Component.translatable("item.universal_tool.klein_bottle"), x + 22, y + 7, TEXT, false);
+        String countBadge = menu.filtered().size() + " / ∞";
+        g.drawString(font, countBadge, x + 172 - font.width(countBadge), y + 7, BRASS, false);
 
         // 3. Close button hover effect
-        boolean closeHover = mouseX >= x + 241 && mouseX < x + 255 && mouseY >= y + 5 && mouseY < y + 19;
+        boolean closeHover = mouseX >= x + 178 && mouseX < x + 189 && mouseY >= y + 6 && mouseY < y + 17;
         if (closeHover) {
-            g.fill(x + 242, y + 6, x + 254, y + 18, 0x60FF4040);
+            g.fill(x + 178, y + 6, x + 188, y + 16, 0x60FF4040);
         }
 
-        // 4. Upper Section Divider Text: "✧ 无限仓储 ✧" and "物品类型: %s / ∞"
-        g.drawString(font, Component.literal("✧ ").append(Component.translatable("gui.universal_tool.klein.infinite")).append(" ✧"), x + 10, y + 45, BRASS, false);
-        String typesStr = Component.translatable("gui.universal_tool.klein.types", menu.filtered().size()).getString();
-        g.drawString(font, typesStr, x + imageWidth - font.width(typesStr) - 16, y + 45, BRASS, false);
+        // 4. Sort buttons (Quantity/Name toggle at 120..158, Direction toggle at 162..184)
+        String modeLabel = menu.quantitySort() ? "数量" : "名称";
+        g.drawCenteredString(font, Component.literal(modeLabel), x + 139, y + 22, CYAN);
+        border(g, x + 120, y + 19, 38, 14, CYAN);
 
-        // 5. Sort button labels & active border highlights
-        boolean nameActive = !menu.quantitySort();
-        boolean qtyActive = menu.quantitySort();
-        int nameColor = nameActive ? CYAN : TEXT;
-        int qtyColor = qtyActive ? CYAN : TEXT;
-        g.drawCenteredString(font, Component.translatable("gui.universal_tool.klein.name"), x + 182, y + 28, nameColor);
-        String qtyLabel = qtyActive ? (menu.descending() ? "数量▼" : "数量▲") : "数量";
-        g.drawCenteredString(font, Component.literal(qtyLabel), x + 219, y + 28, qtyColor);
-        g.drawCenteredString(font, Component.literal(menu.descending() ? "↓" : "↑"), x + 249, y + 28, CYAN);
+        String dirLabel = menu.descending() ? "↓" : "↑";
+        g.drawCenteredString(font, Component.literal(dirLabel), x + 173, y + 22, CYAN);
+        border(g, x + 162, y + 19, 22, 14, menu.descending() ? CYAN : BRASS);
 
-        if (nameActive) {
-            border(g, x + 168, y + 24, 28, 16, CYAN);
-        } else if (qtyActive) {
-            border(g, x + 200, y + 24, 38, 16, CYAN);
-        }
+        // 5. Inventory Section Label
+        g.drawString(font, Component.literal("✧ ").append(Component.translatable("gui.universal_tool.klein.inventory")).append(" ✧"), x + 8, y + 122, BRASS, false);
 
-        // 6. Lower Section Divider Text: "✧ 背包 ✧"
-        g.drawString(font, Component.literal("✧ ").append(Component.translatable("gui.universal_tool.klein.inventory")).append(" ✧"), x + 10, y + 172, BRASS, false);
-
-        // 7. Virtual Warehouse Grid: 13 columns x 6 rows = 78 slots at y=60..168
+        // 6. Virtual Warehouse Grid: 9 columns x 4 rows = 36 slots at y=42..114
         hovered = null;
-        int start = menu.scroll() * 13;
-        for (int cell = 0; cell < 78; cell++) {
-            int col = cell % 13, row = cell / 13;
+        int start = menu.scroll() * 9;
+        for (int cell = 0; cell < 36; cell++) {
+            int col = cell % 9, row = cell / 9;
             int sx = x + KleinMenu.GRID_X + col * 18, sy = y + KleinMenu.GRID_Y + row * 18;
             boolean isHovered = mouseX >= sx && mouseX < sx + 18 && mouseY >= sy && mouseY < sy + 18;
             int index = start + cell;
@@ -93,33 +82,29 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             g.renderItemDecorations(font, entry.template(), sx + 1, sy + 1, compact(entry.amount()));
             if (isHovered) {
                 hovered = entry;
-                // Cyan glowing hover outline from texture sheet:
-                g.blit(GUI_TEXTURE, sx, sy, 280, 24, 18, 18, 512, 512);
+                // Cyan glowing hover outline from atlas (at 200, 24)
+                g.blit(GUI_TEXTURE, sx, sy, 200, 24, 18, 18, 512, 512);
             }
         }
 
-        // 8. Dynamic Scrollbar Thumb
+        // 7. Dynamic Scrollbar Thumb (track height=72)
         int trackY = y + KleinMenu.GRID_Y;
-        int totalRows = Math.max(1, (menu.filtered().size() + 12) / 13);
-        int maxScroll = Math.max(1, totalRows - 6);
-        int thumbHeight = Math.max(16, 108 * 6 / totalRows);
-        int thumbY = trackY + (108 - thumbHeight) * menu.scroll() / maxScroll;
-        g.blit(GUI_TEXTURE, x + 246, thumbY, 280, 48, 4, thumbHeight, 512, 512);
+        int totalRows = Math.max(1, (menu.filtered().size() + 8) / 9);
+        int maxScroll = Math.max(1, totalRows - 4);
+        int thumbHeight = Math.max(14, 72 * 4 / totalRows);
+        int thumbY = trackY + (72 - thumbHeight) * menu.scroll() / maxScroll;
+        g.blit(GUI_TEXTURE, x + 176, thumbY, 200, 48, 6, thumbHeight, 512, 512);
 
-        // 9. Locked bottle slot highlight & padlock badge
+        // 8. Locked bottle slot highlight & padlock badge from atlas
         for (int i = 0; i < menu.slots.size(); i++) {
             var slot = menu.slots.get(i);
             boolean isLocked = slot.container == menu.getSlot(0).container && slot.getContainerSlot() == menu.lockedInventorySlot();
             if (isLocked) {
                 int sx = x + slot.x - 1, sy = y + slot.y - 1;
-                g.blit(GUI_TEXTURE, sx, sy, 280, 0, 18, 18, 512, 512);
-                g.blit(GUI_TEXTURE, sx + 9, sy + 9, 304, 0, 9, 10, 512, 512);
+                g.blit(GUI_TEXTURE, sx, sy, 200, 0, 18, 18, 512, 512);
+                g.blit(GUI_TEXTURE, sx + 9, sy + 9, 222, 0, 9, 10, 512, 512);
             }
         }
-
-        // 10. Footer Hint Text
-        String hint = Component.translatable("gui.universal_tool.klein.hint").getString();
-        g.drawString(font, hint, x + (imageWidth - font.width(hint)) / 2, y + 271, 0xFF6A868E, false);
     }
 
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
@@ -135,33 +120,37 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
 
     @Override public boolean mouseClicked(double mouseX, double mouseY, int button) {
         // Close button
-        if (button == 0 && mouseX >= leftPos + 241 && mouseX < leftPos + 255 && mouseY >= topPos + 5 && mouseY < topPos + 19) {
+        if (button == 0 && mouseX >= leftPos + 178 && mouseX < leftPos + 189 && mouseY >= topPos + 6 && mouseY < topPos + 17) {
             onClose();
             return true;
         }
 
         // Grid slot click
         if (inGrid(mouseX, mouseY)) {
-            int index = menu.scroll() * 13 + (int) ((mouseY - topPos - KleinMenu.GRID_Y) / 18) * 13
+            int index = menu.scroll() * 9 + (int) ((mouseY - topPos - KleinMenu.GRID_Y) / 18) * 9
                     + (int) ((mouseX - leftPos - KleinMenu.GRID_X) / 18);
             menu.virtualClick(index < menu.filtered().size() ? menu.filtered().get(index) : null, button, hasShiftDown());
             return true;
         }
 
         // Scrollbar track click
-        if (button == 0 && mouseX >= leftPos + 244 && mouseX < leftPos + 252
-                && mouseY >= topPos + KleinMenu.GRID_Y && mouseY < topPos + KleinMenu.GRID_Y + 108) {
+        if (button == 0 && mouseX >= leftPos + 174 && mouseX < leftPos + 184
+                && mouseY >= topPos + KleinMenu.GRID_Y && mouseY < topPos + KleinMenu.GRID_Y + 72) {
             isDraggingScrollbar = true;
             updateScrollFromMouse(mouseY);
             return true;
         }
 
         // Sort buttons
-        if (button == 0 && mouseY >= topPos + 24 && mouseY < topPos + 40) {
-            if (mouseX >= leftPos + 168 && mouseX < leftPos + 196) menu.setView(search.getValue(), false, menu.descending());
-            else if (mouseX >= leftPos + 200 && mouseX < leftPos + 238) menu.setView(search.getValue(), true, menu.descending());
-            else if (mouseX >= leftPos + 242 && mouseX < leftPos + 256) menu.setView(search.getValue(), menu.quantitySort(), !menu.descending());
-            return true;
+        if (button == 0 && mouseY >= topPos + 19 && mouseY < topPos + 33) {
+            if (mouseX >= leftPos + 120 && mouseX < leftPos + 158) {
+                menu.setView(search.getValue(), !menu.quantitySort(), menu.descending());
+                return true;
+            }
+            if (mouseX >= leftPos + 162 && mouseX < leftPos + 184) {
+                menu.setView(search.getValue(), menu.quantitySort(), !menu.descending());
+                return true;
+            }
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
@@ -181,9 +170,9 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
 
     private void updateScrollFromMouse(double mouseY) {
         int trackY = topPos + KleinMenu.GRID_Y;
-        double rel = Math.clamp((mouseY - trackY) / 108.0, 0.0, 1.0);
-        int totalRows = Math.max(1, (menu.filtered().size() + 12) / 13);
-        int maxScroll = Math.max(0, totalRows - 6);
+        double rel = Math.clamp((mouseY - trackY) / 72.0, 0.0, 1.0);
+        int totalRows = Math.max(1, (menu.filtered().size() + 8) / 9);
+        int maxScroll = Math.max(0, totalRows - 4);
         menu.scroll((int) Math.round(rel * maxScroll));
     }
 
@@ -200,8 +189,8 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     }
 
     private boolean inGrid(double x, double y) {
-        return x >= leftPos + KleinMenu.GRID_X && x < leftPos + KleinMenu.GRID_X + 13 * 18
-                && y >= topPos + KleinMenu.GRID_Y && y < topPos + KleinMenu.GRID_Y + 6 * 18;
+        return x >= leftPos + KleinMenu.GRID_X && x < leftPos + KleinMenu.GRID_X + 9 * 18
+                && y >= topPos + KleinMenu.GRID_Y && y < topPos + KleinMenu.GRID_Y + 4 * 18;
     }
 
     private static String compact(BigInteger amount) {

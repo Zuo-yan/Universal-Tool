@@ -20,7 +20,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.init.ModMenuTypes;
 
 public final class KleinMenu extends AbstractContainerMenu {
-    public static final int GRID_X = 9, GRID_Y = 60, PLAYER_X = 50, PLAYER_Y = 189, HOTBAR_Y = 247;
+    public static final int GRID_X = 8, GRID_Y = 42, PLAYER_X = 9, PLAYER_Y = 134, HOTBAR_Y = 193;
     private final Inventory inventory;
     private final InteractionHand hand;
     private final int lockedInventorySlot;
@@ -229,7 +229,7 @@ public final class KleinMenu extends AbstractContainerMenu {
 
     public List<KleinEntryData> filtered() { return filtered; }
     public int scroll() { return scroll; }
-    public void scroll(int value) { scroll = Math.max(0, Math.min(value, Math.max(0, (filtered.size() + 12) / 13 - 6))); }
+    public void scroll(int value) { scroll = Math.max(0, Math.min(value, Math.max(0, (filtered.size() + 8) / 9 - 4))); }
     public boolean quantitySort() { return quantitySort; }
     public boolean descending() { return descending; }
     public int lockedInventorySlot() { return lockedInventorySlot; }
