@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.5 - 2026-10-26
+
+- Gravity Pull radius doubled to 28/32/36 blocks and duration now scales from 5s to 11s across ranks.
+- Frozen Pull now scales freeze duration with rank: 5s at Lv.1, 6s at Lv.2, and 7s at Lv.3 (+1s per rank).
+- Scaled Lightning Spear uncharged base damage and fully-charged damage bonus by 2.5x.
+- Replaced Berserk damage resistance effect with a 20% base attack damage bonus for 10 seconds.
+- Reworked Counter Guard visuals: removed circling shield quads and internal shield item; added a translucent hexagonal aegis dome, orbiting gyro rings, and explosive parry shockwaves.
+
 ## 1.2.4 - 2026-10-20
 
 - Hid the internal Lightning Spear model item from the creative inventory; skill projectile rendering remains available.

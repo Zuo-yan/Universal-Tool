@@ -1128,8 +1128,8 @@ public class SkillScreen extends Screen {
     private static String getSkillRange(String id) {
         return switch (id) {
             case ModSkills.COUNTER_GUARD -> "自身";
-            case ModSkills.GRAVITY_WELL -> "12~18格";
-            case ModSkills.FROZEN_PULL -> "16~24格";
+            case ModSkills.GRAVITY_WELL -> "28~36格";
+            case ModSkills.FROZEN_PULL -> "20~28格";
             case ModSkills.OPPRESSIVE_FIELD -> "12~18格";
             case ModSkills.ORE_SIGHT -> "16~24格";
             case ModSkills.AIR_STEP -> "自身";

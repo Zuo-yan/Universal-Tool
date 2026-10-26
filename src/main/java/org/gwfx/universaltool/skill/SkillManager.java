@@ -156,6 +156,7 @@ public final class SkillManager {
 
     private static final Map<UUID, OreSightState> ORE_SIGHT = new ConcurrentHashMap<>();
     private static final List<GravityWellState> GRAVITY_WELLS = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private static final Map<UUID, Long> BERSERK_EXPIRES = new ConcurrentHashMap<>();
 
     private static final Map<UUID, Map<String, Long>> PLACED_BLOCKS = new ConcurrentHashMap<>();
 
@@ -658,13 +659,25 @@ public final class SkillManager {
 
     public static double gravityWellRadius(int level) {
 
-        return 12.0D + 2.0D * level;
+        return 24.0D + 4.0D * level;
 
     }
 
 
 
-    private static final int GRAVITY_WELL_DURATION_TICKS = 100;
+    public static int gravityWellDurationSeconds(int level) {
+
+        return 2 + 3 * Math.max(1, Math.min(ModSkills.MAX_SKILL_LEVEL, level));
+
+    }
+
+
+
+    public static int gravityWellDurationTicks(int level) {
+
+        return gravityWellDurationSeconds(level) * 20;
+
+    }
 
     private static final double GRAVITY_WELL_AREA = 12.0D;
 
@@ -687,11 +700,10 @@ public final class SkillManager {
         player.displayClientMessage(Component.translatable("message.universal_tool.skills.guard_ready"), true);
 
         player.serverLevel().sendParticles(ParticleTypes.ENCHANTED_HIT,
-
-                player.getX(), player.getY() + 1.0, player.getZ(), 24, 0.7, 1.0, 0.7, 0.05);
-
+                player.getX(), player.getY() + 1.0, player.getZ(), 28, 0.8, 1.0, 0.8, 0.06);
         player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
-
+                SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.85F, 1.5F);
+        player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.SHIELD_BLOCK, SoundSource.PLAYERS, 0.8F, 1.4F);
 
         return true;
@@ -714,7 +726,7 @@ public final class SkillManager {
                         net.minecraft.world.level.ClipContext.Fluid.NONE, player)).getLocation()
                 : end;
         GRAVITY_WELLS.add(new GravityWellState(level0, center, radius,
-                level0.getGameTime() + GRAVITY_WELL_DURATION_TICKS, player.getUUID()));
+                level0.getGameTime() + gravityWellDurationTicks(level), player.getUUID()));
         tickGravityWells(level0.getGameTime());
 
         level0.sendParticles(ParticleTypes.PORTAL, center.x, center.y, center.z, 160,
@@ -833,7 +845,7 @@ public final class SkillManager {
 
         target.hurtMarked = true;
 
-        freeze(player, target, level0);
+        freeze(player, target, level0, freezeDurationTicks(level));
 
         level0.sendParticles(ParticleTypes.SNOWFLAKE, destination.x, destination.y + 1.0, destination.z,
 
@@ -860,35 +872,22 @@ public final class SkillManager {
 
      */
 
-    private static void freeze(ServerPlayer owner, LivingEntity target, ServerLevel level) {
-
-        target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, FREEZE_TICKS, 255, false, true, true));
-
-        target.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, FREEZE_TICKS, 255, false, true, true));
-
-        target.addEffect(new MobEffectInstance(MobEffects.DIG_SLOWDOWN, FREEZE_TICKS, 255, false, true, true));
-
+    private static void freeze(ServerPlayer owner, LivingEntity target, ServerLevel level, int freezeTicks) {
+        target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, freezeTicks, 255, false, true, true));
+        target.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, freezeTicks, 255, false, true, true));
+        target.addEffect(new MobEffectInstance(MobEffects.DIG_SLOWDOWN, freezeTicks, 255, false, true, true));
         FrozenState existing = FROZEN.get(target.getUUID());
-
         boolean previousNoAi = false;
-
         if (target instanceof Mob mob) {
-
             previousNoAi = existing != null ? existing.previousNoAi() : mob.isNoAi();
-
             mob.setNoAi(true);
-
             mob.setTarget(null);
-
             mob.getNavigation().stop();
-
             mob.setAggressive(false);
-
         }
-
-        FROZEN.put(target.getUUID(), new FrozenState(target, level, level.getGameTime() + FREEZE_TICKS, previousNoAi));
+        FROZEN.put(target.getUUID(), new FrozenState(target, level, level.getGameTime() + freezeTicks, previousNoAi));
         STASIS.put(target.getUUID(), new StasisState(target, level, owner,
-                level.getGameTime() + FREEZE_TICKS,
+                level.getGameTime() + freezeTicks,
                 level.getGameTime() + STASIS_DAMAGE_INTERVAL_TICKS,
                 Math.max(1.0F, target.getMaxHealth() * STASIS_DAMAGE_FRACTION)));
 
@@ -1077,6 +1076,14 @@ public final class SkillManager {
 
 
 
+    public static int freezeDurationSeconds(int level) {
+        return 4 + Math.max(1, Math.min(ModSkills.MAX_SKILL_LEVEL, level));
+    }
+
+    public static int freezeDurationTicks(int level) {
+        return freezeDurationSeconds(level) * 20;
+    }
+
     public static double oppressiveRadius(int level) {
         return 12 + 3 * (Math.max(1, Math.min(3, level)) - 1);
     }
@@ -1087,6 +1094,17 @@ public final class SkillManager {
 
     public static int airStepDurationTicks(int level) {
         return 20 * Math.max(1, Math.min(3, level));
+    }
+
+    private static void tickBerserk(ServerPlayer player, long now) {
+        Long expire = BERSERK_EXPIRES.get(player.getUUID());
+        if (expire != null && now >= expire) {
+            BERSERK_EXPIRES.remove(player.getUUID());
+            var attackAttr = player.getAttribute(Attributes.ATTACK_DAMAGE);
+            if (attackAttr != null) {
+                attackAttr.removeModifier(BERSERK_ATTACK_DAMAGE_ID);
+            }
+        }
     }
 
     private static void tickAirStep(ServerPlayer player, long now) {
@@ -1151,7 +1169,7 @@ public final class SkillManager {
 
     private static boolean castLightningSpear(ServerPlayer player, int level, float ratio) {
         ServerLevel level0 = player.serverLevel();
-        float damage = 8.0F + 5.0F * level * ratio;
+        float damage = (8.0F + 5.0F * level * ratio) * 2.5F;
         Vec3 start = player.getEyePosition();
         Vec3 direction = player.getLookAngle().normalize();
         float projectileSpeed = 2.4F;
@@ -1173,25 +1191,23 @@ public final class SkillManager {
 
     /** Test harness hook for interacting with a live damage source without changing game rules. */
     private static boolean castBerserk(ServerPlayer player, int level) {
-
         player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, 200, level - 1, false, true, true));
-
         player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_BOOST, 200, level - 1, false, true, true));
 
-        player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 200, level >= 3 ? 1 : 0,
-
-                false, true, true));
+        long expireTime = player.serverLevel().getGameTime() + 200;
+        BERSERK_EXPIRES.put(player.getUUID(), expireTime);
+        var attackAttr = player.getAttribute(Attributes.ATTACK_DAMAGE);
+        if (attackAttr != null) {
+            attackAttr.removeModifier(BERSERK_ATTACK_DAMAGE_ID);
+            attackAttr.addTransientModifier(new AttributeModifier(
+                    BERSERK_ATTACK_DAMAGE_ID, 0.20, AttributeModifier.Operation.ADD_MULTIPLIED_BASE));
+        }
 
         player.serverLevel().sendParticles(ParticleTypes.FLAME, player.getX(), player.getY() + 1.0,
-
                 player.getZ(), 45, 0.7, 1.0, 0.7, 0.08);
-
         player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
-
                 SoundEvents.RAVAGER_ROAR, SoundSource.PLAYERS, 0.8F, 0.8F);
-
         return true;
-
     }
 
 
@@ -1428,6 +1444,7 @@ public final class SkillManager {
     private static final ResourceLocation SWIFT_PACE_MODIFIER_ID = ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "swift_pace");
 
     private static final ResourceLocation BULWARK_ID = ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "diamond_bulwark");
+    private static final ResourceLocation BERSERK_ATTACK_DAMAGE_ID = ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "berserk_attack_damage");
 
     public static double bulwarkArmor(int level) { return level <= 0 ? 0 : level == 1 ? 6 : level == 2 ? 12 : 20; }
     public static double bulwarkToughness(int level) { return level <= 1 ? 0 : level == 2 ? 4 : 8; }
@@ -1561,6 +1578,8 @@ public final class SkillManager {
         GRAVITY_WELLS.removeIf(well -> well.ownerId().equals(player.getUUID()));
         var hAttr = player.getAttribute(Attributes.MAX_HEALTH); if (hAttr != null) hAttr.removeModifier(IRON_PHYSIQUE_MODIFIER_ID);
         var sAttr = player.getAttribute(Attributes.MOVEMENT_SPEED); if (sAttr != null) sAttr.removeModifier(SWIFT_PACE_MODIFIER_ID);
+        BERSERK_EXPIRES.remove(player.getUUID());
+        var aAttr = player.getAttribute(Attributes.ATTACK_DAMAGE); if (aAttr != null) aAttr.removeModifier(BERSERK_ATTACK_DAMAGE_ID);
 
     }
 
@@ -1582,6 +1601,9 @@ public final class SkillManager {
         }
 
         MOMENTUM.remove(id);
+        BERSERK_EXPIRES.remove(id);
+        var berserkAttr = player.getAttribute(Attributes.ATTACK_DAMAGE);
+        if (berserkAttr != null) berserkAttr.removeModifier(BERSERK_ATTACK_DAMAGE_ID);
 
         ORE_SIGHT.remove(id);
         syncOreMarkers(player, Set.of(), 0);
@@ -1996,12 +2018,15 @@ public final class SkillManager {
         }
 
         player.serverLevel().sendParticles(ParticleTypes.FLASH,
-
-                player.getX(), player.getY() + 1.0, player.getZ(), 3, 0.1, 0.1, 0.1, 0.0);
-
+                player.getX(), player.getY() + 1.0, player.getZ(), 2, 0.1, 0.1, 0.1, 0.0);
+        player.serverLevel().sendParticles(ParticleTypes.SONIC_BOOM,
+                player.getX(), player.getY() + 1.0, player.getZ(), 1, 0.0, 0.0, 0.0, 0.0);
+        player.serverLevel().sendParticles(ParticleTypes.ENCHANTED_HIT,
+                player.getX(), player.getY() + 1.0, player.getZ(), 35, 1.2, 0.8, 1.2, 0.12);
         player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
-
-                SoundEvents.SHIELD_BLOCK, SoundSource.PLAYERS, 1.0F, 0.6F);
+                SoundEvents.ANVIL_PLACE, SoundSource.PLAYERS, 0.9F, 1.7F);
+        player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
+                SoundEvents.SHIELD_BLOCK, SoundSource.PLAYERS, 1.0F, 0.9F);
 
     }
 
@@ -2083,6 +2108,7 @@ public final class SkillManager {
 
         tickGravityWells(gameTime);
         tickAirStep(player, gameTime);
+        tickBerserk(player, gameTime);
 
 
 

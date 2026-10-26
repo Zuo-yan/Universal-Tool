@@ -31,20 +31,21 @@ public final class SkillStatFormatter {
         return switch (skillId) {
             case ModSkills.COUNTER_GUARD -> decimal(125 + 25 * (safeLevel - 1)) + "% 反伤"
                     + (safeLevel >= 3 ? " · 反弹后抗性 4秒" : "");
-            case ModSkills.GRAVITY_WELL -> (12 + 2 * safeLevel)
-                    + "格半径 · 黑洞持续 5秒 · 连续牵引";
+            case ModSkills.GRAVITY_WELL -> (int) SkillManager.gravityWellRadius(safeLevel)
+                    + "格半径 · 黑洞持续 " + SkillManager.gravityWellDurationSeconds(safeLevel)
+                    + "秒 · 连续牵引";
             case ModSkills.FROZEN_PULL -> (16 + 4 * safeLevel)
-                    + "格索敌 · 冻结 5秒 · 每0.5秒4%最大生命伤害";
+                    + "格索敌 · 冻结 " + SkillManager.freezeDurationSeconds(safeLevel)
+                    + "秒 · 每0.5秒4%最大生命伤害";
             case ModSkills.OPPRESSIVE_FIELD -> (int) SkillManager.oppressiveRadius(safeLevel) + "格半径 · 虚弱 III "
                     + (SkillManager.oppressiveDurationTicks(safeLevel) / 20) + "秒"
                     + (safeLevel >= 3 ? " · 自身减伤 40%" : " · 自身减伤 20%");
             case ModSkills.ORE_SIGHT -> (12 + 4 * safeLevel) + "格半径 · 垂直 "
                     + (8 + safeLevel) + "格 · 持续 10秒";
             case ModSkills.AIR_STEP -> "按住持续推进 " + (SkillManager.airStepDurationTicks(safeLevel) / 20) + "秒 · 松开结束";
-            case ModSkills.LIGHTNING_SPEAR -> decimal(8 + 5 * safeLevel) + " 满蓄伤害 · "
+            case ModSkills.LIGHTNING_SPEAR -> decimal((8 + 5 * safeLevel) * 2.5) + " 满蓄伤害 · "
                     + (24 + 6 * safeLevel) + "格射程";
-            case ModSkills.BERSERK -> "+" + safeLevel + "速度 · +" + safeLevel + "力量"
-                    + (safeLevel >= 3 ? " · 减伤 40%" : " · 减伤 20%") + " · 持续 10秒";
+            case ModSkills.BERSERK -> "+" + safeLevel + "速度 · +" + safeLevel + "力量 · 基础攻击力 +20% · 持续 10秒";
             case ModSkills.BATTLE_MOMENTUM -> "每层 +" + decimal(4 * safeLevel)
                     + "%伤害 · 最多5层";
             case ModSkills.FOCUS_MINING -> "急迫 " + roman(safeLevel) + " · 持续刷新";
@@ -63,7 +64,13 @@ public final class SkillStatFormatter {
     }
 
     private static String decimal(double value) {
-        return String.format(Locale.ROOT, value == Math.rint(value) ? "%.0f" : "%.2f", value);
+        if (value == Math.rint(value)) {
+            return String.format(Locale.ROOT, "%.0f", value);
+        }
+        if (Math.rint(value * 10) == value * 10) {
+            return String.format(Locale.ROOT, "%.1f", value);
+        }
+        return String.format(Locale.ROOT, "%.2f", value);
     }
 
     private static String roman(int value) {
