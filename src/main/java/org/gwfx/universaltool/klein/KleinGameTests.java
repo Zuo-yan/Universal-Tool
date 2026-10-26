@@ -134,5 +134,53 @@ public final class KleinGameTests {
         helper.succeed();
     }
 
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void drawerCraftingSmeltingAndAnvil(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-drawer-player");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        KleinMenu menu = new KleinMenu(2, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        KleinWarehouse warehouse = KleinStorageSavedData.get(player.server).warehouse(player.getUUID());
+        warehouse.insert(new ItemStack(Items.OAK_PLANKS), BigInteger.valueOf(8));
+
+        menu.setDrawerMode(KleinMenu.DRAWER_CRAFTING);
+        for (int cell : new int[]{0, 1, 3, 4}) {
+            menu.slots.get(KleinMenu.CRAFT_GRID_START + cell).set(new ItemStack(Items.OAK_PLANKS));
+        }
+        ItemStack crafted = menu.slots.get(KleinMenu.CRAFT_RESULT_SLOT).getItem();
+        helper.assertTrue(crafted.is(Items.CRAFTING_TABLE), "2x2 planks craft a crafting table in the drawer");
+
+        menu.setDrawerMode(KleinMenu.DRAWER_SMELTING);
+        menu.slots.get(KleinMenu.SMELT_INPUT_SLOT).set(new ItemStack(Items.OAK_LOG, 2));
+        ItemStack smelted = menu.slots.get(KleinMenu.SMELT_OUTPUT_SLOT).getItem();
+        helper.assertTrue(smelted.is(Items.CHARCOAL) && smelted.getCount() == 2,
+                "Fuel-free smelting converts both logs instantly");
+        helper.assertTrue(menu.slots.get(KleinMenu.SMELT_INPUT_SLOT).getItem().isEmpty(),
+                "Smelting input is consumed");
+
+        menu.setDrawerMode(KleinMenu.DRAWER_ANVIL);
+        ItemStack left = new ItemStack(Items.DIAMOND_SWORD);
+        left.setDamageValue(left.getMaxDamage() - 10);
+        ItemStack right = new ItemStack(Items.DIAMOND_SWORD);
+        right.setDamageValue(right.getMaxDamage() - 10);
+        menu.slots.get(KleinMenu.ANVIL_LEFT_SLOT).set(left);
+        menu.slots.get(KleinMenu.ANVIL_RIGHT_SLOT).set(right);
+        ItemStack repaired = menu.slots.get(KleinMenu.ANVIL_RESULT_SLOT).getItem();
+        helper.assertTrue(repaired.is(Items.DIAMOND_SWORD)
+                        && repaired.getDamageValue() < left.getDamageValue(),
+                "Anvil drawer combines two damaged swords into a more durable one");
+
+        menu.setDrawerMode(KleinMenu.DRAWER_NONE);
+        helper.assertTrue(menu.slots.get(KleinMenu.SMELT_OUTPUT_SLOT).getItem().isEmpty(),
+                "Switching away returns pending drawer contents to the warehouse");
+        helper.assertTrue(warehouse.entries().stream().anyMatch(e -> e.template().is(Items.CHARCOAL)),
+                "Returned charcoal is stored in the warehouse");
+
+        menu.removed(player);
+        helper.assertTrue(warehouse.entries().stream().anyMatch(e -> e.template().is(Items.CHARCOAL)),
+                "Closing the terminal returns drawer contents to the warehouse");
+        helper.succeed();
+    }
+
     private KleinGameTests() {}
 }

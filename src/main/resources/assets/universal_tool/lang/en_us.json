@@ -286,5 +286,9 @@
   "gui.universal_tool.klein.inventory": "Inventory",
   "gui.universal_tool.klein.sort_mod": "Mod",
   "gui.universal_tool.klein.quick_deposit": "Quick Deposit Matching Items",
-  "gui.universal_tool.klein.clear_search": "Clear Search"
+  "gui.universal_tool.klein.clear_search": "Clear Search",
+  "gui.universal_tool.klein.tab_crafting": "Crafting Table",
+  "gui.universal_tool.klein.tab_smelting": "Hyper Smelting",
+  "gui.universal_tool.klein.tab_anvil": "Hyper Anvil",
+  "gui.universal_tool.klein.jei_too_large": "Recipe does not fit the 3x3 grid"
 }

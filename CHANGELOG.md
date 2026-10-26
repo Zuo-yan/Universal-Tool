@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0 - 2026-10-27
+
+- Added a left-side drawer to the Klein Bottle terminal with crafting table, fuel-free smelting and anvil modes.
+- Added JEI crafting transfer support so the recipe `+` button fills the drawer grid straight from the infinite warehouse.
+- Added five right-hand shortcut keys: quick deposit, crafting, smelting, anvil and clear search.
+- Fixed quick deposit never applying and drawer mode desync between client and server.
+- Widened the search field so the placeholder no longer overflows the pill frame.
+
 ## 1.3.0 - 2026-10-26
 
 - Added the Klein Bottle handheld private warehouse with arbitrarily large aggregate item quantities, full component preservation, and a custom mathematical-relic interface.

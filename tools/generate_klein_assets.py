@@ -77,15 +77,15 @@ def generate_klein_terminal_gui(output_path: Path):
         im.putpixel((181 + d, 13 - d), (196, 85, 77, 255))
 
     # 4. Search bar & Sort Controls (y=19..33)
-    draw.rounded_rectangle((8, 19, 116, 33), radius=3, fill=(6, 14, 18, 255), outline=(24, 62, 70, 255))
-    draw.line((10, 20, 114, 20), fill=(3, 7, 9, 255))
+    draw.rounded_rectangle((8, 19, 122, 33), radius=3, fill=(6, 14, 18, 255), outline=(24, 62, 70, 255))
+    draw.line((10, 20, 120, 20), fill=(3, 7, 9, 255))
     # Magnifying glass at (12, 22)
     draw.ellipse((12, 22, 17, 27), outline=(112, 219, 230, 255), width=1)
     draw.line((16, 26, 18, 28), fill=(112, 219, 230, 255), width=1)
 
     # Sort buttons: (120..158, 162..184)
-    draw.rectangle((120, 19, 158, 33), fill=(12, 26, 32, 255), outline=(184, 155, 92, 255))
-    draw.rectangle((162, 19, 184, 33), fill=(12, 26, 32, 255), outline=(36, 80, 90, 255))
+    draw.rectangle((126, 19, 162, 33), fill=(12, 26, 32, 255), outline=(184, 155, 92, 255))
+    draw.rectangle((166, 19, 188, 33), fill=(12, 26, 32, 255), outline=(36, 80, 90, 255))
 
     # 5. Divider Line at y=38
     def draw_divider(y_pos):
@@ -136,21 +136,10 @@ def generate_klein_terminal_gui(output_path: Path):
     for c in range(9):
         draw_slot(8 + c * 18, 192)
 
-    # Right Action Buttons next to inventory (x=172..186):
-    # 1. Quick Deposit Button (172, 134, 185, 147)
-    draw.rectangle((172, 134, 185, 147), fill=(12, 26, 32, 255), outline=(184, 155, 92, 255))
-    draw.line((175, 137, 182, 137), fill=(112, 219, 230, 255))
-    draw.line((178, 138, 178, 143), fill=(112, 219, 230, 255))
-    draw.line((176, 141, 180, 141), fill=(112, 219, 230, 255))
-    im.putpixel((178, 144), (180, 255, 255, 255))
-    im.putpixel((177, 143), (112, 219, 230, 255))
-    im.putpixel((179, 143), (112, 219, 230, 255))
-
-    # 2. Clear Search Button (172, 152, 185, 165)
-    draw.rectangle((172, 152, 185, 165), fill=(12, 26, 32, 255), outline=(90, 70, 35, 255))
-    for d in range(0, 5):
-        im.putpixel((176 + d, 156 + d), (196, 95, 87, 255))
-        im.putpixel((176 + d, 160 - d), (196, 95, 87, 255))
+    # Right action buttons next to inventory: five 14x14 sockets.
+    for button_index in range(5):
+        button_y = 132 + button_index * 15
+        draw.rectangle((172, button_y, 185, button_y + 13), fill=(12, 26, 32, 255), outline=(90, 70, 35, 255))
 
     # 7. Atlas elements (x >= 200)
     # Lock frame (200, 0, 18x18)
@@ -179,6 +168,43 @@ def generate_klein_terminal_gui(output_path: Path):
             else:
                 col = (42, 115, 127, 255)
             im.putpixel((x, y), col)
+
+    # Drawer background (92x108) used by the crafting / smelting / anvil tabs.
+    draw.rectangle((200, 80, 291, 187), fill=(6, 13, 17, 255))
+    draw.rectangle((200, 80, 291, 187), outline=(184, 155, 92, 255))
+    draw.rectangle((201, 81, 290, 186), outline=(18, 40, 46, 255))
+    draw.line((204, 96, 287, 96), fill=(70, 55, 28, 255))
+    im.putpixel((245, 96), (255, 245, 200, 255))
+    for corner in ((203, 83), (288, 83), (203, 184), (288, 184)):
+        im.putpixel(corner, (222, 185, 122, 255))
+
+    # Five 12x12 action glyphs: deposit, crafting, smelting, anvil, clear.
+    icon_y = 200
+    # Deposit: downward arrow into a tray.
+    draw.line((206, 203, 211, 203), fill=(112, 219, 230, 255))
+    draw.line((208, 204, 208, 208), fill=(112, 219, 230, 255))
+    draw.line((206, 207, 210, 207), fill=(112, 219, 230, 255))
+    draw.line((204, 210, 212, 210), fill=(112, 219, 230, 255))
+    # Crafting: 3x3 grid.
+    icon_y = 214
+    for gx in (204, 207, 210):
+        draw.line((gx, icon_y, gx, icon_y + 6), fill=(112, 219, 230, 255))
+        draw.line((204, icon_y + (gx - 204), 210, icon_y + (gx - 204)), fill=(112, 219, 230, 255))
+    # Smelting: flame.
+    icon_y = 228
+    draw.polygon([(208, icon_y), (211, icon_y + 3), (210, icon_y + 6),
+                  (206, icon_y + 6), (205, icon_y + 3)], fill=(240, 150, 70, 255))
+    im.putpixel((208, icon_y + 4), (255, 230, 150, 255))
+    # Anvil: top block plus waist plus base.
+    icon_y = 242
+    draw.rectangle((204, icon_y, 211, icon_y + 2), fill=(190, 196, 205, 255))
+    draw.rectangle((206, icon_y + 3, 209, icon_y + 4), fill=(150, 158, 170, 255))
+    draw.rectangle((204, icon_y + 5, 211, icon_y + 6), fill=(190, 196, 205, 255))
+    # Clear: red X.
+    icon_y = 256
+    for d in range(5):
+        im.putpixel((205 + d, icon_y + d), (210, 95, 87, 255))
+        im.putpixel((205 + d, icon_y + 4 - d), (210, 95, 87, 255))
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     im.save(output_path)

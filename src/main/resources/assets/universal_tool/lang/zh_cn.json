@@ -286,5 +286,9 @@
   "gui.universal_tool.klein.inventory": "背包",
   "gui.universal_tool.klein.sort_mod": "模组",
   "gui.universal_tool.klein.quick_deposit": "一键存入背包匹配物品",
-  "gui.universal_tool.klein.clear_search": "清空搜索"
+  "gui.universal_tool.klein.clear_search": "清空搜索",
+  "gui.universal_tool.klein.tab_crafting": "工作台合成",
+  "gui.universal_tool.klein.tab_smelting": "超维烧炼",
+  "gui.universal_tool.klein.tab_anvil": "超维铁砧",
+  "gui.universal_tool.klein.jei_too_large": "该配方超出 3×3 合成尺寸"
 }
