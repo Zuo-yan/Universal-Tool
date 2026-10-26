@@ -282,5 +282,6 @@
   "gui.universal_tool.klein.infinite": "Infinite Storage",
   "gui.universal_tool.klein.types": "Item types: %s / ∞",
   "gui.universal_tool.klein.total": "Exact amount: %s",
-  "gui.universal_tool.klein.hint": "Shift: quick transfer · Wheel: single item"
+  "gui.universal_tool.klein.hint": "Shift: quick transfer · Wheel: single item",
+  "gui.universal_tool.klein.inventory": "Inventory"
 }

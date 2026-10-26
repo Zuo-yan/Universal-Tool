@@ -282,5 +282,6 @@
   "gui.universal_tool.klein.infinite": "无限仓储",
   "gui.universal_tool.klein.types": "物品种类：%s / ∞",
   "gui.universal_tool.klein.total": "完整数量：%s",
-  "gui.universal_tool.klein.hint": "Shift 快速存取 · 滚轮 单件转移"
+  "gui.universal_tool.klein.hint": "Shift 快速存取 · 滚轮 单件转移",
+  "gui.universal_tool.klein.inventory": "背包"
 }

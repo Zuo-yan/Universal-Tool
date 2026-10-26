@@ -45,6 +45,18 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         // Render the full authentic GUI texture sheet:
         g.blit(GUI_TEXTURE, x, y, 0, 0, imageWidth, imageHeight, 512, 512);
 
+        // Dynamic Header Title & Badge
+        g.drawString(font, Component.translatable("item.universal_tool.klein_bottle"), x + 28, y + 10, TEXT, false);
+        g.drawString(font, Component.literal("| ").append(Component.translatable("gui.universal_tool.klein.private")), x + 76, y + 10, 0xFF7D9DA8, false);
+
+        // Dynamic Section Headers
+        g.drawString(font, Component.literal("✧ ").append(Component.translatable("gui.universal_tool.klein.infinite")).append(" ✧"), x + 12, y + 36, BRASS, false);
+        g.drawString(font, Component.literal("✧ ").append(Component.translatable("gui.universal_tool.klein.inventory")).append(" ✧"), x + 12, y + 160, BRASS, false);
+
+        // Dynamic Footer Hint
+        String hint = Component.translatable("gui.universal_tool.klein.hint").getString();
+        g.drawString(font, hint, x + imageWidth - font.width(hint) - 14, y + 252, 0xFF6A868E, false);
+
         // Dynamic close button hover:
         boolean closeHover = mouseX >= x + 241 && mouseX < x + 255 && mouseY >= y + 5 && mouseY < y + 19;
         if (closeHover) {
