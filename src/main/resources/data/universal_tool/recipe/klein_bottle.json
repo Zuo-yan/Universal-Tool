@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": ["PGP", "ENE", "PGP"],
+  "key": {
+    "P": {"item": "minecraft:purpur_block"},
+    "G": {"item": "minecraft:glass"},
+    "E": {"item": "minecraft:ender_pearl"},
+    "N": {"item": "minecraft:nether_star"}
+  },
+  "result": {"id": "universal_tool:klein_bottle", "count": 1}
+}

@@ -8,6 +8,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.menu.PolymerizerMenu;
 import org.gwfx.universaltool.phoenix.PhoenixPodMenu;
+import org.gwfx.universaltool.klein.KleinMenu;
 
 public class ModMenuTypes {
     public static final DeferredRegister<MenuType<?>> MENU_TYPES =
@@ -20,4 +21,7 @@ public class ModMenuTypes {
     public static final DeferredHolder<MenuType<?>, MenuType<PhoenixPodMenu>> PHOENIX_POD_MENU =
             MENU_TYPES.register("phoenix_pod_menu",
                     () -> IMenuTypeExtension.create(PhoenixPodMenu::new));
+
+    public static final DeferredHolder<MenuType<?>, MenuType<KleinMenu>> KLEIN_MENU =
+            MENU_TYPES.register("klein_menu", () -> IMenuTypeExtension.create(KleinMenu::new));
 }

@@ -273,5 +273,14 @@
   "skill.universal_tool.damage_clamp.desc": "Caps individual hits after mitigation, without cooldown. Void and command kills bypass this cap.",
   "message.universal_tool.skills.level_up_unbound": "§6Growth reached Lv.%s! Bind the skill menu key in Controls.",
   "unlock.diamond_bulwark": "Passive: always available to learn.",
-  "unlock.damage_clamp": "Passive: always available to learn."
+  "unlock.damage_clamp": "Passive: always available to learn.",
+  "item.universal_tool.klein_bottle": "Klein Bottle",
+  "gui.universal_tool.klein.private": "Private Space",
+  "gui.universal_tool.klein.search": "Search items...",
+  "gui.universal_tool.klein.name": "Name",
+  "gui.universal_tool.klein.quantity": "Quantity",
+  "gui.universal_tool.klein.infinite": "Infinite Storage",
+  "gui.universal_tool.klein.types": "Item types: %s / ∞",
+  "gui.universal_tool.klein.total": "Exact amount: %s",
+  "gui.universal_tool.klein.hint": "Shift: quick transfer · Wheel: single item"
 }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0 - 2026-10-26
+
+- Added the Klein Bottle handheld private warehouse with arbitrarily large aggregate item quantities, full component preservation, and a custom mathematical-relic interface.
+- Added server-authoritative item transfers, opening-slot protection, incremental synchronization, and per-player persistent storage.
+
 ## 1.2.4 - 2026-10-20
 
 - Hid the internal Lightning Spear model item from the creative inventory; skill projectile rendering remains available.

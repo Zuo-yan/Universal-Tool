@@ -273,5 +273,14 @@
   "skill.universal_tool.damage_clamp.desc": "在其他减伤后限制单次伤害，无触发冷却。虚空和指令处死不受限制。",
   "message.universal_tool.skills.level_up_unbound": "§6成长提升至 Lv.%s！请在按键设置中绑定技能管理按键。",
   "unlock.diamond_bulwark": "被动技能，默认具备学习资格。",
-  "unlock.damage_clamp": "被动技能，默认具备学习资格。"
+  "unlock.damage_clamp": "被动技能，默认具备学习资格。",
+  "item.universal_tool.klein_bottle": "克莱因瓶",
+  "gui.universal_tool.klein.private": "私人空间",
+  "gui.universal_tool.klein.search": "搜索物品...",
+  "gui.universal_tool.klein.name": "名称",
+  "gui.universal_tool.klein.quantity": "数量",
+  "gui.universal_tool.klein.infinite": "无限仓储",
+  "gui.universal_tool.klein.types": "物品种类：%s / ∞",
+  "gui.universal_tool.klein.total": "完整数量：%s",
+  "gui.universal_tool.klein.hint": "Shift 快速存取 · 滚轮 单件转移"
 }
