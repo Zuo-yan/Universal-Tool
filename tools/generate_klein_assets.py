@@ -1,18 +1,6 @@
-"""Procedurally generate pixel-perfect Klein Bottle UI and item textures using Python.
-
-Strictly adheres to the 'Mathematical Instrument x Mystical Relic' design language:
-- Deep void and teal cosmic nebula background
-- Concentric astrolabe / armillary celestial coordinate rings and ticks
-- Double antique brass border with celestial compass quadrant stars
-- 3D beveled dark slot wells (78 warehouse + 36 player slots)
-- Search pill box with magnifying glass and sort button frames
-- Dynamic texture atlas sprites (golden lock frame, padlock badge, glowing hover frame, scrollbar thumb)
-- Hand-crafted 32x32 transparent pixel art Klein Bottle item icon
-"""
-
 import math
 from pathlib import Path
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageEnhance
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -242,11 +230,50 @@ def generate_klein_terminal_gui(output_path: Path):
 
 
 def generate_klein_bottle_icon(output_path: Path):
+    prototype_path = ROOT / "art/references/klein-bottle-item-prototype-v1.png"
+    if prototype_path.exists():
+        src = Image.open(prototype_path).convert("RGBA")
+        bbox = src.getbbox()
+        cropped = src.crop(bbox)
+        W, H = cropped.size
+        target_size = 28
+        if W > H:
+            nw = target_size
+            nh = int(H * target_size / W)
+        else:
+            nh = target_size
+            nw = int(W * target_size / H)
+        sprite = cropped.resize((nw, nh), Image.Resampling.LANCZOS)
+        enhancer = ImageEnhance.Color(sprite)
+        sprite = enhancer.enhance(1.25)
+        enhancer_c = ImageEnhance.Contrast(sprite)
+        sprite = enhancer_c.enhance(1.15)
+
+        final_32 = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+        ox = (32 - nw) // 2
+        oy = (32 - nh) // 2
+        final_32.paste(sprite, (ox, oy), sprite)
+
+        # Crisp pixel art thresholding
+        out = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+        for y in range(32):
+            for x in range(32):
+                r, g, b, a = final_32.getpixel((x, y))
+                if a < 60:
+                    out.putpixel((x, y), (0, 0, 0, 0))
+                else:
+                    out.putpixel((x, y), (r, g, b, 255))
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        out.save(output_path)
+        print(f"Saved Klein Bottle item icon (from prototype) to {output_path}")
+        return
+
+    # Fallback procedural drawer if prototype is missing
     W, H = 32, 32
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     draw = ImageDraw.Draw(im)
 
-    # Palette
     cork = (168, 122, 68, 255)
     cork_dark = (105, 72, 38, 255)
     cork_light = (212, 165, 100, 255)
@@ -265,19 +292,15 @@ def generate_klein_bottle_icon(output_path: Path):
 
     cyan_glow = (98, 217, 209, 255)
     cyan_bright = (195, 255, 255, 255)
-    cyan_deep = (32, 110, 125, 255)
 
-    # Cork Stopper (x=13..18, y=1..5)
     draw.polygon([(14, 1), (18, 1), (18, 5), (13, 5)], fill=cork)
     draw.line((14, 1, 18, 1), fill=cork_light)
     draw.line((18, 2, 18, 5), fill=cork_dark)
 
-    # Brass Collar (x=12..19, y=5..7)
     draw.rectangle((12, 5, 19, 7), fill=gold)
     draw.line((12, 5, 19, 5), fill=gold_hi)
     draw.line((12, 7, 19, 7), fill=gold_dark)
 
-    # Neck (x=13..18, y=8..12)
     for y in range(8, 13):
         x_left = 13 + (1 if y > 10 else 0)
         x_right = 18 + (1 if y > 10 else 0)
@@ -286,7 +309,6 @@ def generate_klein_bottle_icon(output_path: Path):
         im.putpixel((x_left, y), rim_mid)
         im.putpixel((x_right, y), rim_dark)
 
-    # Round Belly (center=(16, 21), radius=9.0)
     cx, cy, r = 16, 21, 9.0
     for y in range(12, 31):
         for x in range(7, 26):
@@ -300,23 +322,19 @@ def generate_klein_bottle_icon(output_path: Path):
             elif d <= r + 0.6:
                 im.putpixel((x, y), rim_dark)
 
-    # Specular Glint on Glass Rim
     draw.arc((7, 12, 25, 30), 120, 240, fill=rim_hi, width=1)
     im.putpixel((11, 14), glass_shine)
     im.putpixel((12, 14), glass_shine)
     im.putpixel((10, 16), glass_shine)
     im.putpixel((9, 18), glass_shine)
 
-    # Continuous Klein Vortex Loop
     draw.line([(19, 10), (17, 14), (16, 17)], fill=cyan_glow, width=1)
-
     loop_pts = []
     for deg in range(0, 360, 15):
         rad = math.radians(deg)
         lx = 16 + 5.0 * math.cos(rad)
         ly = 21 + 5.5 * math.sin(rad) * (1 - 0.3 * math.cos(rad))
         loop_pts.append((round(lx), round(ly)))
-
     for i in range(len(loop_pts)):
         p1 = loop_pts[i]
         p2 = loop_pts[(i + 1) % len(loop_pts)]
@@ -326,14 +344,9 @@ def generate_klein_bottle_icon(output_path: Path):
     im.putpixel((16, 17), (255, 255, 255, 255))
     im.putpixel((17, 17), cyan_bright)
 
-    im.putpixel((21, 15), cyan_bright)
-    im.putpixel((22, 17), cyan_glow)
-    im.putpixel((22, 20), cyan_glow)
-    im.putpixel((18, 27), cyan_glow)
-
     output_path.parent.mkdir(parents=True, exist_ok=True)
     im.save(output_path)
-    print(f"Saved Klein Bottle item icon to {output_path}")
+    print(f"Saved Klein Bottle item icon (procedural) to {output_path}")
 
 
 def main():
