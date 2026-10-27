@@ -12,6 +12,7 @@ import org.gwfx.universaltool.client.PhoenixPodRenderer;
 import org.gwfx.universaltool.client.LightningSpearRenderer;
 import org.gwfx.universaltool.client.PhoenixPodScreen;
 import org.gwfx.universaltool.client.PolymerizerScreen;
+import org.gwfx.universaltool.client.KleinScreen;
 import org.gwfx.universaltool.init.*;
 import org.gwfx.universaltool.network.ModPacketHandler;
 import org.gwfx.universaltool.skill.SkillAttachments;
@@ -37,6 +38,7 @@ public class UniversalToolMod {
             modEventBus.addListener((net.neoforged.neoforge.event.RegisterGameTestsEvent event) -> {
                 event.register(org.gwfx.universaltool.space.PrivateSpaceGameTests.class);
                 event.register(org.gwfx.universaltool.skill.SkillProgressionGameTests.class);
+                event.register(org.gwfx.universaltool.klein.KleinGameTests.class);
             });
         }
         WaypointData.ATTACHMENTS.register(modEventBus);
@@ -49,12 +51,14 @@ public class UniversalToolMod {
             modEventBus.addListener(this::registerScreens);
             modEventBus.addListener(this::registerRenderers);
             modEventBus.addListener(org.gwfx.universaltool.client.SkillClientController::registerKeys);
+            modEventBus.addListener(org.gwfx.universaltool.client.KleinKeybind::registerKeys);
         }
     }
 
     private void registerScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenuTypes.UNIVERSAL_POLYMERIZER_MENU.get(), PolymerizerScreen::new);
         event.register(ModMenuTypes.PHOENIX_POD_MENU.get(), PhoenixPodScreen::new);
+        event.register(ModMenuTypes.KLEIN_MENU.get(), KleinScreen::new);
     }
 
     private void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {

@@ -29,6 +29,7 @@ public class ModCreativeTabs {
                         output.accept(ModItems.TELEPORT_CODEX.get());
                         output.accept(ModItems.SPATIAL_PAGE.get());
                         output.accept(ModItems.TELEPORT_SCROLL.get());
+                        output.accept(ModItems.KLEIN_BOTTLE.get());
                         // 核心工作台
                         output.accept(ModItems.UNIVERSAL_POLYMERIZER.get());
                         // 凤凰计划

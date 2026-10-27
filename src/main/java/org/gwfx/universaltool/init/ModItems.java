@@ -14,6 +14,7 @@ import org.gwfx.universaltool.item.UniversalToolItem;
 import org.gwfx.universaltool.phoenix.DnaSampleItem;
 import org.gwfx.universaltool.phoenix.DnaSyringeItem;
 import org.gwfx.universaltool.phoenix.NutrientSolutionItem;
+import org.gwfx.universaltool.klein.KleinBottleItem;
 
 public class ModItems {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(UniversalToolMod.MODID);
@@ -71,4 +72,7 @@ public class ModItems {
 
     public static final DeferredItem<BlockItem> PERSONAL_SPACE_GATE = ITEMS.register("personal_space_gate",
             () -> new BlockItem(ModBlocks.PERSONAL_SPACE_GATE.get(), new Item.Properties().rarity(Rarity.RARE)));
+
+    public static final DeferredItem<KleinBottleItem> KLEIN_BOTTLE = ITEMS.register("klein_bottle",
+            () -> new KleinBottleItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
 }
