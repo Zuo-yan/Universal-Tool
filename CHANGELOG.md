@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.4.1 - 2026-10-27
+
+- Recalculate crafting results after JEI fills the Klein Bottle crafting grid.
+- Rename the anvil drawer and consume its secondary ingredient when taking the result.
+- Preserve staged items that cannot be returned to the warehouse.
+- Align crafting and anvil drawer slots, redraw the arrow and action icons, and fix the scrollbar texture.
+- Preserve both scrollbar end caps at every thumb height.
+- Support JEI Shift-click recipe filling, a configurable G shortcut for inventory bottles, and spaced drawer slots.
+
+## 1.4.0 - 2026-10-27
+
+- Added a left-side drawer to the Klein Bottle terminal with crafting table, fuel-free smelting and anvil modes.
+- Added JEI crafting transfer support so the recipe `+` button fills the drawer grid straight from the infinite warehouse.
+- Added five right-hand shortcut keys: quick deposit, crafting, smelting, anvil and clear search.
+- Fixed quick deposit never applying and drawer mode desync between client and server.
+- Widened the search field so the placeholder no longer overflows the pill frame.
+
+## 1.3.0 - 2026-10-26
+
+- Added the Klein Bottle handheld private warehouse with arbitrarily large aggregate item quantities, full component preservation, and a custom mathematical-relic interface.
+- Added server-authoritative item transfers, opening-slot protection, incremental synchronization, and per-player persistent storage.
+
 ## 1.2.4 - 2026-10-20
 
 - Hid the internal Lightning Spear model item from the creative inventory; skill projectile rendering remains available.
