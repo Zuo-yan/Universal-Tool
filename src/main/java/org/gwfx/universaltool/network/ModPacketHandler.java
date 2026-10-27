@@ -13,7 +13,7 @@ import org.gwfx.universaltool.klein.KleinSyncPayload;
 public final class ModPacketHandler {
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("12");
+        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("13");
 
         // 客户端发往服务端
         registrar.playToServer(SaveWaypointPayload.TYPE, SaveWaypointPayload.STREAM_CODEC, SaveWaypointPayload::handle);

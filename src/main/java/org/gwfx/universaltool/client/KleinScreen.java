@@ -29,6 +29,8 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private EditBox anvilName;
     private KleinEntryData hovered;
     private boolean isDraggingScrollbar = false;
+    private double scrollbarGrabOffset;
+    private double wheelRemainder;
     private int drawerX, drawerY;
     private ItemStack lastAnvilLeft = ItemStack.EMPTY;
 
@@ -180,15 +182,8 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         }
 
         // Scrollbar track (height=90px, y=46..135)
-        int trackY = y + KleinMenu.GRID_Y;
-        int totalRows = Math.max(1, (menu.filtered().size() + 8) / 9);
-        int maxScroll = menu.maxScroll();
-        int thumbHeight = maxScroll == 0 ? SCROLL_TRACK_HEIGHT
-                : Math.max(14, Math.min(SCROLL_TRACK_HEIGHT,
-                (int) Math.round((KleinMenu.VISIBLE_ROWS / (double) totalRows) * SCROLL_TRACK_HEIGHT)));
-        int thumbY = maxScroll == 0 ? trackY
-                : trackY + (int) Math.round((SCROLL_TRACK_HEIGHT - thumbHeight)
-                * (double) Math.clamp(menu.scroll(), 0, maxScroll) / maxScroll);
+        int thumbHeight = scrollbarThumbHeight();
+        int thumbY = scrollbarThumbY();
         // 3-slice smooth rendering: top cap (4px), middle (height-8), bottom cap (4px at y=136 in atlas)
         g.blit(GUI_TEXTURE, x + 175, thumbY, 200, 48, 8, 4, 512, 512);
         if (thumbHeight > 8) {
@@ -196,12 +191,11 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         }
         g.blit(GUI_TEXTURE, x + 175, thumbY + thumbHeight - 4, 200, 136, 8, 4, 512, 512);
 
-        // Lock badge on opening bottle in inventory
+        // Use the same locked-slot frame for every item forbidden from storage.
         for (Slot slot : menu.slots) {
-            if (slot.container == menu.getSlot(0).container && slot.getContainerSlot() == menu.lockedInventorySlot()) {
+            if (slot.isActive() && menu.isStorageLocked(slot)) {
                 int sx = x + slot.x - 1, sy = y + slot.y - 1;
                 g.blit(GUI_TEXTURE, sx, sy, 200, 0, 18, 18, 512, 512);
-                g.blit(GUI_TEXTURE, sx + 9, sy + 9, 222, 0, 9, 10, 512, 512);
             }
         }
 
@@ -266,6 +260,16 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         updateDrawerPos();
         super.render(g, mouseX, mouseY, partialTick);
+        // Draw above the real inventory items so their icons cannot hide the badge.
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 300);
+        for (Slot slot : menu.slots) {
+            if (slot.isActive() && menu.isStorageLocked(slot)) {
+                g.blit(GUI_TEXTURE, leftPos + slot.x + 8, topPos + slot.y + 8,
+                        222, 0, 9, 10, 512, 512);
+            }
+        }
+        g.pose().popPose();
         renderTooltip(g, mouseX, mouseY);
         if (hovered != null) {
             g.renderTooltip(font, List.of(hovered.template().getHoverName(),
@@ -346,6 +350,12 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
                 && mouseY >= topPos + KleinMenu.GRID_Y
                 && mouseY < topPos + KleinMenu.GRID_Y + SCROLL_TRACK_HEIGHT) {
             isDraggingScrollbar = true;
+            int thumbY = scrollbarThumbY();
+            int thumbHeight = scrollbarThumbHeight();
+            boolean onThumb = mouseY >= thumbY && mouseY < thumbY + thumbHeight;
+            double exactThumbY = topPos + KleinMenu.GRID_Y + (menu.maxScroll() == 0 ? 0
+                    : (SCROLL_TRACK_HEIGHT - thumbHeight) * (double) menu.scroll() / menu.maxScroll());
+            scrollbarGrabOffset = onThumb ? mouseY - exactThumbY : thumbHeight / 2.0;
             updateScrollFromMouse(mouseY);
             return true;
         }
@@ -403,19 +413,29 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
 
+    private int scrollbarThumbHeight() {
+        int totalRows = Math.max(1, (menu.filtered().size() + 8) / 9);
+        return menu.maxScroll() == 0 ? SCROLL_TRACK_HEIGHT
+                : Math.max(14, Math.min(SCROLL_TRACK_HEIGHT,
+                (int) Math.round((KleinMenu.VISIBLE_ROWS / (double) totalRows) * SCROLL_TRACK_HEIGHT)));
+    }
+
+    private int scrollbarThumbY() {
+        int trackY = topPos + KleinMenu.GRID_Y;
+        int maxScroll = menu.maxScroll();
+        return maxScroll == 0 ? trackY : trackY + (int) Math.round(
+                (SCROLL_TRACK_HEIGHT - scrollbarThumbHeight()) * (double) menu.scroll() / maxScroll);
+    }
+
     private void updateScrollFromMouse(double mouseY) {
         int trackY = topPos + KleinMenu.GRID_Y;
-        int trackHeight = SCROLL_TRACK_HEIGHT;
-        int totalRows = Math.max(1, (menu.filtered().size() + 8) / 9);
         int maxScroll = menu.maxScroll();
         if (maxScroll == 0) {
             menu.scroll(0);
             return;
         }
-        int thumbHeight = Math.max(14, Math.min(trackHeight,
-                (int) Math.round((KleinMenu.VISIBLE_ROWS / (double) totalRows) * trackHeight)));
-        double scrollableDistance = trackHeight - thumbHeight;
-        double clickOffset = (mouseY - trackY) - (thumbHeight / 2.0);
+        double scrollableDistance = SCROLL_TRACK_HEIGHT - scrollbarThumbHeight();
+        double clickOffset = (mouseY - trackY) - scrollbarGrabOffset;
         double rel = Math.clamp(clickOffset / scrollableDistance, 0.0, 1.0);
         menu.scroll((int) Math.round(rel * maxScroll));
     }
@@ -425,15 +445,26 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             if (hasShiftDown() && hovered != null) {
                 menu.virtualScroll(hovered, scrollY > 0);
             } else {
-                menu.scroll(menu.scroll() - (int) Math.signum(scrollY));
+                scrollRows(scrollY);
             }
             return true;
         }
         if (inScrollbarTrack(mouseX, mouseY)) {
-            menu.scroll(menu.scroll() - (int) Math.signum(scrollY));
+            scrollRows(scrollY);
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    private void scrollRows(double delta) {
+        if (delta == 0) return;
+        if (Math.signum(delta) != Math.signum(wheelRemainder)) wheelRemainder = 0;
+        wheelRemainder += delta;
+        int rows = (int) wheelRemainder;
+        if (rows != 0) {
+            menu.scroll(menu.scroll() - rows);
+            wheelRemainder -= rows;
+        }
     }
 
     private boolean inGrid(double x, double y) {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.7 - 2026-10-27
+
+- Show a lock badge on every inventory item that cannot enter Klein Bottle storage, including other Klein Bottles.
+- Apply paged warehouse snapshots only after their final page, preserving scrolling beyond 64 entries without snapback.
+- Preserve the scrollbar grab offset and support accumulated wheel scrolling through large warehouses.
+- Updated the network protocol; multiplayer clients and servers must use the matching mod version.
+
 ## 1.2.5 - 2026-10-26
 
 - Gravity Pull radius doubled to 28/32/36 blocks and duration now scales from 5s to 11s across ranks.

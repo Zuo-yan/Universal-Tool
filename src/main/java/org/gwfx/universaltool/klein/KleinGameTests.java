@@ -129,10 +129,82 @@ public final class KleinGameTests {
         for (int i = 0; i < 65; i++) {
             entries.add(new KleinEntryData(i + 1L, new ItemStack(Items.STONE), BigInteger.ONE));
         }
-        menu.applySync(new KleinSyncPayload(entries.subList(0, 64), true));
+        menu.applySync(new KleinSyncPayload(entries.subList(0, 64), true, false));
+        helper.assertTrue(menu.filtered().isEmpty(), "Partial snapshot is not published");
         menu.applySync(new KleinSyncPayload(entries.subList(64, 65), false));
         helper.assertTrue(menu.filtered().size() == 65,
                 "Reset page followed by continuation preserves all 65 synced entries");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void pagedSyncPreservesDeepScroll(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-deep-scroll");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        KleinMenu menu = new KleinMenu(12, player.getInventory(), InteractionHand.MAIN_HAND);
+        var entries = new java.util.ArrayList<KleinEntryData>();
+        for (int i = 0; i < 513; i++) {
+            ItemStack stack = new ItemStack(Items.STONE);
+            stack.set(DataComponents.CUSTOM_NAME, Component.literal("Type " + i));
+            entries.add(new KleinEntryData(i + 1L, stack, BigInteger.ONE));
+        }
+        menu.applySync(new KleinSyncPayload(entries, true));
+        helper.assertTrue(menu.maxScroll() == 52, "All 57 rows are reachable");
+        menu.scroll(52);
+        for (int refresh = 0; refresh < 3; refresh++) {
+            for (int start = 0; start < entries.size(); start += 64) {
+                int end = Math.min(entries.size(), start + 64);
+                var page = new KleinSyncPayload(entries.subList(start, end), start == 0, end == entries.size());
+                var buffer = new net.minecraft.network.RegistryFriendlyByteBuf(
+                        io.netty.buffer.Unpooled.buffer(), helper.getLevel().registryAccess());
+                try {
+                    KleinSyncPayload.STREAM_CODEC.encode(buffer, page);
+                    menu.applySync(KleinSyncPayload.STREAM_CODEC.decode(buffer));
+                } finally {
+                    buffer.release();
+                }
+                helper.assertTrue(menu.filtered().size() == 513, "No partial list is exposed between packets");
+                helper.assertTrue(menu.scroll() == 52, "Repeated paged sync must not snap back from bottom");
+            }
+        }
+        menu.setView("Type", KleinMenu.SORT_NAME, false);
+        menu.scroll(40);
+        menu.applySync(new KleinSyncPayload(entries.subList(0, 64), true, false));
+        helper.assertTrue(menu.scroll() == 40, "Filtering during sync uses the complete visible snapshot");
+        menu.applySync(new KleinSyncPayload(java.util.List.of(), false, true));
+        helper.assertTrue(menu.filtered().size() == 64 && menu.scroll() == 3,
+                "Actual removal clamps scroll only when the smaller snapshot completes");
+        menu.applySync(new KleinSyncPayload(java.util.List.of(), true));
+        helper.assertTrue(menu.filtered().isEmpty() && menu.scroll() == 0, "Empty warehouse resets scroll");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void forbiddenItemsShareStorageLockIndicator(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-lock-badges");
+        ItemStack bottle = new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get());
+        player.getInventory().setItem(0, bottle);
+        player.getInventory().setItem(1, bottle.copy());
+        player.getInventory().setItem(9, bottle.copy());
+        player.getInventory().setItem(10, new ItemStack(Items.STONE));
+        KleinMenu menu = new KleinMenu(13, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        KleinWarehouse warehouse = KleinStorageSavedData.get(player.server).warehouse(player.getUUID());
+        for (Slot slot : menu.slots) {
+            if (slot.container != player.getInventory()) continue;
+            boolean isBottle = slot.hasItem() && slot.getItem().getItem() instanceof KleinBottleItem;
+            helper.assertTrue(menu.isStorageLocked(slot) == isBottle, "Every bottle and only bottles have storage locks");
+            if (isBottle) menu.quickMoveStack(player, slot.index);
+        }
+        helper.assertTrue(!warehouse.containsBottle(), "Shift-click never stores another bottle");
+        menu.setCarried(bottle.copy());
+        menu.handleAction(new KleinActionPayload(-1, KleinActionPayload.INSERT_CARRIED, -1, 0));
+        helper.assertTrue(menu.getCarried().getItem() instanceof KleinBottleItem, "Rejected bottle stays on cursor");
+        menu.setCarried(ItemStack.EMPTY);
+        Slot otherBottle = menu.slots.get(28);
+        helper.assertTrue(otherBottle.mayPickup(player), "Storage lock does not prevent moving other bottles in inventory");
+        menu.clicked(otherBottle.index, 0, ClickType.PICKUP, player);
+        helper.assertTrue(menu.getCarried().getItem() instanceof KleinBottleItem, "Other bottle remains movable");
         helper.succeed();
     }
 

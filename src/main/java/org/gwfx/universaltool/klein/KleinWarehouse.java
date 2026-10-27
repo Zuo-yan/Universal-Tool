@@ -51,8 +51,12 @@ public final class KleinWarehouse {
     public int size() { return entries.size(); }
     long nextId() { return nextId; }
 
+    public static boolean canStore(ItemStack stack) {
+        return !stack.isEmpty() && !(stack.getItem() instanceof KleinBottleItem);
+    }
+
     public BigInteger insert(ItemStack source, BigInteger requested) {
-        if (source.isEmpty() || source.getItem() instanceof KleinBottleItem || requested.signum() <= 0) {
+        if (!canStore(source) || requested.signum() <= 0) {
             return BigInteger.ZERO;
         }
         ItemStack type = source.copyWithCount(1);

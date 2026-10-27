@@ -64,6 +64,7 @@ public final class KleinMenu extends AbstractContainerMenu {
     private int lastSequence = -1;
     private int clientSequence = -1;
     private final Map<Long, KleinEntryData> clientEntries = new LinkedHashMap<>();
+    private final Map<Long, KleinEntryData> pendingEntries = new LinkedHashMap<>();
     private final List<KleinEntryData> filtered = new ArrayList<>();
     private String query = "";
     private int sortMode = SORT_QUANTITY;
@@ -183,7 +184,7 @@ public final class KleinMenu extends AbstractContainerMenu {
         lastSequence = action.sequence();
         if (action.operation() == KleinActionPayload.INSERT_CARRIED || action.operation() == KleinActionPayload.INSERT_ONE) {
             ItemStack carried = getCarried();
-            if (carried.isEmpty() || carried.getItem() instanceof KleinBottleItem) return;
+            if (!KleinWarehouse.canStore(carried)) return;
             BigInteger amount = warehouse.insert(carried, BigInteger.valueOf(action.operation() == KleinActionPayload.INSERT_ONE ? 1 : carried.getCount()));
             if (amount.signum() > 0) {
                 carried.shrink(amount.intValue());
@@ -195,7 +196,7 @@ public final class KleinMenu extends AbstractContainerMenu {
             for (Slot slot : slots) {
                 if (slot.container != inventory || slot.getContainerSlot() == lockedInventorySlot || !slot.hasItem()) continue;
                 ItemStack item = slot.getItem();
-                if (item.getItem() instanceof KleinBottleItem || !warehouse.containsType(item)) continue;
+                if (!KleinWarehouse.canStore(item) || !warehouse.containsType(item)) continue;
                 int count = warehouse.insert(item, BigInteger.valueOf(item.getCount())).intValue();
                 if (count > 0) {
                     slot.remove(count);
@@ -557,7 +558,7 @@ public final class KleinMenu extends AbstractContainerMenu {
                 int end = Math.min(entries.size(), start + 64);
                 PacketDistributor.sendToPlayer(player, new KleinSyncPayload(entries.subList(start, end).stream()
                         .map(entry -> new KleinEntryData(entry.id(), entry.template(), entry.amount())).toList(),
-                        start == 0));
+                        start == 0, end == entries.size()));
             }
         }
     }
@@ -633,11 +634,15 @@ public final class KleinMenu extends AbstractContainerMenu {
     }
 
     public void applySync(KleinSyncPayload payload) {
-        if (payload.reset()) clientEntries.clear();
+        // Keep the displayed snapshot and its scroll range until the entire batch arrives.
+        if (payload.reset()) pendingEntries.clear();
         payload.entries().forEach(entry -> {
-            if (entry.amount().signum() == 0) clientEntries.remove(entry.id());
-            else clientEntries.put(entry.id(), entry);
+            if (entry.amount().signum() == 0) pendingEntries.remove(entry.id());
+            else pendingEntries.put(entry.id(), entry);
         });
+        if (!payload.complete()) return;
+        clientEntries.clear();
+        clientEntries.putAll(pendingEntries);
         refilter();
     }
 
@@ -701,6 +706,10 @@ public final class KleinMenu extends AbstractContainerMenu {
     public boolean quantitySort() { return sortMode == SORT_QUANTITY; }
     public boolean descending() { return descending; }
     public int lockedInventorySlot() { return lockedInventorySlot; }
+    public boolean isStorageLocked(Slot slot) {
+        return slot.container == inventory && (slot.getContainerSlot() == lockedInventorySlot
+                || (slot.hasItem() && !KleinWarehouse.canStore(slot.getItem())));
+    }
     public TransientCraftingContainer craftSlots() { return craftSlots; }
     public int drawerMode() { return drawerMode; }
     public void setDrawerMode(int mode) {
