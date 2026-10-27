@@ -40,9 +40,13 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.init.ModMenuTypes;
 
 public final class KleinMenu extends AbstractContainerMenu {
-    public static final int GRID_X = 8, GRID_Y = 42, PLAYER_X = 9, PLAYER_Y = 134, HOTBAR_Y = 193;
-    public static final int DRAWER_WIDTH = 92, DRAWER_HEIGHT = 108;
-    public static final int DRAWER_X = -96, DRAWER_Y = 42;
+    public static final int GRID_X = 8, GRID_Y = 46, PLAYER_X = 9, PLAYER_Y = 154, HOTBAR_Y = 213;
+    public static final int VISIBLE_ROWS = 5;
+    public static final int DRAWER_WIDTH = 118, DRAWER_HEIGHT = 88;
+    public static final int DRAWER_X = -122, DRAWER_Y = 74;
+    public static final int DRAWER_GRID_X = 11, DRAWER_GRID_Y = 26, DRAWER_SLOT_STEP = 18;
+    public static final int DRAWER_RESULT_X = 89, DRAWER_RESULT_Y = 44;
+    public static final int ANVIL_LEFT_X = 11, ANVIL_RIGHT_X = 50;
 
     public static final int CRAFT_RESULT_SLOT = 36;
     public static final int CRAFT_GRID_START = 37;
@@ -53,14 +57,12 @@ public final class KleinMenu extends AbstractContainerMenu {
     public static final int DRAWER_NONE = 0, DRAWER_CRAFTING = 1, DRAWER_SMELTING = 2, DRAWER_ANVIL = 3;
 
     private final Inventory inventory;
-    private final InteractionHand hand;
     private final int lockedInventorySlot;
     private final ItemStack openingBottle;
     private KleinWarehouse warehouse;
     private KleinStorageSavedData savedData;
     private int lastSequence = -1;
     private int clientSequence = -1;
-    private int syncCursor;
     private final Map<Long, KleinEntryData> clientEntries = new LinkedHashMap<>();
     private final List<KleinEntryData> filtered = new ArrayList<>();
     private String query = "";
@@ -77,16 +79,20 @@ public final class KleinMenu extends AbstractContainerMenu {
     private final DrawerContainer anvilRight;
     private final ResultContainer anvilResult;
     private boolean recomputeGuard;
+    private String anvilItemName = "";
 
     public KleinMenu(int id, Inventory inventory, FriendlyByteBuf extra) {
-        this(id, inventory, extra.readEnum(InteractionHand.class));
+        this(id, inventory, extra.readVarInt());
     }
 
     public KleinMenu(int id, Inventory inventory, InteractionHand hand) {
+        this(id, inventory, hand == InteractionHand.MAIN_HAND ? inventory.selected : Inventory.SLOT_OFFHAND);
+    }
+
+    public KleinMenu(int id, Inventory inventory, int bottleSlot) {
         super(ModMenuTypes.KLEIN_MENU.get(), id);
         this.inventory = inventory;
-        this.hand = hand;
-        this.lockedInventorySlot = hand == InteractionHand.MAIN_HAND ? inventory.selected : Inventory.SLOT_OFFHAND;
+        this.lockedInventorySlot = bottleSlot;
         this.openingBottle = inventory.getItem(lockedInventorySlot).copy();
         for (int row = 0; row < 3; row++) for (int col = 0; col < 9; col++) {
             addSlot(new ProtectedSlot(inventory, col + row * 9 + 9, PLAYER_X + col * 18, PLAYER_Y + row * 18));
@@ -101,22 +107,31 @@ public final class KleinMenu extends AbstractContainerMenu {
         anvilRight = new DrawerContainer(1);
         anvilResult = new ResultContainer();
 
-        addSlot(new ResultSlot(inventory.player, craftSlots, craftResult, 0, DRAWER_X + 71, DRAWER_Y + 39) {
+        addSlot(new ResultSlot(inventory.player, craftSlots, craftResult, 0,
+                DRAWER_X + DRAWER_RESULT_X + 1, DRAWER_Y + DRAWER_RESULT_Y + 1) {
             @Override public boolean isActive() { return drawerMode == DRAWER_CRAFTING; }
         });
         for (int row = 0; row < 3; row++) for (int col = 0; col < 3; col++) {
-            addSlot(new DrawerSlot(craftSlots, col + row * 3, DRAWER_X + 9 + col * 18,
-                    DRAWER_Y + 21 + row * 18, DRAWER_CRAFTING));
+            addSlot(new DrawerSlot(craftSlots, col + row * 3, DRAWER_X + DRAWER_GRID_X + 1 + col * DRAWER_SLOT_STEP,
+                    DRAWER_Y + DRAWER_GRID_Y + 1 + row * DRAWER_SLOT_STEP, DRAWER_CRAFTING));
         }
-        addSlot(new DrawerSlot(smeltInput, 0, DRAWER_X + 39, DRAWER_Y + 21, DRAWER_SMELTING));
-        addSlot(new OutputSlot(smeltOutput, 0, DRAWER_X + 39, DRAWER_Y + 71, DRAWER_SMELTING));
-        addSlot(new DrawerSlot(anvilLeft, 0, DRAWER_X + 11, DRAWER_Y + 37, DRAWER_ANVIL));
-        addSlot(new DrawerSlot(anvilRight, 0, DRAWER_X + 35, DRAWER_Y + 37, DRAWER_ANVIL));
-        addSlot(new AnvilResultSlot(anvilResult, 0, DRAWER_X + 67, DRAWER_Y + 37, DRAWER_ANVIL));
+        addSlot(new DrawerSlot(smeltInput, 0, DRAWER_X + 51, DRAWER_Y + 25, DRAWER_SMELTING));
+        addSlot(new OutputSlot(smeltOutput, 0, DRAWER_X + 51, DRAWER_Y + 62, DRAWER_SMELTING));
+        addSlot(new DrawerSlot(anvilLeft, 0, DRAWER_X + ANVIL_LEFT_X + 1,
+                DRAWER_Y + DRAWER_RESULT_Y + 1, DRAWER_ANVIL));
+        addSlot(new DrawerSlot(anvilRight, 0, DRAWER_X + ANVIL_RIGHT_X + 1,
+                DRAWER_Y + DRAWER_RESULT_Y + 1, DRAWER_ANVIL));
+        addSlot(new AnvilResultSlot(anvilResult, 0, DRAWER_X + DRAWER_RESULT_X + 1,
+                DRAWER_Y + DRAWER_RESULT_Y + 1, DRAWER_ANVIL));
 
         if (inventory.player instanceof ServerPlayer player) {
             savedData = KleinStorageSavedData.get(player.server);
             warehouse = savedData.warehouse(player.getUUID());
+            clientEntries.clear();
+            for (KleinWarehouse.Entry entry : warehouse.entries()) {
+                clientEntries.put(entry.id(), new KleinEntryData(entry.id(), entry.template(), entry.amount()));
+            }
+            refilter();
         }
     }
 
@@ -138,7 +153,7 @@ public final class KleinMenu extends AbstractContainerMenu {
                 return;
             }
         }
-        if (type == ClickType.SWAP && (button == lockedInventorySlot || (hand == InteractionHand.OFF_HAND && button == 40))) {
+        if (type == ClickType.SWAP && (button == lockedInventorySlot || (lockedInventorySlot == Inventory.SLOT_OFFHAND && button == 40))) {
             return;
         }
         super.clicked(slotId, button, type, player);
@@ -193,14 +208,18 @@ public final class KleinMenu extends AbstractContainerMenu {
             extractToInventory(action.entryId(), Integer.MAX_VALUE);
         } else if (action.operation() == KleinActionPayload.EXTRACT_ONE) {
             extractToInventory(action.entryId(), 1);
-        } else if (action.operation() == KleinActionPayload.EXTRACT || action.operation() == KleinActionPayload.EXTRACT_HALF) {
-            // Left click pulls a stack to the cursor; right click moves half a stack.
+        } else if (action.operation() == KleinActionPayload.EXTRACT
+                || action.operation() == KleinActionPayload.EXTRACT_HALF
+                || action.operation() == KleinActionPayload.EXTRACT_CURSOR_ONE) {
+            // Left: stack, middle: half stack, right: one item, all onto the cursor.
             if (getCarried().isEmpty()) {
                 KleinWarehouse.Entry entry = warehouse.entry(action.entryId());
                 if (entry != null) {
-                    int limit = action.operation() == KleinActionPayload.EXTRACT_HALF
-                            ? Math.max(1, entry.template().getMaxStackSize() / 2)
-                            : entry.template().getMaxStackSize();
+                    int limit = switch (action.operation()) {
+                        case KleinActionPayload.EXTRACT_HALF -> Math.max(1, entry.template().getMaxStackSize() / 2);
+                        case KleinActionPayload.EXTRACT_CURSOR_ONE -> 1;
+                        default -> entry.template().getMaxStackSize();
+                    };
                     ItemStack extracted = warehouse.extract(action.entryId(), limit);
                     if (!extracted.isEmpty()) {
                         setCarried(extracted);
@@ -219,6 +238,8 @@ public final class KleinMenu extends AbstractContainerMenu {
         if (payload.sequence() != lastSequence + 1) return;
         lastSequence = payload.sequence();
         List<ItemStack> grid = payload.grid();
+        int sets = payload.maxTransfer() ? maxCraftSets(grid) : oneCraftSet(grid);
+        if (sets < 1 || !canTakeCompleteSets(grid, sets)) return;
         boolean changed = false;
         recomputeGuard = true;
         try {
@@ -229,18 +250,71 @@ public final class KleinMenu extends AbstractContainerMenu {
                 ItemStack wanted = grid.get(i);
                 craftSlots.setItem(i, ItemStack.EMPTY);
                 if (wanted.isEmpty()) continue;
-                ItemStack taken = takeOneMatching(wanted);
-                if (!taken.isEmpty()) {
-                    craftSlots.setItem(i, taken);
-                    changed = true;
-                }
+                ItemStack taken = ItemStack.EMPTY;
+                for (int count = 0; count < sets; count++) taken = appendOne(taken, wanted);
+                if (!taken.isEmpty()) { craftSlots.setItem(i, taken); changed = true; }
             }
         } finally {
             recomputeGuard = false;
         }
         if (changed) savedData.changed();
+        updateCraftResult();
         syncChanges(player);
         broadcastChanges();
+    }
+
+    private ItemStack appendOne(ItemStack collected, ItemStack wanted) {
+        ItemStack one = takeOneMatching(wanted);
+        if (one.isEmpty()) return collected;
+        if (collected.isEmpty()) return one;
+        collected.grow(one.getCount());
+        return collected;
+    }
+
+    private boolean canTakeCompleteSets(List<ItemStack> grid, int sets) {
+        for (int i = 0; i < 9 && i < grid.size(); i++) {
+            ItemStack wanted = grid.get(i);
+            if (wanted.isEmpty()) continue;
+            if (availableMatching(wanted).compareTo(BigInteger.valueOf(sets)) < 0) return false;
+        }
+        return true;
+    }
+
+    private BigInteger availableMatching(ItemStack wanted) {
+        BigInteger available = BigInteger.ZERO;
+        for (KleinWarehouse.Entry entry : warehouse.entries()) {
+            if (ItemStack.isSameItemSameComponents(entry.template(), wanted)) {
+                available = available.add(entry.amount());
+            }
+        }
+        for (Slot slot : slots) {
+            if (slot.container == inventory && slot.getContainerSlot() != lockedInventorySlot && slot.hasItem()
+                    && ItemStack.isSameItemSameComponents(slot.getItem(), wanted)) {
+                available = available.add(BigInteger.valueOf(slot.getItem().getCount()));
+            }
+        }
+        return available;
+    }
+
+    private int maxCraftSets(List<ItemStack> grid) {
+        int max = Integer.MAX_VALUE;
+        boolean any = false;
+        for (ItemStack wanted : grid) {
+            if (wanted.isEmpty()) continue;
+            any = true;
+            int occurrences = 0;
+            for (ItemStack other : grid) {
+                if (ItemStack.isSameItemSameComponents(wanted, other)) occurrences++;
+            }
+            int sets = availableMatching(wanted).divide(BigInteger.valueOf(occurrences))
+                    .min(BigInteger.valueOf(wanted.getMaxStackSize())).intValue();
+            max = Math.min(max, sets);
+        }
+        return any ? max : 0;
+    }
+
+    private static int oneCraftSet(List<ItemStack> grid) {
+        return grid.stream().anyMatch(stack -> !stack.isEmpty()) ? 1 : 0;
     }
 
     private ItemStack takeOneMatching(ItemStack wanted) {
@@ -376,15 +450,39 @@ public final class KleinMenu extends AbstractContainerMenu {
         return result.isEmpty() || !result.isItemEnabled(level().enabledFeatures()) ? ItemStack.EMPTY : result.copy();
     }
 
+    public void setAnvilItemName(String name) {
+        this.anvilItemName = name == null ? "" : name;
+        updateAnvilResult();
+        broadcastChanges();
+    }
+
+    public String anvilItemName() {
+        return anvilItemName;
+    }
+
     void updateAnvilResult() {
-        if (level().isClientSide) return;
+        if (level().isClientSide) {
+            anvilResult.setItem(0, anvilPreview(anvilLeft.getItem(0), anvilRight.getItem(0)));
+            return;
+        }
         ItemStack left = anvilLeft.getItem(0);
         ItemStack right = anvilRight.getItem(0);
         ItemStack result = ItemStack.EMPTY;
-        if (!left.isEmpty() && EnchantmentHelper.canStoreEnchantments(left)) {
+        if (!left.isEmpty()) {
             ItemStack work = left.copyWithCount(1);
             boolean changed = false;
-            if (!right.isEmpty()) {
+
+            if (anvilItemName != null && !anvilItemName.isBlank()) {
+                if (!anvilItemName.equals(left.getHoverName().getString())) {
+                    work.set(DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal(anvilItemName));
+                    changed = true;
+                }
+            } else if (left.has(DataComponents.CUSTOM_NAME) && anvilItemName != null && anvilItemName.isEmpty()) {
+                work.remove(DataComponents.CUSTOM_NAME);
+                changed = true;
+            }
+
+            if (!right.isEmpty() && EnchantmentHelper.canStoreEnchantments(left)) {
                 if (work.isDamageableItem() && work.getItem().isValidRepairItem(left, right)) {
                     int repair = Math.min(work.getDamageValue(), work.getMaxDamage() / 4);
                     if (repair > 0) {
@@ -409,6 +507,8 @@ public final class KleinMenu extends AbstractContainerMenu {
                     for (var entry : extra.entrySet()) {
                         Holder<Enchantment> holder = entry.getKey();
                         if (!work.supportsEnchantment(holder)) continue;
+                        if (merged.keySet().stream().anyMatch(existing ->
+                                !existing.equals(holder) && !Enchantment.areCompatible(existing, holder))) continue;
                         int existing = merged.getLevel(holder);
                         int incoming = entry.getIntValue();
                         int next = Math.min(Math.max(incoming, existing == incoming ? incoming + 1 : incoming),
@@ -429,14 +529,32 @@ public final class KleinMenu extends AbstractContainerMenu {
         anvilResult.setItem(0, result);
     }
 
+    private ItemStack anvilPreview(ItemStack left, ItemStack right) {
+        if (left.isEmpty()) return ItemStack.EMPTY;
+        ItemStack work = left.copyWithCount(1);
+        if (!anvilItemName.isBlank() && !anvilItemName.equals(left.getHoverName().getString())) {
+            work.set(DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal(anvilItemName));
+        }
+        return work;
+    }
+
     private void syncChanges(Player player) {
         if (savedData != null) savedData.syncViewers(player.getUUID());
     }
 
     void syncFromWarehouse() {
         if (inventory.player instanceof ServerPlayer player) {
-            PacketDistributor.sendToPlayer(player, new KleinSyncPayload(warehouse.entries().stream().limit(64)
-                    .map(entry -> new KleinEntryData(entry.id(), entry.template(), entry.amount())).toList(), true));
+            List<KleinWarehouse.Entry> entries = warehouse.entries().stream().toList();
+            if (entries.isEmpty()) {
+                PacketDistributor.sendToPlayer(player, new KleinSyncPayload(List.of(), true));
+                return;
+            }
+            for (int start = 0; start < entries.size(); start += 64) {
+                int end = Math.min(entries.size(), start + 64);
+                PacketDistributor.sendToPlayer(player, new KleinSyncPayload(entries.subList(start, end).stream()
+                        .map(entry -> new KleinEntryData(entry.id(), entry.template(), entry.amount())).toList(),
+                        start == 0));
+            }
         }
     }
 
@@ -492,20 +610,22 @@ public final class KleinMenu extends AbstractContainerMenu {
                 stack.shrink(accepted);
                 changed = true;
             }
-            if (stack.isEmpty()) container.setItem(i, ItemStack.EMPTY);
+            if (!stack.isEmpty()) {
+                ItemStack remainder = insertRealStack(stack.copy());
+                if (!remainder.isEmpty()) inventory.player.drop(remainder, false);
+            }
+            container.setItem(i, ItemStack.EMPTY);
         }
         if (changed && savedData != null) savedData.changed();
     }
 
     @Override public void broadcastChanges() {
         super.broadcastChanges();
-        if (warehouse == null || !(inventory.player instanceof ServerPlayer player)) return;
-        if (syncCursor < warehouse.size()) {
-            List<KleinEntryData> page = warehouse.entries().stream().skip(syncCursor).limit(64)
-                    .map(entry -> new KleinEntryData(entry.id(), entry.template(), entry.amount())).toList();
-            syncCursor += page.size();
-            PacketDistributor.sendToPlayer(player, new KleinSyncPayload(page, syncCursor == page.size()));
+        if (!(inventory.player instanceof ServerPlayer) && drawerMode == DRAWER_ANVIL) {
+            anvilResult.setItem(0, anvilPreview(anvilLeft.getItem(0), anvilRight.getItem(0)));
         }
+        if (warehouse == null || !(inventory.player instanceof ServerPlayer player)) return;
+        syncFromWarehouse();
     }
 
     public void applySync(KleinSyncPayload payload) {
@@ -566,11 +686,13 @@ public final class KleinMenu extends AbstractContainerMenu {
         }
         comparator = comparator.thenComparing(KleinEntryData::id);
         filtered.sort(descending ? comparator.reversed() : comparator);
+        scroll = Math.min(scroll, maxScroll());
     }
 
     public List<KleinEntryData> filtered() { return filtered; }
     public int scroll() { return scroll; }
-    public void scroll(int value) { scroll = Math.max(0, Math.min(value, Math.max(0, (filtered.size() + 8) / 9 - 4))); }
+    public int maxScroll() { return Math.max(0, (filtered.size() + 8) / 9 - VISIBLE_ROWS); }
+    public void scroll(int value) { scroll = Math.clamp(value, 0, maxScroll()); }
     public int sortMode() { return sortMode; }
     public boolean quantitySort() { return sortMode == SORT_QUANTITY; }
     public boolean descending() { return descending; }
@@ -613,7 +735,10 @@ public final class KleinMenu extends AbstractContainerMenu {
             return;
         }
         if (entry == null) return;
-        int operation = shift ? KleinActionPayload.EXTRACT_INVENTORY : button == 1 ? KleinActionPayload.EXTRACT_HALF : KleinActionPayload.EXTRACT;
+        int operation = shift ? KleinActionPayload.EXTRACT_INVENTORY
+                : button == 2 ? KleinActionPayload.EXTRACT_HALF
+                : button == 1 ? KleinActionPayload.EXTRACT_CURSOR_ONE
+                : KleinActionPayload.EXTRACT;
         PacketDistributor.sendToServer(new KleinActionPayload(entry.id(), operation, -1, nextSequence()));
     }
 
@@ -668,8 +793,12 @@ public final class KleinMenu extends AbstractContainerMenu {
         }
         @Override public boolean mayPlace(ItemStack stack) { return false; }
         @Override public void onTake(Player player, ItemStack stack) {
-            // Base consumes the left item; the secondary input is a catalyst and is kept.
-            anvilLeft.setItem(0, ItemStack.EMPTY);
+            recomputeGuard = true;
+            anvilLeft.removeItem(0, 1);
+            if (!anvilRight.getItem(0).isEmpty()) {
+                anvilRight.removeItem(0, 1);
+            }
+            recomputeGuard = false;
             updateAnvilResult();
             super.onTake(player, stack);
         }

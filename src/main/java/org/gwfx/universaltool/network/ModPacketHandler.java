@@ -6,12 +6,14 @@ import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.klein.KleinActionPayload;
 import org.gwfx.universaltool.klein.KleinCraftFillPayload;
 import org.gwfx.universaltool.klein.KleinDrawerPayload;
+import org.gwfx.universaltool.klein.KleinOpenPayload;
+import org.gwfx.universaltool.klein.KleinRenamePayload;
 import org.gwfx.universaltool.klein.KleinSyncPayload;
 
 public final class ModPacketHandler {
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("10");
+        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("12");
 
         // 客户端发往服务端
         registrar.playToServer(SaveWaypointPayload.TYPE, SaveWaypointPayload.STREAM_CODEC, SaveWaypointPayload::handle);
@@ -34,6 +36,8 @@ public final class ModPacketHandler {
         registrar.playToServer(KleinActionPayload.TYPE, KleinActionPayload.STREAM_CODEC, KleinActionPayload::handle);
         registrar.playToServer(KleinCraftFillPayload.TYPE, KleinCraftFillPayload.STREAM_CODEC, KleinCraftFillPayload::handle);
         registrar.playToServer(KleinDrawerPayload.TYPE, KleinDrawerPayload.STREAM_CODEC, KleinDrawerPayload::handle);
+        registrar.playToServer(KleinOpenPayload.TYPE, KleinOpenPayload.STREAM_CODEC, KleinOpenPayload::handle);
+        registrar.playToServer(KleinRenamePayload.TYPE, KleinRenamePayload.STREAM_CODEC, KleinRenamePayload::handle);
 
         registrar.playToClient(OreSightPayload.TYPE, OreSightPayload.STREAM_CODEC, OreSightPayload::handle);
         registrar.playToClient(CounterGuardEffectPayload.TYPE, CounterGuardEffectPayload.STREAM_CODEC,

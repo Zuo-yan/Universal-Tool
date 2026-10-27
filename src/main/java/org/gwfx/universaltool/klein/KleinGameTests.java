@@ -120,6 +120,51 @@ public final class KleinGameTests {
     }
 
     @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void fullWarehouseSyncResetsThenContinues(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-sync-player");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        KleinMenu menu = new KleinMenu(9, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        var entries = new java.util.ArrayList<KleinEntryData>();
+        for (int i = 0; i < 65; i++) {
+            entries.add(new KleinEntryData(i + 1L, new ItemStack(Items.STONE), BigInteger.ONE));
+        }
+        menu.applySync(new KleinSyncPayload(entries.subList(0, 64), true));
+        menu.applySync(new KleinSyncPayload(entries.subList(64, 65), false));
+        helper.assertTrue(menu.filtered().size() == 65,
+                "Reset page followed by continuation preserves all 65 synced entries");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void warehouseScrollAndMouseExtraction(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-scroll-player");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        KleinMenu menu = new KleinMenu(6, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        KleinWarehouse warehouse = KleinStorageSavedData.get(player.server).warehouse(player.getUUID());
+        warehouse.insert(new ItemStack(Items.STONE), BigInteger.valueOf(64));
+        for (var item : net.minecraft.core.registries.BuiltInRegistries.ITEM) {
+            if (warehouse.size() >= 54) break;
+            if (item == Items.STONE || item.getDefaultInstance().getMaxStackSize() <= 1) continue;
+            warehouse.insert(item.getDefaultInstance(), BigInteger.ONE);
+        }
+        helper.assertTrue(warehouse.size() == 54, "Distinct item types create six warehouse rows");
+        menu.setView("", KleinMenu.SORT_QUANTITY, true);
+        var entry = warehouse.entries().stream()
+                .filter(candidate -> candidate.template().is(Items.STONE))
+                .findFirst().orElseThrow();
+        menu.handleAction(new KleinActionPayload(entry.id(), KleinActionPayload.EXTRACT_HALF, -1, 0));
+        helper.assertTrue(menu.getCarried().getCount() == 32,
+                "Middle click extracts half a stack");
+        menu.setCarried(ItemStack.EMPTY);
+
+        menu.handleAction(new KleinActionPayload(entry.id(), KleinActionPayload.EXTRACT_CURSOR_ONE, -1, 1));
+        helper.assertTrue(menu.getCarried().getCount() == 1, "Right click extracts one item");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
     public static void saveRoundTripAndPlayerIsolation(GameTestHelper helper) {
         KleinStorageSavedData data = new KleinStorageSavedData();
         UUID first = UUID.randomUUID(), second = UUID.randomUUID();
@@ -131,6 +176,91 @@ public final class KleinGameTests {
         helper.assertTrue(loaded.warehouse(first).entries().iterator().next().amount().equals(huge), "Large quantity round trip");
         helper.assertTrue(loaded.warehouse(second).size() == 1, "Second warehouse independent");
         helper.assertTrue(loaded.warehouse(first).entries().iterator().next().template().is(Items.STONE), "Owner item preserved");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void jeiFillProducesCraftableResult(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-jei-player");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        KleinMenu menu = new KleinMenu(3, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        KleinWarehouse warehouse = KleinStorageSavedData.get(player.server).warehouse(player.getUUID());
+        warehouse.insert(new ItemStack(Items.OAK_LOG), BigInteger.valueOf(2));
+        menu.setDrawerMode(KleinMenu.DRAWER_CRAFTING);
+        ItemStack staged = new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get());
+        menu.slots.get(KleinMenu.CRAFT_GRID_START + 8).set(staged);
+
+        var grid = new java.util.ArrayList<ItemStack>(java.util.Collections.nCopies(9, ItemStack.EMPTY));
+        grid.set(0, new ItemStack(Items.OAK_LOG));
+        menu.handleCraftFill(new KleinCraftFillPayload(grid, 0, false));
+        helper.assertTrue(menu.slots.get(KleinMenu.CRAFT_RESULT_SLOT).getItem().is(Items.OAK_PLANKS),
+                "JEI transfer calculates the resulting planks");
+        helper.assertTrue(player.getInventory().contains(staged), "Existing unstoreable ingredient is preserved");
+        menu.clicked(KleinMenu.CRAFT_RESULT_SLOT, 0, ClickType.PICKUP, player);
+        helper.assertTrue(menu.getCarried().is(Items.OAK_PLANKS) && menu.getCarried().getCount() == 4,
+                "Crafting result can be taken after JEI transfer");
+        helper.assertTrue(menu.slots.get(KleinMenu.CRAFT_GRID_START).getItem().isEmpty(),
+                "Taking the result consumes the transferred log");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void jeiShiftFillUsesCompleteSets(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-jei-bulk");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        player.getInventory().setItem(1, new ItemStack(Items.OAK_PLANKS, 2));
+        KleinMenu menu = new KleinMenu(4, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        KleinWarehouse warehouse = KleinStorageSavedData.get(player.server).warehouse(player.getUUID());
+        warehouse.insert(new ItemStack(Items.OAK_PLANKS), BigInteger.valueOf(130));
+        menu.setDrawerMode(KleinMenu.DRAWER_CRAFTING);
+        var grid = new java.util.ArrayList<ItemStack>(java.util.Collections.nCopies(9, ItemStack.EMPTY));
+        for (int i = 0; i < 3; i++) grid.set(i, new ItemStack(Items.OAK_PLANKS));
+        menu.handleCraftFill(new KleinCraftFillPayload(grid, 0, true));
+        for (int i = 0; i < 3; i++) {
+            helper.assertTrue(menu.slots.get(KleinMenu.CRAFT_GRID_START + i).getItem().getCount() == 44,
+                    "Shift transfer distributes complete sets across matching ingredients");
+        }
+        helper.assertTrue(menu.slots.get(KleinMenu.CRAFT_RESULT_SLOT).getItem().is(Items.OAK_SLAB),
+                "Shift transfer still produces a valid recipe result");
+        helper.assertTrue(player.getInventory().getItem(1).isEmpty(), "Shift transfer uses inventory after warehouse");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void jeiShiftFillNeverConsumesIncompleteIngredients(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-jei-incomplete");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        player.getInventory().setItem(1, new ItemStack(Items.ENDER_PEARL, 1));
+        var saved = KleinStorageSavedData.get(player.server).warehouse(player.getUUID());
+        saved.insert(new ItemStack(Items.ENDER_PEARL), BigInteger.valueOf(40));
+        KleinMenu menu = new KleinMenu(7, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        menu.setDrawerMode(KleinMenu.DRAWER_CRAFTING);
+        ItemStack before = player.getInventory().getItem(1).copy();
+        var grid = new java.util.ArrayList<ItemStack>(java.util.Collections.nCopies(9, ItemStack.EMPTY));
+        for (int i = 0; i < 3; i++) grid.set(i, new ItemStack(Items.ENDER_PEARL));
+        menu.handleCraftFill(new KleinCraftFillPayload(grid, 0, true));
+        helper.assertTrue(player.getInventory().getItem(1).getCount() == before.getCount(),
+                "Incomplete shift recipe leaves all player ingredients untouched");
+        helper.assertTrue(menu.slots.get(KleinMenu.CRAFT_RESULT_SLOT).getItem().isEmpty(),
+                "Incomplete shift recipe never produces a misleading result");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void inventoryBottleSelection(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-key");
+        ItemStack bottle = new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get());
+        helper.assertTrue(KleinOpenPayload.findBottle(player.getInventory()) == -1, "No bottle means no terminal");
+        player.getInventory().setItem(17, bottle);
+        helper.assertTrue(KleinOpenPayload.findBottle(player.getInventory()) == 17, "Bottle can be in the main inventory");
+        KleinMenu menu = new KleinMenu(5, player.getInventory(), 17);
+        helper.assertTrue(menu.stillValid(player), "Inventory bottle opens a valid menu");
+        Slot protectedSlot = menu.slots.stream().filter(s -> s.container == player.getInventory()
+                && s.getContainerSlot() == 17).findFirst().orElseThrow();
+        helper.assertTrue(!protectedSlot.mayPickup(player), "Inventory bottle remains locked");
         helper.succeed();
     }
 
@@ -169,6 +299,22 @@ public final class KleinGameTests {
         helper.assertTrue(repaired.is(Items.DIAMOND_SWORD)
                         && repaired.getDamageValue() < left.getDamageValue(),
                 "Anvil drawer combines two damaged swords into a more durable one");
+        menu.clicked(KleinMenu.ANVIL_RESULT_SLOT, 0, ClickType.PICKUP, player);
+        helper.assertTrue(player.containerMenu.getCarried().is(Items.DIAMOND_SWORD), "Anvil result can be taken");
+        helper.assertTrue(menu.slots.get(KleinMenu.ANVIL_RIGHT_SLOT).getItem().isEmpty(),
+                "Anvil consumes the secondary sword");
+        player.containerMenu.setCarried(ItemStack.EMPTY);
+
+        // Test Anvil rename
+        menu.slots.get(KleinMenu.ANVIL_LEFT_SLOT).set(new ItemStack(Items.DIAMOND_SWORD));
+        menu.setAnvilItemName("Excalibur");
+        ItemStack renamed = menu.slots.get(KleinMenu.ANVIL_RESULT_SLOT).getItem();
+        helper.assertTrue("Excalibur".equals(renamed.getHoverName().getString()),
+                "Anvil renames sword to Excalibur");
+        menu.clicked(KleinMenu.ANVIL_RESULT_SLOT, 0, ClickType.PICKUP, player);
+        helper.assertTrue(menu.slots.get(KleinMenu.ANVIL_LEFT_SLOT).getItem().isEmpty(),
+                "Renaming consumes the input item");
+        player.containerMenu.setCarried(ItemStack.EMPTY);
 
         menu.setDrawerMode(KleinMenu.DRAWER_NONE);
         helper.assertTrue(menu.slots.get(KleinMenu.SMELT_OUTPUT_SLOT).getItem().isEmpty(),
@@ -179,6 +325,27 @@ public final class KleinGameTests {
         menu.removed(player);
         helper.assertTrue(warehouse.entries().stream().anyMatch(e -> e.template().is(Items.CHARCOAL)),
                 "Closing the terminal returns drawer contents to the warehouse");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void anvilRenameHandlesBlankAndCustomNames(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-rename-player");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        KleinMenu menu = new KleinMenu(10, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        menu.setDrawerMode(KleinMenu.DRAWER_ANVIL);
+        ItemStack item = new ItemStack(Items.DIAMOND_SWORD);
+        item.set(DataComponents.CUSTOM_NAME, Component.literal("Old Name"));
+        menu.slots.get(KleinMenu.ANVIL_LEFT_SLOT).set(item);
+        menu.setAnvilItemName("");
+        helper.assertTrue(!menu.slots.get(KleinMenu.ANVIL_RESULT_SLOT).getItem()
+                        .has(DataComponents.CUSTOM_NAME),
+                "Blank rename clears a prior custom name");
+        menu.setAnvilItemName("Excalibur");
+        helper.assertTrue(menu.slots.get(KleinMenu.ANVIL_RESULT_SLOT).getItem()
+                        .getHoverName().getString().equals("Excalibur"),
+                "Custom rename updates the result");
         helper.succeed();
     }
 

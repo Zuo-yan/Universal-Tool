@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.1 - 2026-10-27
+
+- Recalculate crafting results after JEI fills the Klein Bottle crafting grid.
+- Rename the anvil drawer and consume its secondary ingredient when taking the result.
+- Preserve staged items that cannot be returned to the warehouse.
+- Align crafting and anvil drawer slots, redraw the arrow and action icons, and fix the scrollbar texture.
+- Preserve both scrollbar end caps at every thumb height.
+- Support JEI Shift-click recipe filling, a configurable G shortcut for inventory bottles, and spaced drawer slots.
+
 ## 1.4.0 - 2026-10-27
 
 - Added a left-side drawer to the Klein Bottle terminal with crafting table, fuel-free smelting and anvil modes.

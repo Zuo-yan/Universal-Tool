@@ -13,7 +13,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.gwfx.universaltool.UniversalToolMod;
 
 /** Client-chosen concrete ingredient stacks for the Klein crafting drawer (JEI transfer). */
-public record KleinCraftFillPayload(List<ItemStack> grid, int sequence) implements CustomPacketPayload {
+public record KleinCraftFillPayload(List<ItemStack> grid, int sequence, boolean maxTransfer) implements CustomPacketPayload {
     public static final int GRID_SIZE = 9;
     public static final Type<KleinCraftFillPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "klein_craft_fill"));
@@ -26,13 +26,14 @@ public record KleinCraftFillPayload(List<ItemStack> grid, int sequence) implemen
             for (int i = 0; i < GRID_SIZE; i++) {
                 grid.add(i < size ? ItemStack.OPTIONAL_STREAM_CODEC.decode(buffer) : ItemStack.EMPTY);
             }
-            return new KleinCraftFillPayload(grid, ByteBufCodecs.VAR_INT.decode(buffer));
+            return new KleinCraftFillPayload(grid, ByteBufCodecs.VAR_INT.decode(buffer), buffer.readBoolean());
         }
 
         @Override public void encode(RegistryFriendlyByteBuf buffer, KleinCraftFillPayload value) {
             ByteBufCodecs.VAR_INT.encode(buffer, value.grid.size());
             value.grid.forEach(stack -> ItemStack.OPTIONAL_STREAM_CODEC.encode(buffer, stack));
             ByteBufCodecs.VAR_INT.encode(buffer, value.sequence);
+            buffer.writeBoolean(value.maxTransfer);
         }
     };
 

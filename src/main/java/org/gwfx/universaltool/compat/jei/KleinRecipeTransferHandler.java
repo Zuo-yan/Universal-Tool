@@ -67,7 +67,7 @@ public final class KleinRecipeTransferHandler
             net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                     new org.gwfx.universaltool.klein.KleinDrawerPayload(KleinMenu.DRAWER_CRAFTING));
             net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                    new KleinCraftFillPayload(grid, menu.nextSequence()));
+                    new KleinCraftFillPayload(grid, menu.nextSequence(), maxTransfer));
         }
         return null;
     }

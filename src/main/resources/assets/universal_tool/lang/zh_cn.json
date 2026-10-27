@@ -110,6 +110,7 @@
   "message.universal_tool.personal_space.returned": "§a已通过返回门离开私人空间。",
   "message.universal_tool.personal_space.return_gate_protected": "§c返回门受魔法保护，无法破坏。",
   "key.categories.universal_tool": "万能工具",
+  "key.universal_tool.klein.open": "打开克莱因瓶",
   "key.universal_tool.skills.open": "打开技能管理",
   "key.universal_tool.skills.select": "按住选择主动技能",
   "key.universal_tool.skills.cast": "施放当前主动技能",
@@ -275,6 +276,7 @@
   "unlock.diamond_bulwark": "被动技能，默认具备学习资格。",
   "unlock.damage_clamp": "被动技能，默认具备学习资格。",
   "item.universal_tool.klein_bottle": "克莱因瓶",
+  "item.universal_tool.klein_bottle.desc.hotkey": "在背包中按 [%s] 键快速打开",
   "gui.universal_tool.klein.private": "私人空间",
   "gui.universal_tool.klein.search": "搜索物品...",
   "gui.universal_tool.klein.name": "名称",
@@ -289,6 +291,7 @@
   "gui.universal_tool.klein.clear_search": "清空搜索",
   "gui.universal_tool.klein.tab_crafting": "工作台合成",
   "gui.universal_tool.klein.tab_smelting": "超维烧炼",
-  "gui.universal_tool.klein.tab_anvil": "超维铁砧",
+  "gui.universal_tool.klein.tab_anvil": "铁砧",
+  "gui.universal_tool.klein.anvil_name_hint": "输入新的名称...",
   "gui.universal_tool.klein.jei_too_large": "该配方超出 3×3 合成尺寸"
 }

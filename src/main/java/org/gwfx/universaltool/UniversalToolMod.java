@@ -51,6 +51,7 @@ public class UniversalToolMod {
             modEventBus.addListener(this::registerScreens);
             modEventBus.addListener(this::registerRenderers);
             modEventBus.addListener(org.gwfx.universaltool.client.SkillClientController::registerKeys);
+            modEventBus.addListener(org.gwfx.universaltool.client.KleinKeybind::registerKeys);
         }
     }
 

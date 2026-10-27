@@ -110,6 +110,7 @@
   "message.universal_tool.personal_space.returned": "§aYou returned through the exit gate.",
   "message.universal_tool.personal_space.return_gate_protected": "§cThe return gate is protected by magic.",
   "key.categories.universal_tool": "Universal Tool",
+  "key.universal_tool.klein.open": "Open Klein Bottle",
   "key.universal_tool.skills.open": "Open skill management",
   "key.universal_tool.skills.select": "Hold to select active skill",
   "key.universal_tool.skills.cast": "Cast current active skill",
@@ -275,6 +276,7 @@
   "unlock.diamond_bulwark": "Passive: always available to learn.",
   "unlock.damage_clamp": "Passive: always available to learn.",
   "item.universal_tool.klein_bottle": "Klein Bottle",
+  "item.universal_tool.klein_bottle.desc.hotkey": "Press [%s] in inventory to open",
   "gui.universal_tool.klein.private": "Private Space",
   "gui.universal_tool.klein.search": "Search items...",
   "gui.universal_tool.klein.name": "Name",
@@ -289,6 +291,7 @@
   "gui.universal_tool.klein.clear_search": "Clear Search",
   "gui.universal_tool.klein.tab_crafting": "Crafting Table",
   "gui.universal_tool.klein.tab_smelting": "Hyper Smelting",
-  "gui.universal_tool.klein.tab_anvil": "Hyper Anvil",
+  "gui.universal_tool.klein.tab_anvil": "Anvil",
+  "gui.universal_tool.klein.anvil_name_hint": "Enter a new name...",
   "gui.universal_tool.klein.jei_too_large": "Recipe does not fit the 3x3 grid"
 }
