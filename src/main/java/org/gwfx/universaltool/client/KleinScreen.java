@@ -64,9 +64,19 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     }
 
     private void updateDrawerPos() {
-        drawerX = leftPos - KleinMenu.DRAWER_WIDTH - 4;
-        if (drawerX < 2) drawerX = leftPos + imageWidth + 4;
+        int centered = Math.max(2, (width - imageWidth) / 2);
+        leftPos = menu.drawerMode() == KleinMenu.DRAWER_NONE
+                ? centered : Math.max(centered, -KleinMenu.DRAWER_X);
+        drawerX = leftPos + KleinMenu.DRAWER_X;
         drawerY = topPos + KleinMenu.DRAWER_Y;
+        if (search != null) search.setPosition(leftPos + 22, topPos + 26);
+    }
+
+    public List<net.minecraft.client.renderer.Rect2i> jeiExtraAreas() {
+        updateDrawerPos();
+        return menu.drawerMode() == KleinMenu.DRAWER_NONE ? List.of()
+                : List.of(new net.minecraft.client.renderer.Rect2i(drawerX, drawerY,
+                        KleinMenu.DRAWER_WIDTH, KleinMenu.DRAWER_HEIGHT));
     }
 
     private void onAnvilNameChanged(String newName) {
@@ -254,6 +264,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     }
 
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        updateDrawerPos();
         super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
         if (hovered != null) {
@@ -357,7 +368,10 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
                 anvilName.setFocused(false);
                 return true;
             }
-            if (anvilName.keyPressed(keyCode, scanCode, modifiers)) return true;
+            anvilName.keyPressed(keyCode, scanCode, modifiers);
+            // Printable keys are delivered separately through charTyped. Do not
+            // let the inventory shortcut close the screen while typing a name.
+            return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }

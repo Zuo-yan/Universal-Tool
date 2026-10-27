@@ -14,6 +14,9 @@ import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
 import mezz.jei.api.registration.IRecipeTransferRegistration;
+import mezz.jei.api.registration.IGuiHandlerRegistration;
+import mezz.jei.api.gui.handlers.IGuiContainerHandler;
+import org.gwfx.universaltool.client.KleinScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -60,6 +63,15 @@ public class UniversalToolJeiPlugin implements IModPlugin {
     @Override
     public void registerRecipeCatalysts(IRecipeCatalystRegistration registration) {
         registration.addRecipeCatalyst(new ItemStack(ModItems.UNIVERSAL_POLYMERIZER.get()), POLYMERIZING_JEI_TYPE);
+    }
+
+    @Override
+    public void registerGuiHandlers(IGuiHandlerRegistration registration) {
+        registration.addGuiContainerHandler(KleinScreen.class, new IGuiContainerHandler<KleinScreen>() {
+            @Override public List<net.minecraft.client.renderer.Rect2i> getGuiExtraAreas(KleinScreen screen) {
+                return screen.jeiExtraAreas();
+            }
+        });
     }
 
     @Override

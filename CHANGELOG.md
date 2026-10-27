@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.2 - 2026-10-27
+
+- Keep Klein Bottle drawers and their slots aligned on narrow screens, and reserve their area from JEI.
+- Keep the anvil open when typing a name containing an inventory shortcut key.
+
 ## 1.4.1 - 2026-10-27
 
 - Recalculate crafting results after JEI fills the Klein Bottle crafting grid.
