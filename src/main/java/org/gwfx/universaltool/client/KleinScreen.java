@@ -83,7 +83,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
                 if (!anvilName.isFocused()) {
                     String defaultName = currentLeft.isEmpty() ? "" : currentLeft.getHoverName().getString();
                     anvilName.setValue(defaultName);
-                    onAnvilNameChanged(defaultName);
+                    PacketDistributor.sendToServer(new KleinRenamePayload(defaultName));
                 }
             }
         }

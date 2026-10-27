@@ -349,5 +349,26 @@ public final class KleinGameTests {
         helper.succeed();
     }
 
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void anvilRenameServerResultIsTakeable(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-rename-take-player");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        KleinMenu menu = new KleinMenu(11, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        menu.setDrawerMode(KleinMenu.DRAWER_ANVIL);
+        menu.slots.get(KleinMenu.ANVIL_LEFT_SLOT).set(new ItemStack(Items.DIAMOND_SWORD));
+        menu.setAnvilItemName("Excalibur");
+
+        ItemStack preview = menu.slots.get(KleinMenu.ANVIL_RESULT_SLOT).getItem();
+        helper.assertTrue(preview.getHoverName().getString().equals("Excalibur"),
+                "Rename result is materialized in the result slot");
+        menu.clicked(KleinMenu.ANVIL_RESULT_SLOT, 0, ClickType.PICKUP, player);
+        helper.assertTrue(menu.getCarried().getHoverName().getString().equals("Excalibur"),
+                "Renamed result can be taken into the cursor");
+        helper.assertTrue(menu.slots.get(KleinMenu.ANVIL_LEFT_SLOT).getItem().isEmpty(),
+                "Taking the result consumes the input");
+        helper.succeed();
+    }
+
     private KleinGameTests() {}
 }

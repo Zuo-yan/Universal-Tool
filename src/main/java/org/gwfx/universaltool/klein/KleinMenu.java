@@ -453,6 +453,10 @@ public final class KleinMenu extends AbstractContainerMenu {
     public void setAnvilItemName(String name) {
         this.anvilItemName = name == null ? "" : name;
         updateAnvilResult();
+        if (inventory.player instanceof ServerPlayer player) {
+            player.connection.send(new ClientboundContainerSetSlotPacket(
+                    containerId, incrementStateId(), ANVIL_RESULT_SLOT, anvilResult.getItem(0)));
+        }
         broadcastChanges();
     }
 
