@@ -387,12 +387,34 @@ def generate_klein_terminal_gui(output_path: Path):
     im.putpixel((an_x, an_y + 3), (110, 120, 130, 255))
 
     cl_x, cl_y = 264, 170
-    for d in range(8):
-        col = (255, 200, 200, 255) if d in (3, 4) else (225, 75, 70, 255)
-        im.putpixel((cl_x + 2 + d, cl_y + 2 + d), col)
-        im.putpixel((cl_x + 2 + d, cl_y + 9 - d), col)
-        im.putpixel((cl_x + 1 + d, cl_y + 2 + d), (140, 35, 35, 255))
-        im.putpixel((cl_x + 3 + d, cl_y + 2 + d), (255, 130, 130, 255) if d < 4 else (140, 35, 35, 255))
+    for px in range(12):
+        for py in range(12):
+            im.putpixel((cl_x + px, cl_y + py), (0, 0, 0, 0))
+    hopper_mini = [
+        "............",
+        ".##########.",
+        ".#========#.",
+        "..#******#..",
+        "..#*@!!@*#..",
+        "...#*!!*#...",
+        "....#!!#....",
+        "....#@@#....",
+        "....#**#....",
+        "....####....",
+        ".....##.....",
+        "............",
+    ]
+    pal_hp = {
+        '#': (35, 42, 50, 255),
+        '=': (184, 155, 92, 255),
+        '*': (120, 130, 142, 255),
+        '@': (112, 219, 230, 255),
+        '!': (220, 255, 255, 255),
+    }
+    for py, row in enumerate(hopper_mini):
+        for px, ch in enumerate(row):
+            if ch in pal_hp:
+                im.putpixel((cl_x + px, cl_y + py), pal_hp[ch])
 
     # Symmetrical Left Drawer Background (118 x 88) at (300, 0, 417, 87)
     dw_x, dw_y = 300, 0

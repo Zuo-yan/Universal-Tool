@@ -70,6 +70,7 @@ public final class KleinMenu extends AbstractContainerMenu {
     private int sortMode = SORT_QUANTITY;
     private boolean descending = true;
     private int scroll;
+    private boolean autoDeposit;
     private int drawerMode = DRAWER_NONE;
 
     private final TransientCraftingContainer craftSlots;
@@ -83,17 +84,22 @@ public final class KleinMenu extends AbstractContainerMenu {
     private String anvilItemName = "";
 
     public KleinMenu(int id, Inventory inventory, FriendlyByteBuf extra) {
-        this(id, inventory, extra.readVarInt());
+        this(id, inventory, extra.readVarInt(), extra.isReadable() && extra.readBoolean());
     }
 
     public KleinMenu(int id, Inventory inventory, InteractionHand hand) {
-        this(id, inventory, hand == InteractionHand.MAIN_HAND ? inventory.selected : Inventory.SLOT_OFFHAND);
+        this(id, inventory, hand == InteractionHand.MAIN_HAND ? inventory.selected : Inventory.SLOT_OFFHAND, false);
     }
 
     public KleinMenu(int id, Inventory inventory, int bottleSlot) {
+        this(id, inventory, bottleSlot, false);
+    }
+
+    public KleinMenu(int id, Inventory inventory, int bottleSlot, boolean initialAutoDeposit) {
         super(ModMenuTypes.KLEIN_MENU.get(), id);
         this.inventory = inventory;
         this.lockedInventorySlot = bottleSlot;
+        this.autoDeposit = initialAutoDeposit;
         this.openingBottle = inventory.getItem(lockedInventorySlot).copy();
         for (int row = 0; row < 3; row++) for (int col = 0; col < 9; col++) {
             addSlot(new ProtectedSlot(inventory, col + row * 9 + 9, PLAYER_X + col * 18, PLAYER_Y + row * 18));
@@ -128,6 +134,9 @@ public final class KleinMenu extends AbstractContainerMenu {
         if (inventory.player instanceof ServerPlayer player) {
             savedData = KleinStorageSavedData.get(player.server);
             warehouse = savedData.warehouse(player.getUUID());
+            if (!initialAutoDeposit) {
+                autoDeposit = savedData.autoDeposit(player.getUUID());
+            }
             clientEntries.clear();
             for (KleinWarehouse.Entry entry : warehouse.entries()) {
                 clientEntries.put(entry.id(), new KleinEntryData(entry.id(), entry.template(), entry.amount()));
@@ -710,6 +719,15 @@ public final class KleinMenu extends AbstractContainerMenu {
         return slot.container == inventory && (slot.getContainerSlot() == lockedInventorySlot
                 || (slot.hasItem() && !KleinWarehouse.canStore(slot.getItem())));
     }
+    public boolean autoDeposit() { return autoDeposit; }
+    public void applyAutoDeposit(boolean enabled) { autoDeposit = enabled; }
+    public void setAutoDeposit(boolean enabled) {
+        autoDeposit = enabled;
+        if (savedData != null && inventory.player instanceof ServerPlayer player) {
+            savedData.setAutoDeposit(player.getUUID(), enabled);
+        }
+    }
+    public Player inventoryPlayer() { return inventory.player; }
     public TransientCraftingContainer craftSlots() { return craftSlots; }
     public int drawerMode() { return drawerMode; }
     public void setDrawerMode(int mode) {

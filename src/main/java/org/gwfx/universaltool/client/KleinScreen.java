@@ -14,6 +14,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.klein.KleinAutoDepositPayload;
 import org.gwfx.universaltool.klein.KleinDrawerPayload;
 import org.gwfx.universaltool.klein.KleinEntryData;
 import org.gwfx.universaltool.klein.KleinMenu;
@@ -249,12 +250,12 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private void drawButtonGlyph(GuiGraphics g, int x, int y, int index, boolean hovered) {
         boolean active = (index == 1 && menu.drawerMode() == KleinMenu.DRAWER_CRAFTING)
                 || (index == 2 && menu.drawerMode() == KleinMenu.DRAWER_SMELTING)
-                || (index == 3 && menu.drawerMode() == KleinMenu.DRAWER_ANVIL);
+                || (index == 3 && menu.drawerMode() == KleinMenu.DRAWER_ANVIL)
+                || (index == 4 && menu.autoDeposit());
         int frameU = active ? 232 : (hovered ? 216 : 200);
         g.blit(GUI_TEXTURE, x, y, frameU, 150, 14, 14, 512, 512);
         int glyphU = 200 + index * 16;
-        int offset = active ? 1 : 0;
-        g.blit(GUI_TEXTURE, x + 1 + offset, y + 1 + offset, glyphU, 170, 12, 12, 512, 512);
+        g.blit(GUI_TEXTURE, x + 1, y + 1, glyphU, 170, 12, 12, 512, 512);
     }
 
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
@@ -280,7 +281,8 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         if (hoveredSlot != null && hoveredSlot.isActive()) return;
         String[] keys = {"gui.universal_tool.klein.quick_deposit", "gui.universal_tool.klein.tab_crafting",
                 "gui.universal_tool.klein.tab_smelting", "gui.universal_tool.klein.tab_anvil",
-                "gui.universal_tool.klein.clear_search"};
+                menu.autoDeposit() ? "gui.universal_tool.klein.auto_deposit.on"
+                        : "gui.universal_tool.klein.auto_deposit.off"};
         for (int i = 0; i < keys.length; i++) {
             if (hoveringButton(mouseX, mouseY, i)) {
                 g.renderTooltip(font, Component.translatable(keys[i]), mouseX, mouseY);
@@ -337,7 +339,9 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             return true;
         }
         if (button == 0 && hoveringButton(mouseX, mouseY, 4)) {
-            search.setValue("");
+            boolean enabled = !menu.autoDeposit();
+            menu.setAutoDeposit(enabled);
+            PacketDistributor.sendToServer(new KleinAutoDepositPayload(enabled));
             return true;
         }
         if (inGrid(mouseX, mouseY)) {

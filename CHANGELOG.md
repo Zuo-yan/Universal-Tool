@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 - 2026-10-31
+
+- Added Shift-right-click container transfer while holding a Klein Bottle, including NeoForge item-handler storage from modded chest-like containers.
+- Added optional pickup auto-deposit for item types already stocked in the terminal; it is per-player and off by default.
+- Replaced the terminal's clear-search action button with the auto-deposit toggle while preserving right-click search clearing; enabled buttons now change color without shifting their icons.
+- Added persistent preference storage, protocol 14, and GameTests for held-item container transfer, processing-container exclusion, matching rules, and preference persistence.
+
 ## 1.2.7 - 2026-10-27
 
 - Show a lock badge on every inventory item that cannot enter Klein Bottle storage, including other Klein Bottles.

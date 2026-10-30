@@ -3,6 +3,8 @@ package org.gwfx.universaltool.klein;
 import java.math.BigInteger;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -12,10 +14,16 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 @PrefixGameTestTemplate(false)
@@ -439,6 +447,178 @@ public final class KleinGameTests {
                 "Renamed result can be taken into the cursor");
         helper.assertTrue(menu.slots.get(KleinMenu.ANVIL_LEFT_SLOT).getItem().isEmpty(),
                 "Taking the result consumes the input");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void autoDepositPreferencePersistsWithoutItems(GameTestHelper helper) {
+        KleinStorageSavedData data = new KleinStorageSavedData();
+        UUID owner = UUID.randomUUID();
+        helper.assertTrue(!data.autoDeposit(owner), "Auto-deposit defaults off");
+        data.setAutoDeposit(owner, true);
+        CompoundTag serialized = data.save(new CompoundTag(), helper.getLevel().registryAccess());
+        KleinStorageSavedData loaded = KleinStorageSavedData.load(serialized, helper.getLevel().registryAccess());
+        helper.assertTrue(loaded.autoDeposit(owner), "Auto-deposit persists for an empty warehouse");
+        loaded.setAutoDeposit(owner, false);
+        helper.assertTrue(!loaded.autoDeposit(owner), "Auto-deposit can be disabled");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void shiftUseTransfersChestAndKeepsNestedItems(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-container-transfer");
+        ItemStack bottle = new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get());
+        player.getInventory().setItem(0, bottle);
+        BlockPos pos = helper.absolutePos(new BlockPos(2, 2, 2));
+        Vec3 center = Vec3.atCenterOf(pos);
+        player.setPos(center.x, center.y, center.z);
+        helper.getLevel().setBlockAndUpdate(pos, Blocks.CHEST.defaultBlockState());
+        ChestBlockEntity source = (ChestBlockEntity) helper.getLevel().getBlockEntity(pos);
+        source.setItem(0, new ItemStack(Items.DIAMOND, 12));
+        source.setItem(1, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        source.setItem(2, new ItemStack(Items.SHULKER_BOX));
+        source.getItem(2).set(DataComponents.CUSTOM_NAME, Component.literal("opaque container"));
+
+        UseOnContext context = new UseOnContext(player, InteractionHand.MAIN_HAND,
+                new BlockHitResult(center, Direction.UP, pos, false));
+        player.setShiftKeyDown(false);
+        helper.assertTrue(bottle.getItem().onItemUseFirst(bottle, context) == InteractionResult.PASS,
+                "Container transfer requires Shift-right-click");
+
+        player.setShiftKeyDown(true);
+        InteractionResult result = bottle.getItem().onItemUseFirst(bottle, context);
+        KleinWarehouse warehouse = KleinStorageSavedData.get(player.server).warehouse(player.getUUID());
+        helper.assertTrue(result.consumesAction(), "Shift-right-click consumes the container interaction");
+        helper.assertTrue(source.getItem(0).isEmpty() && warehouse.containsType(new ItemStack(Items.DIAMOND)),
+                "Storable container item transfers");
+        helper.assertTrue(source.getItem(1).getItem() instanceof KleinBottleItem,
+                "Container transfer leaves Klein Bottles in source");
+        helper.assertTrue(warehouse.entries().stream().anyMatch(entry -> entry.template().is(Items.SHULKER_BOX)
+                        && entry.template().has(DataComponents.CUSTOM_NAME)),
+                "Nested container moves as one opaque item with components intact");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void pickupAutoDepositRequiresExistingTypeAndBottle(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-auto-pickup");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        KleinStorageSavedData saved = KleinStorageSavedData.get(player.server);
+        KleinWarehouse warehouse = saved.warehouse(player.getUUID());
+        warehouse.insert(new ItemStack(Items.DIAMOND), BigInteger.valueOf(16));
+        saved.setAutoDeposit(player.getUUID(), true);
+        ItemStack pickup = new ItemStack(Items.DIAMOND, 8);
+        net.minecraft.world.entity.item.ItemEntity entity = new net.minecraft.world.entity.item.ItemEntity(
+                helper.getLevel(), 0.5, 64.5, 0.5, pickup);
+        helper.assertTrue(KleinPickupHandler.tryDeposit(player, entity),
+                "Existing matching type accepts pickup deposit");
+        helper.assertTrue(entity.isRemoved() && warehouse.amount(warehouse.entries().iterator().next().id())
+                        .equals(BigInteger.valueOf(24)),
+                "Pickup entity is consumed and exact quantity is stored");
+        saved.setAutoDeposit(player.getUUID(), false);
+        helper.assertTrue(!saved.autoDeposit(player.getUUID()), "Pickup preference can be disabled");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void pickupAutoDepositRejectsComponentMismatchAndBottleSource(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-auto-rules");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        KleinStorageSavedData saved = KleinStorageSavedData.get(player.server);
+        KleinWarehouse warehouse = saved.warehouse(player.getUUID());
+        ItemStack plain = new ItemStack(Items.DIAMOND_SWORD);
+        ItemStack named = plain.copy();
+        named.set(DataComponents.CUSTOM_NAME, Component.literal("Named"));
+        warehouse.insert(plain, BigInteger.ONE);
+        helper.assertTrue(!warehouse.containsType(named), "Component mismatch is not a matching pickup");
+        helper.assertTrue(!KleinWarehouse.canStore(new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get())),
+                "Klein Bottle source never enters warehouse");
+        warehouse.extract(warehouse.entries().iterator().next().id(), 1);
+        helper.assertTrue(!warehouse.containsType(plain), "Exhausted stock no longer matches pickups");
+        saved.setAutoDeposit(player.getUUID(), true);
+        net.minecraft.world.entity.item.ItemEntity mismatch = new net.minecraft.world.entity.item.ItemEntity(
+                helper.getLevel(), 0.5, 64.5, 0.5, named);
+        helper.assertTrue(!KleinPickupHandler.tryDeposit(player, mismatch),
+                "Component mismatch remains an ordinary pickup");
+        net.minecraft.world.entity.item.ItemEntity bottleEntity = new net.minecraft.world.entity.item.ItemEntity(
+                helper.getLevel(), 0.5, 64.5, 0.5,
+                new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        helper.assertTrue(!KleinPickupHandler.tryDeposit(player, bottleEntity),
+                "Klein Bottle pickup is rejected");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void containerTransferExcludesProcessingBlocks(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-menu-guard");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        BlockPos pos = helper.absolutePos(new BlockPos(3, 2, 2));
+        Vec3 center = Vec3.atCenterOf(pos);
+        player.setPos(center.x, center.y, center.z);
+        helper.getLevel().setBlockAndUpdate(pos, Blocks.FURNACE.defaultBlockState());
+        net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnace =
+                (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity) helper.getLevel().getBlockEntity(pos);
+        furnace.setItem(0, new ItemStack(Items.IRON_ORE, 8));
+
+        helper.assertTrue(!KleinContainerTransfer.isSupported(
+                        helper.getLevel(), pos, player, Direction.UP),
+                "Processing containers must be excluded from direct transfer");
+        helper.assertTrue(KleinContainerTransfer.transfer(player, pos, Direction.UP) == 0,
+                "Excluded containers transfer no items");
+        helper.assertTrue(furnace.getItem(0).getCount() == 8,
+                "Excluded processing contents remain untouched");
+
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void clientMenuConstructsWithInitialAutoDeposit(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-client-sync");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        KleinStorageSavedData saved = KleinStorageSavedData.get(player.server);
+        saved.setAutoDeposit(player.getUUID(), true);
+
+        net.minecraft.network.FriendlyByteBuf buffer = new net.minecraft.network.FriendlyByteBuf(
+                io.netty.buffer.Unpooled.buffer());
+        try {
+            buffer.writeVarInt(0);
+            buffer.writeBoolean(true);
+            KleinMenu menu = new KleinMenu(30, player.getInventory(), buffer);
+            helper.assertTrue(menu.autoDeposit(), "Client menu initialized with autoDeposit=true from extra buffer");
+            menu.setAutoDeposit(false);
+            helper.assertTrue(!menu.autoDeposit(), "Menu autoDeposit can be toggled to false");
+            helper.assertTrue(!saved.autoDeposit(player.getUUID()), "SavedData updated on server");
+        } finally {
+            buffer.release();
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void pickupAutoDepositRespectsDelayAndTarget(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-pickup-guard");
+        player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+        KleinStorageSavedData saved = KleinStorageSavedData.get(player.server);
+        KleinWarehouse warehouse = saved.warehouse(player.getUUID());
+        warehouse.insert(new ItemStack(Items.GOLD_INGOT), BigInteger.valueOf(10));
+        saved.setAutoDeposit(player.getUUID(), true);
+
+        // Item with active pickup delay
+        net.minecraft.world.entity.item.ItemEntity delayed = new net.minecraft.world.entity.item.ItemEntity(
+                helper.getLevel(), 0.5, 64.5, 0.5, new ItemStack(Items.GOLD_INGOT, 5));
+        delayed.setPickUpDelay(40);
+        helper.assertTrue(delayed.hasPickUpDelay(), "Entity has pickup delay");
+        helper.assertTrue(!KleinPickupHandler.tryDeposit(player, delayed),
+                "Items with active pickup delay must not be deposited");
+
+        // Item targeted at a different player
+        net.minecraft.world.entity.item.ItemEntity otherTarget = new net.minecraft.world.entity.item.ItemEntity(
+                helper.getLevel(), 0.5, 64.5, 0.5, new ItemStack(Items.GOLD_INGOT, 5));
+        otherTarget.setTarget(UUID.randomUUID());
+        helper.assertTrue(!KleinPickupHandler.tryDeposit(player, otherTarget),
+                "Items targeted at another player must not be deposited");
+
         helper.succeed();
     }
 
