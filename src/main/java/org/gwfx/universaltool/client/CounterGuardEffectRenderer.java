@@ -104,12 +104,10 @@ public final class CounterGuardEffectRenderer {
         double cameraY = event.getCamera().getPosition().y;
         double cameraZ = event.getCamera().getPosition().z;
 
-        var bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
-        var aegisBuffer = bufferSource.getBuffer(AEGIS_LAYER);
-        var ringBuffer = bufferSource.getBuffer(RING_LAYER);
+        record ActiveRender(Player owner, GuardVisual visual, float age, boolean isFirstPerson,
+                            double px, double py, double pz) {}
 
-        pose.pushPose();
-
+        java.util.List<ActiveRender> renderList = new java.util.ArrayList<>();
         for (Map.Entry<Integer, GuardVisual> entry : ACTIVE.entrySet()) {
             Entity entity = Minecraft.getInstance().level.getEntity(entry.getKey());
             if (!(entity instanceof Player owner) || !owner.isAlive()) continue;
@@ -124,96 +122,134 @@ public final class CounterGuardEffectRenderer {
             double py = Mth.lerp(partialTick, owner.yOld, owner.getY()) - cameraY;
             double pz = Mth.lerp(partialTick, owner.zOld, owner.getZ()) - cameraZ;
 
-            if (visual.action() == CounterGuardEffectPayload.Action.EXPAND) {
-                renderIdleAegis(pose, aegisBuffer, ringBuffer, px, py, pz, age, isFirstPerson);
-            } else if (visual.action() == CounterGuardEffectPayload.Action.TRIGGER) {
-                renderTriggerParry(pose, aegisBuffer, ringBuffer, px, py, pz, age, isFirstPerson);
-            }
+            renderList.add(new ActiveRender(owner, visual, age, isFirstPerson, px, py, pz));
         }
 
-        pose.popPose();
+        if (renderList.isEmpty()) {
+            return;
+        }
+
+        var bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
+
+        pose.pushPose();
+
+        // Pass 1: Translucent forcefield sphere (AEGIS_LAYER)
+        var aegisBuffer = bufferSource.getBuffer(AEGIS_LAYER);
+        for (ActiveRender r : renderList) {
+            if (r.visual.action() == CounterGuardEffectPayload.Action.EXPAND) {
+                renderIdleAegisSphere(pose, aegisBuffer, r.px, r.py, r.pz, r.age, r.isFirstPerson);
+            } else if (r.visual.action() == CounterGuardEffectPayload.Action.TRIGGER) {
+                renderTriggerParrySphere(pose, aegisBuffer, r.px, r.py, r.pz, r.age, r.isFirstPerson);
+            }
+        }
         bufferSource.endBatch(AEGIS_LAYER);
+
+        // Pass 2: Orbiting gyro rings and ground glyph (RING_LAYER)
+        var ringBuffer = bufferSource.getBuffer(RING_LAYER);
+        for (ActiveRender r : renderList) {
+            if (r.visual.action() == CounterGuardEffectPayload.Action.EXPAND) {
+                renderIdleAegisRings(pose, ringBuffer, r.px, r.py, r.pz, r.age, r.isFirstPerson);
+            } else if (r.visual.action() == CounterGuardEffectPayload.Action.TRIGGER) {
+                renderTriggerParryRings(pose, ringBuffer, r.px, r.py, r.pz, r.age, r.isFirstPerson);
+            }
+        }
         bufferSource.endBatch(RING_LAYER);
+
+        pose.popPose();
     }
 
-    private static void renderIdleAegis(PoseStack pose, VertexConsumer aegisBuffer, VertexConsumer ringBuffer,
-                                        double px, double py, double pz, float age, boolean isFirstPerson) {
+    private static void renderIdleAegisSphere(PoseStack pose, VertexConsumer aegisBuffer,
+                                              double px, double py, double pz, float age, boolean isFirstPerson) {
+        if (isFirstPerson) return; // Keep 1st-person clear of view-blocking sphere forcefields
         float expandRatio = Math.min(1.0F, age / (float) EXPAND_TICKS);
         float scale = easeOutBack(expandRatio);
         float pulse = 0.035F * Mth.sin(age * 0.14F);
         float radius = (BASE_RADIUS + pulse) * scale;
 
-        float alphaBase = isFirstPerson ? 0.16F : 0.65F;
-        float alpha = alphaBase * Math.min(1.0F, age / 4.0F);
+        float alpha = 0.65F * Math.min(1.0F, age / 4.0F);
 
         float uvScrollU = age * 0.008F;
         float uvScrollV = age * 0.012F;
 
-        // 1. Forcefield Sphere
+        // Forcefield Sphere
         pose.pushPose();
         pose.translate(px, py + 0.95, pz);
         renderSphere(pose.last().pose(), aegisBuffer, radius, uvScrollU, uvScrollV,
                 240, 205, 110, alpha);
         pose.popPose();
+    }
 
-        // 2. Orbiting Equatorial Gyro Ring
-        pose.pushPose();
-        pose.translate(px, py + 0.95, pz);
-        pose.mulPose(Axis.YP.rotationDegrees(age * 2.2F));
-        pose.mulPose(Axis.XP.rotationDegrees(18.0F * Mth.sin(age * 0.08F)));
-        float gyroRadius = radius * 1.08F;
-        float gyroAlpha = (isFirstPerson ? 0.25F : 0.75F) * scale;
-        renderHorizontalDisk(pose.last().pose(), ringBuffer, 0.0F, gyroRadius,
-                255, 230, 140, gyroAlpha);
-        pose.popPose();
+    private static void renderIdleAegisRings(PoseStack pose, VertexConsumer ringBuffer,
+                                             double px, double py, double pz, float age, boolean isFirstPerson) {
+        float expandRatio = Math.min(1.0F, age / (float) EXPAND_TICKS);
+        float scale = easeOutBack(expandRatio);
+        float pulse = 0.035F * Mth.sin(age * 0.14F);
+        float radius = (BASE_RADIUS + pulse) * scale;
 
-        // 3. Ground Ward Glyph
+        // 1. Orbiting Equatorial Gyro Ring (3rd person only - avoids blocking crosshair in 1st person)
+        if (!isFirstPerson) {
+            pose.pushPose();
+            pose.translate(px, py + 0.95, pz);
+            pose.mulPose(Axis.YP.rotationDegrees(age * 2.2F));
+            pose.mulPose(Axis.XP.rotationDegrees(18.0F * Mth.sin(age * 0.08F)));
+            float gyroRadius = radius * 1.08F;
+            float gyroAlpha = 0.75F * scale;
+            renderHorizontalDisk(pose.last().pose(), ringBuffer, 0.0F, gyroRadius,
+                    255, 230, 140, gyroAlpha);
+            pose.popPose();
+        }
+
+        // 2. Ground Ward Glyph (feet level py + 0.03: subtle indicator in 1st person without blocking sight)
         pose.pushPose();
         pose.translate(px, py + 0.03, pz);
         pose.mulPose(Axis.YP.rotationDegrees(-age * 1.2F));
         float groundRadius = radius * 1.15F;
-        float groundAlpha = (isFirstPerson ? 0.35F : 0.70F) * scale;
+        float groundAlpha = (isFirstPerson ? 0.45F : 0.70F) * scale;
         renderHorizontalDisk(pose.last().pose(), ringBuffer, 0.0F, groundRadius,
                 230, 190, 90, groundAlpha);
         pose.popPose();
     }
 
-    private static void renderTriggerParry(PoseStack pose, VertexConsumer aegisBuffer, VertexConsumer ringBuffer,
-                                           double px, double py, double pz, float age, boolean isFirstPerson) {
+    private static void renderTriggerParrySphere(PoseStack pose, VertexConsumer aegisBuffer,
+                                                 double px, double py, double pz, float age, boolean isFirstPerson) {
+        if (isFirstPerson) return; // Avoid blinding flash covering crosshair in 1st person
         if (age < 3.5F) {
-            // Flash phase: Sudden inward compression and blinding gold-white luminescence
             float flashRatio = age / 3.5F;
             float contract = 1.0F - 0.15F * Mth.sin(flashRatio * Mth.PI);
             float radius = BASE_RADIUS * contract;
-            float alpha = isFirstPerson ? 0.45F : 0.95F;
 
             pose.pushPose();
             pose.translate(px, py + 0.95, pz);
             renderSphere(pose.last().pose(), aegisBuffer, radius, age * 0.05F, age * 0.08F,
-                    255, 255, 255, alpha);
+                    255, 255, 255, 0.95F);
             pose.popPose();
         }
+    }
 
-        // Shockwave expansion phase: Expanding blast rings
+    private static void renderTriggerParryRings(PoseStack pose, VertexConsumer ringBuffer,
+                                                double px, double py, double pz, float age, boolean isFirstPerson) {
         if (age >= 1.0F) {
             float progress = Math.min(1.0F, (age - 1.0F) / (float) (TRIGGER_TICKS - 1));
             float shockRadius = BASE_RADIUS + 2.8F * easeOutCubic(progress);
-            float shockAlpha = Math.max(0.0F, (1.0F - progress) * (isFirstPerson ? 0.65F : 0.90F));
 
-            // Horizontal waist blast wave
-            pose.pushPose();
-            pose.translate(px, py + 0.85, pz);
-            pose.mulPose(Axis.YP.rotationDegrees(age * 5.0F));
-            renderHorizontalDisk(pose.last().pose(), ringBuffer, 0.0F, shockRadius,
-                    255, 245, 180, shockAlpha);
-            pose.popPose();
+            // Horizontal waist blast wave (3rd person only)
+            if (!isFirstPerson) {
+                float shockAlpha = Math.max(0.0F, (1.0F - progress) * 0.90F);
+                pose.pushPose();
+                pose.translate(px, py + 0.85, pz);
+                pose.mulPose(Axis.YP.rotationDegrees(age * 5.0F));
+                renderHorizontalDisk(pose.last().pose(), ringBuffer, 0.0F, shockRadius,
+                        255, 245, 180, shockAlpha);
+                pose.popPose();
+            }
 
-            // Ground expanding ripple
+            // Ground expanding ripple (feet level py + 0.03: visible cue in both 1st and 3rd person)
+            float groundAlpha = Math.max(0.0F, (1.0F - progress) * (isFirstPerson ? 0.60F : 0.85F));
             pose.pushPose();
             pose.translate(px, py + 0.03, pz);
             pose.mulPose(Axis.YP.rotationDegrees(-age * 4.0F));
             renderHorizontalDisk(pose.last().pose(), ringBuffer, 0.0F, shockRadius * 1.15F,
-                    255, 215, 110, shockAlpha * 0.85F);
+                    255, 215, 110, groundAlpha);
             pose.popPose();
         }
     }

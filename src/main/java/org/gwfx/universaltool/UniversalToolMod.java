@@ -29,6 +29,7 @@ public class UniversalToolMod {
         ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);
+        modEventBus.addListener(ModCreativeTabs::buildContents);
         ModMenuTypes.MENU_TYPES.register(modEventBus);
         ModRecipes.RECIPE_TYPES.register(modEventBus);
         ModRecipes.RECIPE_SERIALIZERS.register(modEventBus);
@@ -39,6 +40,7 @@ public class UniversalToolMod {
                 event.register(org.gwfx.universaltool.space.PrivateSpaceGameTests.class);
                 event.register(org.gwfx.universaltool.skill.SkillProgressionGameTests.class);
                 event.register(org.gwfx.universaltool.klein.KleinGameTests.class);
+                event.register(org.gwfx.universaltool.repair.UniversalRepairGameTests.class);
             });
         }
         WaypointData.ATTACHMENTS.register(modEventBus);

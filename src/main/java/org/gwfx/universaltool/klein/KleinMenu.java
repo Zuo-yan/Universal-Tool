@@ -20,6 +20,7 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.ResultContainer;
 import net.minecraft.world.inventory.ResultSlot;
@@ -82,6 +83,9 @@ public final class KleinMenu extends AbstractContainerMenu {
     private final ResultContainer anvilResult;
     private boolean recomputeGuard;
     private String anvilItemName = "";
+    private final AnvilMenu internalAnvil;
+    private int anvilCost;
+    private int anvilMaterialCost;
 
     public KleinMenu(int id, Inventory inventory, FriendlyByteBuf extra) {
         this(id, inventory, extra.readVarInt(), extra.isReadable() && extra.readBoolean());
@@ -113,6 +117,7 @@ public final class KleinMenu extends AbstractContainerMenu {
         anvilLeft = new DrawerContainer(1);
         anvilRight = new DrawerContainer(1);
         anvilResult = new ResultContainer();
+        this.internalAnvil = new AnvilMenu(0, inventory);
 
         addSlot(new ResultSlot(inventory.player, craftSlots, craftResult, 0,
                 DRAWER_X + DRAWER_RESULT_X + 1, DRAWER_Y + DRAWER_RESULT_Y + 1) {
@@ -394,7 +399,6 @@ public final class KleinMenu extends AbstractContainerMenu {
 
     @Override public void slotsChanged(net.minecraft.world.Container container) {
         super.slotsChanged(container);
-        if (inventory.player.level().isClientSide) return;
         if (recomputeGuard) return;
         if (container == craftSlots) updateCraftResult();
         else if (container == smeltInput) updateSmeltResult();
@@ -414,7 +418,7 @@ public final class KleinMenu extends AbstractContainerMenu {
             if (assembled.isItemEnabled(level().enabledFeatures())) result = assembled;
         }
         craftResult.setItem(0, result);
-        if (inventory.player instanceof ServerPlayer player) {
+        if (inventory.player instanceof ServerPlayer player && player.connection != null) {
             player.connection.send(new ClientboundContainerSetSlotPacket(containerId, incrementStateId(), CRAFT_RESULT_SLOT, result));
         }
     }
@@ -449,6 +453,8 @@ public final class KleinMenu extends AbstractContainerMenu {
         if (!blasting.isEmpty()) return blasting;
         ItemStack smoking = resultOf(RecipeType.SMOKING, recipeInput);
         if (!smoking.isEmpty()) return smoking;
+        ItemStack campfire = resultOf(RecipeType.CAMPFIRE_COOKING, recipeInput);
+        if (!campfire.isEmpty()) return campfire;
         return ItemStack.EMPTY;
     }
 
@@ -456,14 +462,14 @@ public final class KleinMenu extends AbstractContainerMenu {
             RecipeType<T> type, SingleRecipeInput recipeInput) {
         Optional<RecipeHolder<T>> found = level().getRecipeManager().getRecipeFor(type, recipeInput, level());
         if (found.isEmpty()) return ItemStack.EMPTY;
-        ItemStack result = found.get().value().getResultItem(level().registryAccess());
+        ItemStack result = found.get().value().assemble(recipeInput, level().registryAccess());
         return result.isEmpty() || !result.isItemEnabled(level().enabledFeatures()) ? ItemStack.EMPTY : result.copy();
     }
 
     public void setAnvilItemName(String name) {
         this.anvilItemName = name == null ? "" : name;
         updateAnvilResult();
-        if (inventory.player instanceof ServerPlayer player) {
+        if (inventory.player instanceof ServerPlayer player && player.connection != null) {
             player.connection.send(new ClientboundContainerSetSlotPacket(
                     containerId, incrementStateId(), ANVIL_RESULT_SLOT, anvilResult.getItem(0)));
         }
@@ -474,82 +480,37 @@ public final class KleinMenu extends AbstractContainerMenu {
         return anvilItemName;
     }
 
-    void updateAnvilResult() {
-        if (level().isClientSide) {
-            anvilResult.setItem(0, anvilPreview(anvilLeft.getItem(0), anvilRight.getItem(0)));
-            return;
-        }
-        ItemStack left = anvilLeft.getItem(0);
-        ItemStack right = anvilRight.getItem(0);
-        ItemStack result = ItemStack.EMPTY;
-        if (!left.isEmpty()) {
-            ItemStack work = left.copyWithCount(1);
-            boolean changed = false;
-
-            if (anvilItemName != null && !anvilItemName.isBlank()) {
-                if (!anvilItemName.equals(left.getHoverName().getString())) {
-                    work.set(DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal(anvilItemName));
-                    changed = true;
-                }
-            } else if (left.has(DataComponents.CUSTOM_NAME) && anvilItemName != null && anvilItemName.isEmpty()) {
-                work.remove(DataComponents.CUSTOM_NAME);
-                changed = true;
-            }
-
-            if (!right.isEmpty() && EnchantmentHelper.canStoreEnchantments(left)) {
-                if (work.isDamageableItem() && work.getItem().isValidRepairItem(left, right)) {
-                    int repair = Math.min(work.getDamageValue(), work.getMaxDamage() / 4);
-                    if (repair > 0) {
-                        work.setDamageValue(work.getDamageValue() - repair);
-                        changed = true;
-                    }
-                } else if (!right.has(DataComponents.STORED_ENCHANTMENTS)
-                        && work.is(right.getItem()) && work.isDamageableItem()) {
-                    int max = work.getMaxDamage();
-                    int combined = (max - work.getDamageValue()) + (right.getMaxDamage() - right.getDamageValue()) + max * 12 / 100;
-                    int damage = Math.max(0, max - combined);
-                    if (damage < work.getDamageValue()) {
-                        work.setDamageValue(damage);
-                        changed = true;
-                    }
-                }
-                ItemEnchantments extra = EnchantmentHelper.getEnchantmentsForCrafting(right);
-                if (!extra.isEmpty()) {
-                    ItemEnchantments.Mutable merged = new ItemEnchantments.Mutable(
-                            EnchantmentHelper.getEnchantmentsForCrafting(work));
-                    boolean mergedAny = false;
-                    for (var entry : extra.entrySet()) {
-                        Holder<Enchantment> holder = entry.getKey();
-                        if (!work.supportsEnchantment(holder)) continue;
-                        if (merged.keySet().stream().anyMatch(existing ->
-                                !existing.equals(holder) && !Enchantment.areCompatible(existing, holder))) continue;
-                        int existing = merged.getLevel(holder);
-                        int incoming = entry.getIntValue();
-                        int next = Math.min(Math.max(incoming, existing == incoming ? incoming + 1 : incoming),
-                                holder.value().getMaxLevel());
-                        if (next > existing) {
-                            merged.set(holder, next);
-                            mergedAny = true;
-                        }
-                    }
-                    if (mergedAny) {
-                        EnchantmentHelper.setEnchantments(work, merged.toImmutable());
-                        changed = true;
-                    }
-                }
-            }
-            if (changed) result = work;
-        }
-        anvilResult.setItem(0, result);
+    public int anvilCost() {
+        return anvilCost;
     }
 
-    private ItemStack anvilPreview(ItemStack left, ItemStack right) {
-        if (left.isEmpty()) return ItemStack.EMPTY;
-        ItemStack work = left.copyWithCount(1);
-        if (!anvilItemName.isBlank() && !anvilItemName.equals(left.getHoverName().getString())) {
-            work.set(DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal(anvilItemName));
+    void updateAnvilResult() {
+        ItemStack left = anvilLeft.getItem(0);
+        ItemStack right = anvilRight.getItem(0);
+        if (left.isEmpty()) {
+            anvilResult.setItem(0, ItemStack.EMPTY);
+            anvilCost = 0;
+            anvilMaterialCost = 0;
+            if (inventory.player instanceof ServerPlayer player && player.connection != null) {
+                player.connection.send(new ClientboundContainerSetSlotPacket(
+                        containerId, incrementStateId(), ANVIL_RESULT_SLOT, ItemStack.EMPTY));
+            }
+            return;
         }
-        return work;
+
+        internalAnvil.getSlot(0).set(left.copy());
+        internalAnvil.getSlot(1).set(right.copy());
+        internalAnvil.setItemName(anvilItemName);
+
+        ItemStack result = internalAnvil.getSlot(2).getItem();
+        anvilCost = internalAnvil.getCost();
+        anvilMaterialCost = internalAnvil.repairItemCountCost;
+        anvilResult.setItem(0, result.copy());
+
+        if (inventory.player instanceof ServerPlayer player && player.connection != null) {
+            player.connection.send(new ClientboundContainerSetSlotPacket(
+                    containerId, incrementStateId(), ANVIL_RESULT_SLOT, result));
+        }
     }
 
     private void syncChanges(Player player) {
@@ -635,9 +596,6 @@ public final class KleinMenu extends AbstractContainerMenu {
 
     @Override public void broadcastChanges() {
         super.broadcastChanges();
-        if (!(inventory.player instanceof ServerPlayer) && drawerMode == DRAWER_ANVIL) {
-            anvilResult.setItem(0, anvilPreview(anvilLeft.getItem(0), anvilRight.getItem(0)));
-        }
         if (warehouse == null || !(inventory.player instanceof ServerPlayer player)) return;
         syncFromWarehouse();
     }
@@ -823,14 +781,32 @@ public final class KleinMenu extends AbstractContainerMenu {
             super(container, index, x, y, requiredMode);
         }
         @Override public boolean mayPlace(ItemStack stack) { return false; }
+        @Override public boolean mayPickup(Player player) {
+            return player.getAbilities().instabuild || player.experienceLevel >= anvilCost;
+        }
         @Override public void onTake(Player player, ItemStack stack) {
             recomputeGuard = true;
-            anvilLeft.removeItem(0, 1);
-            if (!anvilRight.getItem(0).isEmpty()) {
-                anvilRight.removeItem(0, 1);
+            try {
+                if (!player.getAbilities().instabuild && anvilCost > 0) {
+                    player.giveExperienceLevels(-anvilCost);
+                }
+                net.neoforged.neoforge.common.CommonHooks.onAnvilRepair(
+                        player, stack, anvilLeft.getItem(0), anvilRight.getItem(0));
+
+                anvilLeft.removeItem(0, 1);
+                int consumeRight = anvilMaterialCost > 0 ? anvilMaterialCost : 1;
+                if (!anvilRight.getItem(0).isEmpty()) {
+                    anvilRight.removeItem(0, consumeRight);
+                }
+
+                player.level().playSound(null, player.blockPosition(),
+                        net.minecraft.sounds.SoundEvents.ANVIL_USE,
+                        net.minecraft.sounds.SoundSource.BLOCKS, 1.0F, 1.0F);
+            } finally {
+                recomputeGuard = false;
             }
-            recomputeGuard = false;
             updateAnvilResult();
+            broadcastChanges();
             super.onTake(player, stack);
         }
     }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1 - 2026-10-31
+
+- Added the Universal Repair Material and its anvil integration, including the Klein Bottle anvil.
+- Redesigned the Universal Polymerizer interface and moved the Klein Bottle recipe to it.
+- Updated Counter Guard projectile deflection, damage reflection, and first-person effects.
+
 ## 1.3.0 - 2026-10-31
 
 - Added Shift-right-click container transfer while holding a Klein Bottle, including NeoForge item-handler storage from modded chest-like containers.
@@ -13,6 +19,13 @@
 - Apply paged warehouse snapshots only after their final page, preserving scrolling beyond 64 entries without snapback.
 - Preserve the scrollbar grab offset and support accumulated wheel scrolling through large warehouses.
 - Updated the network protocol; multiplayer clients and servers must use the matching mod version.
+
+## 1.2.6 - 2026-10-27
+
+- Moved the Klein Bottle recipe to the Universal Polymerizer: four purpur blocks, four glass, three ender pearls, and one nether star.
+- Added the Universal Repair Material, crafted in the Universal Polymerizer from netherite scraps, amethyst shards, and diamonds.
+- An anvil repair consumes one material and three experience levels to restore any damageable item to full durability while preserving components.
+- Added GameTests for full repair, component preservation, and invalid-item rejection.
 
 ## 1.2.5 - 2026-10-26
 

@@ -1981,8 +1981,21 @@ public final class SkillManager {
 
     /** Counter Guard: negate one direct hit and reflect its pre-mitigation damage. */
 
+    /** Counter Guard: deflect all projectile ranged attacks, and if damaged reflect damage back to attacker. */
     private static void applyGuard(ServerPlayer player, LivingIncomingDamageEvent event) {
+        if (!GUARDS.containsKey(player.getUUID())) return;
 
+        // 1. Deflect all projectile ranged attacks without breaking the guard
+        if (event.getSource().is(net.minecraft.tags.DamageTypeTags.IS_PROJECTILE)
+                || event.getSource().getDirectEntity() instanceof net.minecraft.world.entity.projectile.Projectile) {
+            event.setAmount(0.0F);
+            if (event.getSource().getDirectEntity() instanceof net.minecraft.world.entity.projectile.Projectile proj) {
+                deflectProjectile(player, proj);
+            }
+            return;
+        }
+
+        // 2. If taking damage from an attacker, negate it and reflect damage to the attacker
         Entity damageOwner = event.getSource().getEntity();
         if (damageOwner == null) {
             damageOwner = event.getSource().getDirectEntity();
@@ -1992,29 +2005,20 @@ public final class SkillManager {
         }
 
         GuardState guard = GUARDS.remove(player.getUUID());
-
         if (guard == null) return;
 
         float incoming = event.getOriginalAmount();
-
         if (incoming <= 0) {
-
             GUARDS.put(player.getUUID(), guard);
-
             return;
-
         }
 
         event.setAmount(0.0F);
-
         attacker.hurt(player.damageSources().thorns(player), incoming * guard.reflectMultiplier());
-
         broadcastGuardEffect(player, CounterGuardEffectPayload.Action.TRIGGER);
 
         if (guard.level() >= 3) {
-
             player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 60, 0, false, true, true));
-
         }
 
         player.serverLevel().sendParticles(ParticleTypes.FLASH,
@@ -2027,13 +2031,57 @@ public final class SkillManager {
                 SoundEvents.ANVIL_PLACE, SoundSource.PLAYERS, 0.9F, 1.7F);
         player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.SHIELD_BLOCK, SoundSource.PLAYERS, 1.0F, 0.9F);
-
     }
 
-    /**
-     * Synchronizes shield visuals to nearby clients. Gameplay state remains on the server;
-     * this packet only carries the player entity id, lifecycle action, and ordering token.
-     */
+    public static void deflectProjectile(ServerPlayer player, net.minecraft.world.entity.projectile.Projectile p) {
+        if (!p.isAlive()) return;
+        Entity shooter = p.getOwner();
+        Vec3 motion = p.getDeltaMovement();
+        double speed = Math.max(1.5D, motion.length() * 1.35D);
+
+        if (shooter != null && shooter != player && shooter.isAlive()) {
+            Vec3 toShooter = shooter.getEyePosition().subtract(p.position()).normalize();
+            p.setDeltaMovement(toShooter.scale(speed));
+        } else {
+            Vec3 away = p.position().subtract(player.getEyePosition());
+            if (away.lengthSqr() < 1.0E-4) away = player.getLookAngle();
+            p.setDeltaMovement(away.normalize().scale(speed));
+        }
+        p.setOwner(player);
+        p.hasImpulse = true;
+        p.hurtMarked = true;
+
+        player.serverLevel().playSound(null, p.getX(), p.getY(), p.getZ(),
+                SoundEvents.SHIELD_BLOCK, SoundSource.PLAYERS, 1.0F, 1.8F);
+        player.serverLevel().playSound(null, p.getX(), p.getY(), p.getZ(),
+                SoundEvents.AMETHYST_BLOCK_HIT, SoundSource.PLAYERS, 0.9F, 1.7F);
+        player.serverLevel().sendParticles(ParticleTypes.CRIT,
+                p.getX(), p.getY(), p.getZ(), 12, 0.25, 0.25, 0.25, 0.15);
+        player.serverLevel().sendParticles(ParticleTypes.ENCHANTED_HIT,
+                p.getX(), p.getY(), p.getZ(), 10, 0.2, 0.2, 0.2, 0.1);
+    }
+
+    private static void tickCounterGuardProjectiles(ServerPlayer player) {
+        net.minecraft.world.phys.AABB zone = player.getBoundingBox().inflate(2.2);
+        List<net.minecraft.world.entity.projectile.Projectile> projectiles = player.serverLevel().getEntitiesOfClass(
+                net.minecraft.world.entity.projectile.Projectile.class, zone,
+                p -> p.isAlive() && p.getOwner() != player);
+        for (net.minecraft.world.entity.projectile.Projectile p : projectiles) {
+            deflectProjectile(player, p);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onProjectileImpact(net.neoforged.neoforge.event.entity.ProjectileImpactEvent event) {
+        if (event.getRayTraceResult() instanceof net.minecraft.world.phys.EntityHitResult hit
+                && hit.getEntity() instanceof ServerPlayer player) {
+            if (GUARDS.containsKey(player.getUUID())) {
+                event.setCanceled(true);
+                deflectProjectile(player, event.getProjectile());
+            }
+        }
+    }
+
     private static void broadcastGuardEffect(ServerPlayer player,
                                              CounterGuardEffectPayload.Action action) {
         CounterGuardEffectPayload payload = new CounterGuardEffectPayload(
@@ -2109,6 +2157,7 @@ public final class SkillManager {
         tickGravityWells(gameTime);
         tickAirStep(player, gameTime);
         tickBerserk(player, gameTime);
+        if (GUARDS.containsKey(player.getUUID())) tickCounterGuardProjectiles(player);
 
 
 

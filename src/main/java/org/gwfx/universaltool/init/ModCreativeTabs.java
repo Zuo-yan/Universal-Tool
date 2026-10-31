@@ -4,6 +4,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
+import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.gwfx.universaltool.UniversalToolMod;
@@ -32,6 +33,7 @@ public class ModCreativeTabs {
                         output.accept(ModItems.KLEIN_BOTTLE.get());
                         // 核心工作台
                         output.accept(ModItems.UNIVERSAL_POLYMERIZER.get());
+                        output.accept(ModItems.UNIVERSAL_REPAIR_MATERIAL.get());
                         // 凤凰计划
                         output.accept(ModItems.DNA_SYRINGE.get());
                         output.accept(ModItems.NUTRIENT_SOLUTION.get());
@@ -39,4 +41,11 @@ public class ModCreativeTabs {
                         output.accept(ModItems.PERSONAL_SPACE_GATE.get());
                     })
                     .build());
+
+    public static void buildContents(BuildCreativeModeTabContentsEvent event) {
+        if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES
+                || event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
+            event.accept(ModItems.UNIVERSAL_REPAIR_MATERIAL.get());
+        }
+    }
 }

@@ -29,6 +29,28 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class KleinGameTests {
     @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void kleinBottlePolymerizerRecipe(GameTestHelper helper) {
+        var level = helper.getLevel();
+        var ingredients = new java.util.ArrayList<ItemStack>();
+        ingredients.add(new ItemStack(Items.NETHER_STAR));
+        for (int i = 0; i < 3; i++) ingredients.add(new ItemStack(Items.ENDER_PEARL));
+        for (int i = 0; i < 4; i++) ingredients.add(new ItemStack(Items.PURPUR_BLOCK));
+        for (int i = 0; i < 4; i++) ingredients.add(new ItemStack(Items.GLASS));
+        var input = new org.gwfx.universaltool.recipe.PolymerizerRecipeInput(ingredients);
+        var match = level.getRecipeManager().getRecipeFor(
+                org.gwfx.universaltool.init.ModRecipes.POLYMERIZING_TYPE.get(), input, level);
+        helper.assertTrue(match.isPresent(), "Klein Bottle ingredients must match in any order");
+        var output = match.orElseThrow().value().assemble(input, level.registryAccess());
+        helper.assertTrue(output.is(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get())
+                && output.getCount() == 1, "Recipe must produce one Klein Bottle");
+        ingredients.remove(0);
+        var incomplete = new org.gwfx.universaltool.recipe.PolymerizerRecipeInput(ingredients);
+        helper.assertTrue(!match.orElseThrow().value().matches(incomplete, level),
+                "Recipe must reject a missing nether star");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
     public static void aggregateAndComponentRules(GameTestHelper helper) {
         KleinWarehouse warehouse = new KleinWarehouse();
         BigInteger huge = new BigInteger("123456789012345678901234567890");
@@ -124,6 +146,7 @@ public final class KleinGameTests {
             public void send(net.minecraft.network.protocol.Packet<?> packet) {
             }
         };
+        player.giveExperienceLevels(30);
         return player;
     }
 

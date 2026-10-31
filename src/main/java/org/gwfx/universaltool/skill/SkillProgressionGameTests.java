@@ -11,6 +11,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.common.util.BlockSnapshot;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -317,6 +319,44 @@ public final class SkillProgressionGameTests {
             helper.assertTrue(data.onCooldown(ModSkills.AIR_STEP), "Rank 3 must auto-finish after 60 ticks");
             helper.succeed();
         });
+    }
+
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
+    public static void counterGuardDeflectsProjectileAndReflectsDamage(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), level, "guard-test-player");
+        player.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter());
+
+        PlayerSkillData data = SkillManager.data(player);
+        data.maximizeAllSkills();
+        data.addToLoadout(true, ModSkills.COUNTER_GUARD);
+        SkillManager.handleCast(player, false);
+
+        // 1. Incoming projectile: Arrow deflection
+        net.minecraft.world.entity.projectile.Arrow arrow = new net.minecraft.world.entity.projectile.Arrow(
+                level, player.getX(), player.getY() + 1, player.getZ() + 3, new ItemStack(Items.ARROW), null);
+        arrow.setDeltaMovement(0, 0, -1.0);
+        level.addFreshEntity(arrow);
+
+        SkillManager.deflectProjectile(player, arrow);
+        helper.assertTrue(arrow.getDeltaMovement().z > 0, "Deflected projectile velocity must reverse away from player");
+        helper.assertTrue(arrow.getOwner() == player, "Deflected projectile owner must become the player");
+
+        // 2. Direct melee damage reflection
+        net.minecraft.world.entity.monster.Zombie attacker = new net.minecraft.world.entity.monster.Zombie(level);
+        attacker.setPos(player.getX() + 1, player.getY(), player.getZ());
+        level.addFreshEntity(attacker);
+
+        float attackerInitialHealth = attacker.getHealth();
+        net.minecraft.world.damagesource.DamageSource meleeDamage = player.damageSources().mobAttack(attacker);
+        net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event =
+                new net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent(player, new net.neoforged.neoforge.common.damagesource.DamageContainer(meleeDamage, 10.0F));
+        SkillManager.onIncomingDamage(event);
+
+        helper.assertTrue(event.getAmount() == 0.0F, "Counter Guard must completely negate incoming damage");
+        helper.assertTrue(attacker.getHealth() < attackerInitialHealth, "Attacker must take reflected thorns damage");
+        helper.succeed();
     }
 
     private static ServerPlayer mockPlayer(MinecraftServer server, ServerLevel level, String name) {

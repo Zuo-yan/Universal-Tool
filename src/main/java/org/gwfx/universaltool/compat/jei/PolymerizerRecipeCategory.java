@@ -22,7 +22,7 @@ public class PolymerizerRecipeCategory implements IRecipeCategory<PolymerizerRec
     public static final int HEIGHT = 124;
     public static final int CENTER_X = 75;
     public static final int CENTER_Y = 62;
-    public static final int RADIUS = 46; // 舒展无重叠半径
+    public static final int RADIUS = 44; // 舒展无重叠半径
 
     private final IDrawable background;
     private final IDrawable icon;

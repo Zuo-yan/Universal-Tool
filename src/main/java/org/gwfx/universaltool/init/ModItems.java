@@ -10,6 +10,7 @@ import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.item.SpatialPageItem;
 import org.gwfx.universaltool.item.TeleportCodexItem;
 import org.gwfx.universaltool.item.TeleportScrollItem;
+import org.gwfx.universaltool.item.UniversalRepairMaterialItem;
 import org.gwfx.universaltool.item.UniversalToolItem;
 import org.gwfx.universaltool.phoenix.DnaSampleItem;
 import org.gwfx.universaltool.phoenix.DnaSyringeItem;
@@ -52,6 +53,11 @@ public class ModItems {
 
     public static final DeferredItem<TeleportScrollItem> TELEPORT_SCROLL = ITEMS.register("teleport_scroll",
             () -> new TeleportScrollItem(new Item.Properties().stacksTo(16).rarity(Rarity.UNCOMMON)));
+
+    // 万能修复材料
+    public static final DeferredItem<UniversalRepairMaterialItem> UNIVERSAL_REPAIR_MATERIAL =
+            ITEMS.register("universal_repair_material",
+                    () -> new UniversalRepairMaterialItem(new Item.Properties().rarity(Rarity.RARE)));
 
     // 万能聚合台方块物品
     public static final DeferredItem<BlockItem> UNIVERSAL_POLYMERIZER = ITEMS.register("universal_polymerizer",

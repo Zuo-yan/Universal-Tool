@@ -240,6 +240,13 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             drawSocket(g, drawerX + KleinMenu.ANVIL_RIGHT_X, drawerY + KleinMenu.DRAWER_RESULT_Y);
             g.blit(GUI_TEXTURE, drawerX + 71, drawerY + 48, 216, 48, 15, 11, 512, 512);
             drawSocket(g, drawerX + KleinMenu.DRAWER_RESULT_X, drawerY + KleinMenu.DRAWER_RESULT_Y);
+            if (menu.anvilCost() > 0) {
+                Component costText = Component.translatable("container.repair.cost", menu.anvilCost());
+                int color = (minecraft != null && minecraft.player != null
+                        && (minecraft.player.getAbilities().instabuild || minecraft.player.experienceLevel >= menu.anvilCost()))
+                        ? 0xFF80FF20 : 0xFFFF6060;
+                g.drawString(font, costText, drawerX + 14, drawerY + 68, color, true);
+            }
         }
     }
 

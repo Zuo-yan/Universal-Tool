@@ -29,7 +29,7 @@ public final class SkillStatFormatter {
         int safeLevel = Math.max(0, Math.min(ModSkills.MAX_SKILL_LEVEL, level));
         if (safeLevel == 0) return "未学会";
         return switch (skillId) {
-            case ModSkills.COUNTER_GUARD -> decimal(125 + 25 * (safeLevel - 1)) + "% 反伤"
+            case ModSkills.COUNTER_GUARD -> "弹开弹射物 · " + decimal(125 + 25 * (safeLevel - 1)) + "% 反伤"
                     + (safeLevel >= 3 ? " · 反弹后抗性 4秒" : "");
             case ModSkills.GRAVITY_WELL -> (int) SkillManager.gravityWellRadius(safeLevel)
                     + "格半径 · 黑洞持续 " + SkillManager.gravityWellDurationSeconds(safeLevel)

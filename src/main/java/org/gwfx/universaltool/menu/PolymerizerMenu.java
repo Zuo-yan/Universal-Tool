@@ -15,9 +15,9 @@ import org.gwfx.universaltool.init.ModMenuTypes;
 
 public class PolymerizerMenu extends AbstractContainerMenu {
 
-    public static final int CENTER_X = 88;
-    public static final int CENTER_Y = 62;
-    public static final int RADIUS = 48;
+    public static final int CENTER_X = 96;
+    public static final int CENTER_Y = 70;
+    public static final int RADIUS = 44;
 
     private final Container container;
     private final ContainerData data;
@@ -50,13 +50,13 @@ public class PolymerizerMenu extends AbstractContainerMenu {
         // 3. 玩家背包 (3 排 9 列, y=127)
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                this.addSlot(new Slot(playerInventory, col + row * 9 + 9, 8 + col * 18, 127 + row * 18));
+                this.addSlot(new Slot(playerInventory, col + row * 9 + 9, 16 + col * 18, 139 + row * 18));
             }
         }
 
         // 4. 玩家快捷栏 (1 排 9 列, y=187)
         for (int col = 0; col < 9; col++) {
-            this.addSlot(new Slot(playerInventory, col, 8 + col * 18, 187));
+            this.addSlot(new Slot(playerInventory, col, 16 + col * 18, 199));
         }
 
         this.addDataSlots(data);
