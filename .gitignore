@@ -9,3 +9,6 @@ bin/
 logs/
 *.log
 *.log.gz
+.claude/
+.eclipse/
+.mcp.json

@@ -43,4 +43,10 @@ public class ModBlocks {
                     .noOcclusion()
                     .pushReaction(PushReaction.BLOCK)
                     .sound(SoundType.AMETHYST)));
+
+    public static final DeferredBlock<org.gwfx.universaltool.lottery.UniversalLotteryMachineBlock> UNIVERSAL_LOTTERY_MACHINE = BLOCKS.register("universal_lottery_machine",
+            () -> new org.gwfx.universaltool.lottery.UniversalLotteryMachineBlock(BlockBehaviour.Properties.of()
+                    .strength(3.5F, 5.0F)
+                    .requiresCorrectToolForDrops()
+                    .sound(SoundType.NETHERITE_BLOCK)));
 }

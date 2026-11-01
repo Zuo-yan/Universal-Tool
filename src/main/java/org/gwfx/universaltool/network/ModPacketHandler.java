@@ -41,6 +41,7 @@ public final class ModPacketHandler {
         registrar.playToServer(KleinDrawerPayload.TYPE, KleinDrawerPayload.STREAM_CODEC, KleinDrawerPayload::handle);
         registrar.playToServer(KleinOpenPayload.TYPE, KleinOpenPayload.STREAM_CODEC, KleinOpenPayload::handle);
         registrar.playToServer(KleinRenamePayload.TYPE, KleinRenamePayload.STREAM_CODEC, KleinRenamePayload::handle);
+        registrar.playToServer(org.gwfx.universaltool.lottery.LotteryRollActionPayload.TYPE, org.gwfx.universaltool.lottery.LotteryRollActionPayload.STREAM_CODEC, org.gwfx.universaltool.lottery.LotteryRollActionPayload::handle);
 
         registrar.playToClient(OreSightPayload.TYPE, OreSightPayload.STREAM_CODEC, OreSightPayload::handle);
         registrar.playToClient(CounterGuardEffectPayload.TYPE, CounterGuardEffectPayload.STREAM_CODEC,
@@ -62,3 +63,4 @@ public final class ModPacketHandler {
         registrar.playToClient(KleinSyncPayload.TYPE, KleinSyncPayload.STREAM_CODEC, KleinSyncPayload::handle);
     }
 }
+

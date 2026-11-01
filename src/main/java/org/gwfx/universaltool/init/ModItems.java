@@ -81,4 +81,11 @@ public class ModItems {
 
     public static final DeferredItem<KleinBottleItem> KLEIN_BOTTLE = ITEMS.register("klein_bottle",
             () -> new KleinBottleItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
+
+    // 万能抽奖机与虚空碎屑
+    public static final DeferredItem<BlockItem> UNIVERSAL_LOTTERY_MACHINE = ITEMS.register("universal_lottery_machine",
+            () -> new BlockItem(ModBlocks.UNIVERSAL_LOTTERY_MACHINE.get(), new Item.Properties().rarity(Rarity.RARE)));
+
+    public static final DeferredItem<Item> VOID_SCRAP = ITEMS.register("void_scrap",
+            () -> new Item(new Item.Properties().stacksTo(64).rarity(Rarity.UNCOMMON)));
 }

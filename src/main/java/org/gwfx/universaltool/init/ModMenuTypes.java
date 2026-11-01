@@ -24,4 +24,8 @@ public class ModMenuTypes {
 
     public static final DeferredHolder<MenuType<?>, MenuType<KleinMenu>> KLEIN_MENU =
             MENU_TYPES.register("klein_menu", () -> IMenuTypeExtension.create(KleinMenu::new));
+
+    public static final DeferredHolder<MenuType<?>, MenuType<org.gwfx.universaltool.lottery.UniversalLotteryMachineMenu>> UNIVERSAL_LOTTERY_MACHINE_MENU =
+            MENU_TYPES.register("universal_lottery_machine_menu",
+                    () -> IMenuTypeExtension.create(org.gwfx.universaltool.lottery.UniversalLotteryMachineMenu::new));
 }

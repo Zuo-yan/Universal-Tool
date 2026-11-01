@@ -40,6 +40,7 @@ public final class KleinRecipeTransferHandler
     @Override public RecipeType<RecipeHolder<CraftingRecipe>> getRecipeType() { return RecipeTypes.CRAFTING; }
 
     @Override
+    @SuppressWarnings("removal")
     public IRecipeTransferError transferRecipe(KleinMenu menu, RecipeHolder<CraftingRecipe> holder,
                                                IRecipeSlotsView slots, Player player,
                                                boolean maxTransfer, boolean doTransfer) {

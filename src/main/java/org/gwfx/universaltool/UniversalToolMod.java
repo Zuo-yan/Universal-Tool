@@ -41,6 +41,7 @@ public class UniversalToolMod {
                 event.register(org.gwfx.universaltool.skill.SkillProgressionGameTests.class);
                 event.register(org.gwfx.universaltool.klein.KleinGameTests.class);
                 event.register(org.gwfx.universaltool.repair.UniversalRepairGameTests.class);
+                event.register(org.gwfx.universaltool.lottery.LotteryValuatorGameTests.class);
             });
         }
         WaypointData.ATTACHMENTS.register(modEventBus);
@@ -61,11 +62,15 @@ public class UniversalToolMod {
         event.register(ModMenuTypes.UNIVERSAL_POLYMERIZER_MENU.get(), PolymerizerScreen::new);
         event.register(ModMenuTypes.PHOENIX_POD_MENU.get(), PhoenixPodScreen::new);
         event.register(ModMenuTypes.KLEIN_MENU.get(), KleinScreen::new);
+        event.register(ModMenuTypes.UNIVERSAL_LOTTERY_MACHINE_MENU.get(), org.gwfx.universaltool.client.UniversalLotteryMachineScreen::new);
     }
 
     private void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModBlockEntities.PHOENIX_POD_BE.get(), PhoenixPodRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.UNIVERSAL_LOTTERY_MACHINE_BE.get(),
+                org.gwfx.universaltool.client.UniversalLotteryMachineRenderer::new);
         event.registerEntityRenderer(ModEntities.LIGHTNING_SPEAR_PROJECTILE.get(),
                 LightningSpearRenderer::new);
     }
 }
+

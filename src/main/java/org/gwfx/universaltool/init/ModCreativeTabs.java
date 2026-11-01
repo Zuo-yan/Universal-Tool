@@ -31,9 +31,11 @@ public class ModCreativeTabs {
                         output.accept(ModItems.SPATIAL_PAGE.get());
                         output.accept(ModItems.TELEPORT_SCROLL.get());
                         output.accept(ModItems.KLEIN_BOTTLE.get());
-                        // 核心工作台
+                        // 核心工作台与抽奖
                         output.accept(ModItems.UNIVERSAL_POLYMERIZER.get());
                         output.accept(ModItems.UNIVERSAL_REPAIR_MATERIAL.get());
+                        output.accept(ModItems.UNIVERSAL_LOTTERY_MACHINE.get());
+                        output.accept(ModItems.VOID_SCRAP.get());
                         // 凤凰计划
                         output.accept(ModItems.DNA_SYRINGE.get());
                         output.accept(ModItems.NUTRIENT_SOLUTION.get());
