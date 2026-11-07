@@ -165,6 +165,9 @@ public final class LotteryValuator {
         if (item == org.gwfx.universaltool.init.ModItems.VOID_SCRAP.get()) {
             return 0L;
         }
+        if (item == org.gwfx.universaltool.init.ModItems.VOID_ESSENCE.get()) {
+            return 1800L;
+        }
 
         ItemStack dummyStack = new ItemStack(item);
         ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);

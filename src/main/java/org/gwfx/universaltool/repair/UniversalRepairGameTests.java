@@ -101,6 +101,27 @@ public final class UniversalRepairGameTests {
     }
 
 
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
+    public static void polymerizerRecipeProducesVoidEssence(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        List<ItemStack> ingredients = new ArrayList<>(12);
+        for (int i = 0; i < 12; i++) {
+            ingredients.add(new ItemStack(ModItems.VOID_SCRAP.get()));
+        }
+
+        Optional<RecipeHolder<PolymerizerRecipe>> match = level.getRecipeManager().getRecipeFor(
+                ModRecipes.POLYMERIZING_TYPE.get(), new PolymerizerRecipeInput(ingredients), level);
+        helper.assertTrue(match.isPresent(), "The 12 void scrap polymerizer recipe must match");
+
+        ItemStack output = match.orElseThrow().value().assemble(
+                new PolymerizerRecipeInput(ingredients), level.registryAccess());
+        helper.assertTrue(output.is(ModItems.VOID_ESSENCE.get()),
+                "Polymerizer output must be void essence");
+        helper.assertTrue(output.getCount() == 1, "Polymerizer output count must be one");
+        helper.succeed();
+    }
+
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
     public static void creativeTabContainsRepairMaterial(GameTestHelper helper) {
         net.minecraft.world.item.CreativeModeTab tab = org.gwfx.universaltool.init.ModCreativeTabs.UNIVERSAL_TOOL_TAB.get();

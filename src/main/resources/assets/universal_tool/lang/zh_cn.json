@@ -326,5 +326,8 @@
   "gui.universal_tool.lottery.sacrifice": "投入",
   "gui.universal_tool.lottery.reward": "奖励",
   "tooltip.universal_tool.universal_lottery_machine": "§7献祭任何物品，从虚空重构无尽可能",
-  "tooltip.universal_tool.void_scrap": "§8不可投入抽奖。虚空置换产生的奇异残片，可用于提炼"
+  "tooltip.universal_tool.void_scrap": "§8不可投入抽奖。虚空置换产生的奇异残片，可在万能聚合台提炼为虚空精华",
+  "item.universal_tool.void_essence": "虚空精华",
+  "tooltip.universal_tool.void_essence.desc": "§d凝结纯粹虚空权能的神秘原石，散发着深邃维度的微光",
+  "tooltip.universal_tool.void_essence.usage": "§7由 12 枚虚空残片于万能聚合台提炼而成，蕴含高维置换能量"
 }

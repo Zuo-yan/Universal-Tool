@@ -12,6 +12,7 @@ import org.gwfx.universaltool.item.TeleportCodexItem;
 import org.gwfx.universaltool.item.TeleportScrollItem;
 import org.gwfx.universaltool.item.UniversalRepairMaterialItem;
 import org.gwfx.universaltool.item.UniversalToolItem;
+import org.gwfx.universaltool.item.VoidEssenceItem;
 import org.gwfx.universaltool.phoenix.DnaSampleItem;
 import org.gwfx.universaltool.phoenix.DnaSyringeItem;
 import org.gwfx.universaltool.phoenix.NutrientSolutionItem;
@@ -88,4 +89,8 @@ public class ModItems {
 
     public static final DeferredItem<Item> VOID_SCRAP = ITEMS.register("void_scrap",
             () -> new Item(new Item.Properties().stacksTo(64).rarity(Rarity.UNCOMMON)));
+
+    public static final DeferredItem<VoidEssenceItem> VOID_ESSENCE = ITEMS.register("void_essence",
+            () -> new VoidEssenceItem(new Item.Properties().stacksTo(64).rarity(Rarity.EPIC)));
+
 }

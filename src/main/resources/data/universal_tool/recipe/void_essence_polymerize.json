@@ -1,0 +1,46 @@
+{
+  "type": "universal_tool:polymerizing",
+  "ingredients": [
+    {
+      "item": "universal_tool:void_scrap"
+    },
+    {
+      "item": "universal_tool:void_scrap"
+    },
+    {
+      "item": "universal_tool:void_scrap"
+    },
+    {
+      "item": "universal_tool:void_scrap"
+    },
+    {
+      "item": "universal_tool:void_scrap"
+    },
+    {
+      "item": "universal_tool:void_scrap"
+    },
+    {
+      "item": "universal_tool:void_scrap"
+    },
+    {
+      "item": "universal_tool:void_scrap"
+    },
+    {
+      "item": "universal_tool:void_scrap"
+    },
+    {
+      "item": "universal_tool:void_scrap"
+    },
+    {
+      "item": "universal_tool:void_scrap"
+    },
+    {
+      "item": "universal_tool:void_scrap"
+    }
+  ],
+  "result": {
+    "id": "universal_tool:void_essence",
+    "count": 1
+  },
+  "duration": 40
+}

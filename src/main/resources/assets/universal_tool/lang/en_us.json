@@ -326,5 +326,8 @@
   "gui.universal_tool.lottery.sacrifice": "Input",
   "gui.universal_tool.lottery.reward": "Reward",
   "tooltip.universal_tool.universal_lottery_machine": "§7Sacrifice any item to reconstruct boundless possibilities from the void.",
-  "tooltip.universal_tool.void_scrap": "§8Cannot be used in lottery. Strange residue left behind by void transmutation."
+  "tooltip.universal_tool.void_scrap": "§8Cannot be used in lottery. Strange residue left behind by void transmutation. Can be polymerized into Void Essence.",
+  "item.universal_tool.void_essence": "Void Essence",
+  "tooltip.universal_tool.void_essence.desc": "§dA mystical core condensing pure void energy, radiating a dim dimensional glow.",
+  "tooltip.universal_tool.void_essence.usage": "§7Transmuted from 12 Void Scraps in the Universal Polymerizer."
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.1 - 2026-11-07
+
+- Added Void Essence (oid_essence), an Epic material forged from condensed void energy.
+- Added Universal Polymerizer recipe: 12 Void Scraps (oid_scrap) fill the 12 outer clock slots to synthesize 1 Void Essence in the center slot.
+- Added Void Essence to the Universal Tool creative tab and ingredients list.
+- Integrated Void Essence evaluation into the Universal Lottery Machine (1800 points, Epic tier).
+- Added GameTests for the 12-scrap Void Essence polymerizing recipe.
+
 ## 1.3.1 - 2026-10-31
 
 - Added the Universal Repair Material and its anvil integration, including the Klein Bottle anvil.
