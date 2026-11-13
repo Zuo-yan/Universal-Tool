@@ -23,10 +23,10 @@ import org.gwfx.universaltool.klein.KleinRenamePayload;
 public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private static final ResourceLocation GUI_TEXTURE =
             ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "textures/gui/container/klein_terminal.png");
-    private static final int LABEL_DARK = 0xFF3A281A;
-    private static final int EDITBOX_TEXT = 0xFFF7ECDA;
-    private static final int BTN_TEXT = 0xFFF7ECDA;
-    private static final int BTN_TEXT_HOVER = 0xFFFFF3C4;
+    private static final int LABEL_DARK = 0xFFD8F6FF;
+    private static final int EDITBOX_TEXT = 0xFFEAFBFF;
+    private static final int BTN_TEXT = 0xFFD8F4FF;
+    private static final int BTN_TEXT_HOVER = 0xFFFFFFFF;
     private static final int BUTTON_X = 172, BUTTON_Y = 153, BUTTON_STEP = 15, BUTTON_SIZE = 14;
     private static final int SCROLL_TRACK_HEIGHT = KleinMenu.VISIBLE_ROWS * 18;
     private EditBox search;
@@ -237,10 +237,10 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             g.blit(GUI_TEXTURE, drawerX + 53, drawerY + 45, 248, 48, 12, 14, 512, 512);
             drawSocket(g, drawerX + 50, drawerY + 61);
         } else {
-            // Anvil Mode: Warm recessed dark-espresso EditBox well at (14, 20, w=90, h=16)
-            g.fill(drawerX + 14, drawerY + 20, drawerX + 104, drawerY + 36, 0xFF241B14);
+            // Anvil Mode: Abyssal void EditBox well at (14, 20, w=90, h=16)
+            g.fill(drawerX + 14, drawerY + 20, drawerX + 104, drawerY + 36, 0xFF090D18);
             border(g, drawerX + 14, drawerY + 20, 90, 16,
-                    anvilName.isFocused() ? 0xFFD6A84E : 0xFF9E7330);
+                    anvilName.isFocused() ? 0xFF4EE2F4 : 0xFF286C8C);
 
             drawSocket(g, drawerX + KleinMenu.ANVIL_LEFT_X, drawerY + KleinMenu.DRAWER_RESULT_Y);
             g.blit(GUI_TEXTURE, drawerX + 36, drawerY + 49, 236, 48, 7, 7, 512, 512);
@@ -253,8 +253,8 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
                         && (minecraft.player.getAbilities().instabuild || minecraft.player.experienceLevel >= menu.anvilCost()))
                         ? 0xFF80FF20 : 0xFFFF6060;
                 int cw = font.width(costText);
-                g.fill(drawerX + 12, drawerY + 66, drawerX + 16 + cw, drawerY + 78, 0xCC241B14);
-                border(g, drawerX + 12, drawerY + 66, 4 + cw, 12, 0xFF9E7330);
+                g.fill(drawerX + 12, drawerY + 66, drawerX + 16 + cw, drawerY + 78, 0xCC090D18);
+                border(g, drawerX + 12, drawerY + 66, 4 + cw, 12, 0xFF286C8C);
                 g.drawString(font, costText, drawerX + 14, drawerY + 68, color, true);
             }
         }
@@ -510,10 +510,10 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     }
 
     private static void drawMcButton(GuiGraphics g, int x, int y, int w, int h, boolean hovered) {
-        int face = hovered ? 0xFFBC8E38 : 0xFF845C34;
-        int hi = hovered ? 0xFFF6DE90 : 0xFFD6A84E;
-        int sh = hovered ? 0xFF78541C : 0xFF4C321A;
-        g.fill(x, y, x + w, y + h, 0xFF26180E);
+        int face = hovered ? 0xFF285C80 : 0xFF1E2B48;
+        int hi = hovered ? 0xFF9EFAFF : 0xFF46A8D0;
+        int sh = hovered ? 0xFF143450 : 0xFF0E1424;
+        g.fill(x, y, x + w, y + h, 0xFF090C16);
         g.fill(x + 1, y + 1, x + w - 1, y + h - 1, face);
         g.fill(x + 1, y + 1, x + w - 1, y + 2, hi);
         g.fill(x + 1, y + 1, x + 2, y + h - 1, hi);

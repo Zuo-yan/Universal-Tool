@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.11 - 2026-11-13
+- **Astral Void-Glass & Crystalline Cyan Klein Bottle GUI Overhaul**:
+  - Redesigned `klein_terminal.png` (`tools/craft_ui_machines.py`) from the previous warm parchment/walnut theme into a dedicated **Astral Void-Glass & Crystalline Cyan** theme matching the Klein Bottle item aesthetic: deep cosmic-indigo frame, glowing cyan-aqua corner brackets & dividers, recessed void-glass slots, crystalline cyan scrollbar & soul-cyan furnace/button glyphs, and amethyst-rose lock indicator.
+  - Updated `KleinScreen.java` label, button, search/anvil input well, and tooltip/border colors (`0xFFD8F6FF` ice-cyan text, astral-indigo beveled sort/direction buttons) to integrate cleanly with the dark crystalline terminal.
+
 ## 1.9.10 - 2026-11-13
 - **32×32 Mod-Style Astral Tome Codex & Walkable Wormhole Corridor with Destination Vista**:
   - Upgraded `teleport_codex.png` (+ `.mcmeta`) to crisp **32×32 8-frame mod pixel art** matching the mod's beveled astral-indigo, brushed gold clasp, cream striated page block, and glowing cyan-amethyst core gem aesthetic while keeping the recognizable Minecraft bound-book silhouette.

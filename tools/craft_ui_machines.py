@@ -624,156 +624,257 @@ def build_phoenix_pod() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 3. Klein Terminal GUI (512x512)
+# 3. Klein Terminal GUI (512x512) — Astral Void-Glass & Crystalline Cyan Theme
 # ---------------------------------------------------------------------------
+K_OUTLINE = (9, 12, 22, 255)       # #090C16 deep cosmic outline
+K_FRAME_HI = (68, 94, 146, 255)    # #445E92 top-left astral bevel
+K_FRAME_M = (38, 52, 88, 255)      # #263458 primary obsidian-indigo frame
+K_FRAME_SH = (22, 30, 54, 255)     # #161E36 bottom-right frame shadow
+K_BG_HDR = (24, 34, 62, 255)       # #18223E header background
+K_BG_MAIN = (17, 23, 42, 255)      # #11172A main chamber background
+K_BG_ALT = (19, 26, 47, 255)       # #131A2F subtle topological grid accent
+K_CYAN_GLOW = (158, 250, 255, 255) # #9EFAFF specular ice-cyan highlight
+K_CYAN_L = (78, 226, 244, 255)     # #4EE2F4 bright crystalline cyan
+K_CYAN_M = (40, 162, 198, 255)     # #28A2C6 mid Klein-glass cyan
+K_CYAN_D = (24, 96, 134, 255)      # #186086 deep teal-cyan rim
+K_AMETHYST = (148, 92, 232, 255)   # #945CE8 non-orientable amethyst accent
+K_SLOT_BG = (12, 17, 32, 255)      # #0C1120 recessed void-glass slot
+K_SLOT_SH = (7, 10, 20, 255)       # #070A14 top-left slot shadow
+K_SLOT_HI = (48, 84, 126, 255)     # #30547E bottom-right glass bevel
+K_SLOT_COR = (28, 44, 72, 255)     # #1C2C48 slot corner
+K_WELL_BG = (9, 13, 24, 255)       # #090D18 search well interior
+K_BTN_N_BG = (28, 40, 68, 255)
+K_BTN_N_HI = (74, 126, 176, 255)
+K_BTN_N_SH = (14, 20, 38, 255)
+K_BTN_H_BG = (34, 88, 124, 255)
+K_BTN_H_HI = (124, 236, 252, 255)
+K_BTN_H_SH = (18, 46, 72, 255)
+K_BTN_A_BG = (24, 132, 162, 255)
+K_BTN_A_HI = (168, 250, 255, 255)
+K_BTN_A_SH = (14, 72, 98, 255)
+
+
+def draw_klein_crystal_panel(img: Image.Image, ox: int, oy: int, w: int, h: int, header_h: int = 15, corner_size: int = 6) -> None:
+    px = img.load()
+    fill_rect(px, ox + 1, oy + 1, ox + w - 1, oy + h - 1, K_FRAME_M)
+
+    # Outer cosmic outline with 1px chamfered corners
+    for x in range(ox + 1, ox + w - 1):
+        px[x, oy] = K_OUTLINE
+        px[x, oy + h - 1] = K_OUTLINE
+    for y in range(oy + 1, oy + h - 1):
+        px[ox, y] = K_OUTLINE
+        px[ox + w - 1, y] = K_OUTLINE
+
+    # Beveled astral-indigo frame
+    for x in range(ox + 2, ox + w - 2):
+        px[x, oy + 1] = K_FRAME_HI
+        px[x, oy + h - 2] = K_FRAME_SH
+    for y in range(oy + 2, oy + h - 2):
+        px[ox + 1, y] = K_FRAME_HI
+        px[ox + w - 2, y] = K_FRAME_SH
+
+    # Inner crystalline cyan rim around chamber
+    ix0, iy0, ix1, iy1 = ox + 4, oy + 4, ox + w - 4, oy + h - 4
+    fill_rect(px, ix0, iy0, ix1, iy1, K_BG_MAIN)
+    fill_rect(px, ix0, iy0, ix1, iy0 + header_h, K_BG_HDR)
+
+    # Subtle topological grid lines inside main background
+    for y in range(iy0 + header_h + 2, iy1, 18):
+        for x in range(ix0 + 1, ix1 - 1, 3):
+            px[x, y] = K_BG_ALT
+
+    for x in range(ix0, ix1):
+        px[x, iy0 - 1] = K_CYAN_D
+        px[x, iy1] = K_CYAN_M
+    for y in range(iy0, iy1):
+        px[ix0 - 1, y] = K_CYAN_D
+        px[ix1, y] = K_CYAN_M
+
+    # Crystalline cyan corner brackets
+    for dx in range(corner_size):
+        for dy in range(corner_size):
+            if dx + dy > corner_size:
+                continue
+            c = K_CYAN_GLOW if (dx + dy <= 1) else (K_CYAN_L if (dx == 0 or dy == 0) else K_CYAN_M)
+            px[ox + 1 + dx, oy + 1 + dy] = c
+            px[ox + w - 2 - dx, oy + 1 + dy] = c
+            px[ox + 1 + dx, oy + h - 2 - dy] = c
+            px[ox + w - 2 - dx, oy + h - 2 - dy] = c
+
+
+def draw_klein_divider(img: Image.Image, x0: int, x1: int, y: int) -> None:
+    px = img.load()
+    for x in range(x0, x1):
+        px[x, y] = K_CYAN_D
+        px[x, y + 1] = K_FRAME_SH
+    px[x0, y] = K_CYAN_L
+    px[x1 - 1, y] = K_CYAN_L
+
+
+def draw_klein_slot(img: Image.Image, sx: int, sy: int) -> None:
+    px = img.load()
+    fill_rect(px, sx + 1, sy + 1, sx + 17, sy + 17, K_SLOT_BG)
+    for x in range(sx, sx + 17):
+        px[x, sy] = K_SLOT_SH
+    for y in range(sy, sy + 17):
+        px[sx, y] = K_SLOT_SH
+    for x in range(sx + 1, sx + 18):
+        px[x, sy + 17] = K_SLOT_HI
+    for y in range(sy + 1, sy + 18):
+        px[sx + 17, y] = K_SLOT_HI
+    px[sx + 17, sy] = K_SLOT_COR
+    px[sx, sy + 17] = K_SLOT_COR
+    px[sx + 1, sy + 1] = K_FRAME_SH
+
+
 def build_klein_terminal() -> None:
     img = Image.new("RGBA", (512, 512), T)
-    draw_walnut_brass_panel(img, 0, 0, 194, 236, header_h=15, corner_size=6)
+    draw_klein_crystal_panel(img, 0, 0, 194, 236, header_h=15, corner_size=6)
     px = img.load()
 
-    # Header Klein Bottle mini-emblem socket at (9..20, 7..18)
-    fill_rect(px, 10, 8, 20, 18, WELL_BG)
+    # Header Klein Bottle crystalline emblem socket at (9..20, 7..18)
+    fill_rect(px, 10, 8, 20, 18, K_WELL_BG)
     for x in range(9, 20):
-        px[x, 7] = BRASS_D
-        px[x + 1, 18] = BRASS_HI
+        px[x, 7] = K_CYAN_D
+        px[x + 1, 18] = K_CYAN_L
     for y in range(7, 18):
-        px[9, y] = BRASS_D
-        px[20, y + 1] = BRASS_HI
+        px[9, y] = K_CYAN_D
+        px[20, y + 1] = K_CYAN_L
+    # Topological Klein bottle mini silhouette matching item texture
     bottle = [
-        (14, 9, BRASS_HI), (15, 9, BRASS_M),
-        (13, 10, IRON_L), (14, 10, TEAL_L), (15, 10, TEAL_M), (16, 10, IRON_M),
-        (12, 11, IRON_M), (13, 11, TEAL_M), (14, 11, TEAL_GLOW), (15, 11, TEAL_L), (16, 11, TEAL_DK), (17, 11, IRON_D),
-        (12, 12, IRON_M), (13, 12, TEAL_DK), (14, 12, TEAL_GLOW), (15, 12, TEAL_M), (16, 12, TEAL_DK), (17, 12, IRON_D),
-        (12, 13, IRON_M), (13, 13, TEAL_M), (14, 13, TEAL_L), (15, 13, TEAL_M), (16, 13, TEAL_DK), (17, 13, IRON_D),
-        (13, 14, IRON_D), (14, 14, BRASS_M), (15, 14, BRASS_D), (16, 14, IRON_D),
-        (13, 15, IRON_D), (14, 15, IRON_M), (15, 15, IRON_M), (16, 15, IRON_D),
+        (14, 9, K_CYAN_GLOW), (15, 9, K_CYAN_L), (16, 9, K_AMETHYST),
+        (13, 10, K_CYAN_L), (14, 10, K_CYAN_GLOW), (15, 10, K_CYAN_M), (16, 10, K_CYAN_L),
+        (12, 11, K_CYAN_M), (13, 11, K_CYAN_L), (14, 11, K_CYAN_GLOW), (15, 11, K_CYAN_L), (16, 11, K_CYAN_D), (17, 11, K_CYAN_M),
+        (12, 12, K_CYAN_M), (13, 12, K_CYAN_D), (14, 12, K_CYAN_GLOW), (15, 12, K_CYAN_L), (16, 12, K_CYAN_D), (17, 12, K_CYAN_M),
+        (12, 13, K_CYAN_D), (13, 13, K_CYAN_M), (14, 13, K_CYAN_L), (15, 13, K_CYAN_M), (16, 13, K_CYAN_D), (17, 13, K_CYAN_D),
+        (13, 14, K_CYAN_D), (14, 14, K_AMETHYST), (15, 14, K_CYAN_M), (16, 14, K_CYAN_D),
+        (13, 15, K_CYAN_D), (14, 15, K_CYAN_M), (15, 15, K_CYAN_L), (16, 15, K_CYAN_D),
     ]
     for bx, by, bc in bottle:
         px[bx, by] = bc
 
-    # Burnished brass Close button at (178, 7, 10x10)
-    draw_beveled_button(img, 178, 7, 10, 10, OAK_BTN_BG, OAK_BTN_HI, OAK_BTN_SH)
+    # Crystalline Close button at (178, 7, 10x10)
+    draw_beveled_button(img, 178, 7, 10, 10, K_BTN_N_BG, K_BTN_N_HI, K_BTN_N_SH)
     for d in range(4):
-        px[181 + d, 10 + d] = PARCH_WHT
-        px[184 - d, 10 + d] = PARCH_WHT
+        px[181 + d, 10 + d] = K_CYAN_GLOW
+        px[184 - d, 10 + d] = K_CYAN_GLOW
 
-    # Warm recessed dark-espresso Search EditBox well at (8, 24, 114x14)
-    # #241B14 interior, #9E7330 inner brass rim, outer walnut/cream bevel
-    fill_rect(px, 10, 26, 120, 36, WELL_BG)
+    # Abyssal void Search EditBox well at (8, 24, 114x14)
+    fill_rect(px, 10, 26, 120, 36, K_WELL_BG)
     for x in range(9, 121):
-        px[x, 25] = WELL_RIM
-        px[x, 36] = WELL_RIM
+        px[x, 25] = K_CYAN_M
+        px[x, 36] = K_CYAN_M
     for y in range(25, 37):
-        px[9, y] = WELL_RIM
-        px[120, y] = WELL_RIM
+        px[9, y] = K_CYAN_M
+        px[120, y] = K_CYAN_M
     for x in range(8, 121):
-        px[x, 24] = WALNUT_M
+        px[x, 24] = K_OUTLINE
     for y in range(24, 37):
-        px[8, y] = WALNUT_M
+        px[8, y] = K_OUTLINE
     for x in range(9, 122):
-        px[x, 37] = SLOT_HI
+        px[x, 37] = K_SLOT_HI
     for y in range(25, 38):
-        px[121, y] = SLOT_HI
-    px[121, 24] = PARCH_M
-    px[8, 37] = PARCH_M
-    # Crisp 9x9 burnished gold magnifying glass at (11, 27)
+        px[121, y] = K_SLOT_HI
+    px[121, 24] = K_BG_MAIN
+    px[8, 37] = K_BG_MAIN
+    # Crisp 9x9 glowing cyan magnifying glass at (11, 27)
     glass_ring = [(13, 27), (14, 27), (15, 27), (12, 28), (16, 28), (12, 29), (16, 29), (12, 30), (16, 30), (13, 31), (14, 31), (15, 31)]
     for gx, gy in glass_ring:
-        px[gx, gy] = BRASS_HI
+        px[gx, gy] = K_CYAN_GLOW
     for gx, gy in ((16, 31), (17, 32), (18, 33)):
-        px[gx, gy] = BRASS_M
+        px[gx, gy] = K_CYAN_M
 
     # Divider rule between top controls and warehouse grid
-    draw_brass_divider(img, 8, 186, 42)
+    draw_klein_divider(img, 8, 186, 42)
 
     # 5x9 Warehouse Grid at (8, 46)
     for row in range(5):
         for col in range(9):
-            draw_vellum_slot(img, 8 + col * 18, 46 + row * 18)
+            draw_klein_slot(img, 8 + col * 18, 46 + row * 18)
 
-    # Scrollbar track at (174, 45) to (184, 137) -> recessed warm-walnut/stone track
-    fill_rect(px, 175, 46, 183, 136, (152, 134, 108, 255))
+    # Scrollbar track at (174, 45) to (184, 137) -> deep void channel
+    fill_rect(px, 175, 46, 183, 136, K_WELL_BG)
     for x in range(174, 183):
-        px[x, 45] = SLOT_SH
+        px[x, 45] = K_SLOT_SH
     for y in range(45, 136):
-        px[174, y] = SLOT_SH
+        px[174, y] = K_SLOT_SH
     for x in range(175, 184):
-        px[x, 136] = SLOT_HI
+        px[x, 136] = K_SLOT_HI
     for y in range(46, 137):
-        px[183, y] = SLOT_HI
-    px[183, 45] = PARCH_M
-    px[174, 136] = PARCH_M
+        px[183, y] = K_SLOT_HI
+    px[183, 45] = K_BG_MAIN
+    px[174, 136] = K_BG_MAIN
 
     # Divider rule between warehouse grid and Inventory label (y=142)
-    draw_brass_divider(img, 8, 186, 138)
+    draw_klein_divider(img, 8, 186, 138)
 
     # Player inventory (9, 154) 3x9 + Hotbar (9, 213) 1x9 -> boxes at (8, 153) & (8, 212)
     for row in range(3):
         for col in range(9):
-            draw_vellum_slot(img, 8 + col * 18, 153 + row * 18)
+            draw_klein_slot(img, 8 + col * 18, 153 + row * 18)
     for col in range(9):
-        draw_vellum_slot(img, 8 + col * 18, 212)
+        draw_klein_slot(img, 8 + col * 18, 212)
 
     # -----------------------------------------------------------------------
     # Atlas Sprites (x >= 200) — exact UVs preserved!
     # -----------------------------------------------------------------------
-    # 1. Locked slot frame at (200, 0, 18x18)
+    # 1. Locked slot frame at (200, 0, 18x18) — amethyst-rose topological lock
     for x in range(200, 218):
-        px[x, 0] = (166, 52, 42, 255)
-        px[x, 17] = (166, 52, 42, 255)
+        px[x, 0] = (206, 68, 128, 255)
+        px[x, 17] = (206, 68, 128, 255)
     for y in range(0, 18):
-        px[200, y] = (166, 52, 42, 255)
-        px[217, y] = (166, 52, 42, 255)
-    fill_rect(px, 201, 1, 217, 17, (110, 46, 36, 68))
+        px[200, y] = (206, 68, 128, 255)
+        px[217, y] = (206, 68, 128, 255)
+    fill_rect(px, 201, 1, 217, 17, (148, 48, 112, 68))
 
-    # 2. Brass Padlock badge at (222, 0, 9x10)
+    # 2. Crystalline Padlock badge at (222, 0, 9x10)
     lock_pixels = [
-        (225, 0, IRON_D), (226, 0, IRON_M), (227, 0, IRON_D),
-        (224, 1, IRON_M), (228, 1, IRON_D),
-        (224, 2, IRON_M), (228, 2, IRON_D),
-        (224, 3, IRON_M), (228, 3, IRON_D),
+        (225, 0, K_CYAN_M), (226, 0, K_CYAN_GLOW), (227, 0, K_CYAN_M),
+        (224, 1, K_CYAN_L), (228, 1, K_CYAN_D),
+        (224, 2, K_CYAN_L), (228, 2, K_CYAN_D),
+        (224, 3, K_CYAN_L), (228, 3, K_CYAN_D),
     ]
     for lx, ly, lc in lock_pixels:
         px[lx, ly] = lc
-    fill_rect(px, 223, 4, 230, 9, BRASS_M)
+    fill_rect(px, 223, 4, 230, 9, K_CYAN_M)
     for x in range(223, 230):
-        px[x, 4] = BRASS_HI
-        px[x, 9] = BRASS_DK
+        px[x, 4] = K_CYAN_GLOW
+        px[x, 9] = K_CYAN_D
     for y in range(4, 9):
-        px[223, y] = BRASS_HI
-        px[229, y] = BRASS_DK
-    px[226, 6] = UMBER_BLK
-    px[226, 7] = UMBER_BLK
+        px[223, y] = K_CYAN_GLOW
+        px[229, y] = K_CYAN_D
+    px[226, 6] = K_OUTLINE
+    px[226, 7] = K_OUTLINE
 
     # 3. Hovered warehouse slot highlight at (200, 24, 18x18)
-    fill_rect(px, 201, 25, 217, 41, (255, 246, 210, 105))
+    fill_rect(px, 201, 25, 217, 41, (110, 240, 255, 78))
     for cxp, cyp in ((200, 24), (217, 24), (200, 41), (217, 41)):
-        px[cxp, cyp] = BRASS_HI
+        px[cxp, cyp] = K_CYAN_GLOW
 
     # 4. Drawer socket 18x18 at (268, 24, 18x18)
-    draw_vellum_slot(img, 268, 24)
+    draw_klein_slot(img, 268, 24)
 
-    # 5. Burnished Brass-Framed Scrollbar thumb 3-slice at u=200:
+    # 5. Crystalline Cyan Scrollbar thumb 3-slice at u=200:
     # Top cap (200, 48, 8x4), Middle (200, 52, 8x84), Bottom cap (200, 136, 8x4)
     for y in range(48, 140):
-        px[200, y] = BRASS_HI
+        px[200, y] = K_CYAN_GLOW
         for x in range(201, 206):
-            # Subtle brass ribs every 6px in middle section
             if 54 <= y <= 134 and (y % 6 == 0) and (202 <= x <= 204):
-                px[x, y] = BRASS_D
+                px[x, y] = K_CYAN_D
             else:
-                px[x, y] = BRASS_M
-        px[206, y] = BRASS_D
-        px[207, y] = WALNUT_SH
+                px[x, y] = K_CYAN_M
+        px[206, y] = K_CYAN_D
+        px[207, y] = K_OUTLINE
     for x in range(200, 207):
-        px[x, 48] = BRASS_HI
-        px[x, 49] = BRASS_HI
-    px[207, 48] = WALNUT_SH
+        px[x, 48] = K_CYAN_GLOW
+        px[x, 49] = K_CYAN_L
+    px[207, 48] = K_OUTLINE
     for x in range(200, 207):
-        px[x, 138] = BRASS_D
-        px[x, 139] = WALNUT_SH
-    px[200, 139] = WALNUT_SH
-    px[207, 139] = WALNUT_SH
+        px[x, 138] = K_CYAN_D
+        px[x, 139] = K_OUTLINE
+    px[200, 139] = K_OUTLINE
+    px[207, 139] = K_OUTLINE
 
     # 6. Crafting / Anvil arrow (216, 48, 15x11)
     for dy in range(11):
@@ -786,15 +887,15 @@ def build_klein_terminal() -> None:
                     or (dx == 9 and (dy == 0 or dy == 10))
                     or (dx >= 9 and abs(dy - 5) == (14 - dx))
                 )
-                px[216 + dx, 48 + dy] = BRASS_D if edge else (218, 186, 114, 255)
+                px[216 + dx, 48 + dy] = K_CYAN_D if edge else K_CYAN_L
 
     # 7. Anvil '+' sign (236, 48, 7x7)
     for d in range(7):
-        px[239, 48 + d] = INK_DARK
-        px[236 + d, 51] = INK_DARK
-    px[239, 51] = BRASS_D
+        px[239, 48 + d] = K_CYAN_L
+        px[236 + d, 51] = K_CYAN_L
+    px[239, 51] = K_CYAN_GLOW
 
-    # 8. Smelting flame (248, 48, 12x14)
+    # 8. Smelting soul-cyan/astral flame (248, 48, 12x14)
     flame_rows = [
         (5, 6), (5, 7), (4, 7), (4, 8), (3, 8), (2, 9), (2, 9),
         (1, 10), (1, 10), (1, 10), (2, 9), (2, 9), (3, 8), (4, 7),
@@ -802,63 +903,63 @@ def build_klein_terminal() -> None:
     for dy, (x0, x1) in enumerate(flame_rows):
         for dx in range(x0, x1 + 1):
             if dx == x0 or dx == x1 or dy in (0, 13):
-                c = EMBER_DK
+                c = K_CYAN_D
             elif dy >= 8 and 4 <= dx <= 7:
-                c = (254, 242, 144, 255)
+                c = (216, 255, 255, 255)
             elif dy >= 5 and 3 <= dx <= 8:
-                c = EMBER_L
+                c = K_CYAN_GLOW
             else:
-                c = EMBER_M
+                c = K_CYAN_L
             px[248 + dx, 48 + dy] = c
 
     # 9. Action button frames 14x14 at y=150: normal (200), hover (216), active (232)
-    draw_beveled_button(img, 200, 150, 14, 14, OAK_BTN_BG, OAK_BTN_HI, OAK_BTN_SH)
-    draw_beveled_button(img, 216, 150, 14, 14, BRASS_BTN_BG, BRASS_BTN_HI, BRASS_BTN_SH)
-    draw_beveled_button(img, 232, 150, 14, 14, ACT_EM_BG, ACT_EM_HI, ACT_EM_SH, pressed=True)
+    draw_beveled_button(img, 200, 150, 14, 14, K_BTN_N_BG, K_BTN_N_HI, K_BTN_N_SH)
+    draw_beveled_button(img, 216, 150, 14, 14, K_BTN_H_BG, K_BTN_H_HI, K_BTN_H_SH)
+    draw_beveled_button(img, 232, 150, 14, 14, K_BTN_A_BG, K_BTN_A_HI, K_BTN_A_SH, pressed=True)
 
     # 10. Detailed 12x12 Action button glyphs at (200 + i*16, 170)
-    # 0: Quick Deposit (brass-bound oak chest + crisp down arrow)
+    # 0: Quick Deposit (astral void chest + crisp cyan down arrow)
     gx, gy = 200, 170
-    fill_rect(px, gx + 2, gy + 6, gx + 10, gy + 11, WALNUT_M)
+    fill_rect(px, gx + 2, gy + 6, gx + 10, gy + 11, K_FRAME_M)
     for x in range(gx + 2, gx + 10):
-        px[x, gy + 6] = BRASS_M
-        px[x, gy + 10] = WALNUT_SH
-    px[gx + 5, gy + 7] = BRASS_HI
-    px[gx + 6, gy + 7] = BRASS_HI
+        px[x, gy + 6] = K_CYAN_M
+        px[x, gy + 10] = K_OUTLINE
+    px[gx + 5, gy + 7] = K_CYAN_GLOW
+    px[gx + 6, gy + 7] = K_CYAN_GLOW
     for y in range(gy + 1, gy + 5):
-        px[gx + 4, y] = WALNUT_SH
-        px[gx + 7, y] = WALNUT_SH
-        px[gx + 5, y] = PARCH_WHT
-        px[gx + 6, y] = PARCH_WHT
+        px[gx + 4, y] = K_OUTLINE
+        px[gx + 7, y] = K_OUTLINE
+        px[gx + 5, y] = K_CYAN_GLOW
+        px[gx + 6, y] = K_CYAN_GLOW
     for x in range(gx + 3, gx + 9):
-        px[x, gy + 4] = WALNUT_SH if x in (gx + 3, gx + 8) else PARCH_WHT
-    px[gx + 4, gy + 5] = WALNUT_SH
-    px[gx + 7, gy + 5] = WALNUT_SH
-    px[gx + 5, gy + 5] = BRASS_HI
-    px[gx + 6, gy + 5] = BRASS_HI
+        px[x, gy + 4] = K_OUTLINE if x in (gx + 3, gx + 8) else K_CYAN_GLOW
+    px[gx + 4, gy + 5] = K_OUTLINE
+    px[gx + 7, gy + 5] = K_OUTLINE
+    px[gx + 5, gy + 5] = K_CYAN_L
+    px[gx + 6, gy + 5] = K_CYAN_L
 
-    # 1: Crafting Table (detailed walnut/oak 3x3 crafting grid with brass rim)
+    # 1: Crafting Table (astral-crystal 3x3 grid)
     gx, gy = 216, 170
-    fill_rect(px, gx + 1, gy + 1, gx + 11, gy + 11, WALNUT_SH)
-    fill_rect(px, gx + 2, gy + 2, gx + 10, gy + 10, (216, 184, 134, 255))
+    fill_rect(px, gx + 1, gy + 1, gx + 11, gy + 11, K_OUTLINE)
+    fill_rect(px, gx + 2, gy + 2, gx + 10, gy + 10, K_FRAME_HI)
     for lx in (gx + 4, gx + 7):
         for y in range(gy + 2, gy + 10):
-            px[lx, y] = WALNUT_M
+            px[lx, y] = K_CYAN_M
     for ly in (gy + 4, gy + 7):
         for x in range(gx + 2, gx + 10):
-            px[x, ly] = WALNUT_M
+            px[x, ly] = K_CYAN_M
     for cxp, cyp in ((gx + 1, gy + 1), (gx + 10, gy + 1), (gx + 1, gy + 10), (gx + 10, gy + 10)):
-        px[cxp, cyp] = BRASS_HI
+        px[cxp, cyp] = K_CYAN_GLOW
 
-    # 2: Furnace (warm stone frame + glowing amber-gold hearth)
+    # 2: Furnace (astral-iron frame + soul-cyan hearth)
     gx, gy = 232, 170
-    fill_rect(px, gx + 1, gy + 1, gx + 11, gy + 11, WALNUT_SH)
+    fill_rect(px, gx + 1, gy + 1, gx + 11, gy + 11, K_OUTLINE)
     fill_rect(px, gx + 2, gy + 2, gx + 10, gy + 10, IRON_M)
-    fill_rect(px, gx + 3, gy + 3, gx + 9, gy + 5, WELL_BG)
-    fill_rect(px, gx + 3, gy + 6, gx + 9, gy + 10, EMBER_M)
-    fill_rect(px, gx + 4, gy + 7, gx + 8, gy + 9, EMBER_L)
+    fill_rect(px, gx + 3, gy + 3, gx + 9, gy + 5, K_WELL_BG)
+    fill_rect(px, gx + 3, gy + 6, gx + 9, gy + 10, K_CYAN_M)
+    fill_rect(px, gx + 4, gy + 7, gx + 8, gy + 9, K_CYAN_GLOW)
 
-    # 3: Anvil (crisp forged dark-iron anvil with specular horn highlight)
+    # 3: Anvil (crisp forged star-iron anvil)
     gx, gy = 248, 170
     fill_rect(px, gx + 1, gy + 2, gx + 11, gy + 5, IRON_M)
     for x in range(gx + 1, gx + 11):
@@ -866,20 +967,20 @@ def build_klein_terminal() -> None:
     fill_rect(px, gx + 4, gy + 5, gx + 8, gy + 8, IRON_D)
     fill_rect(px, gx + 2, gy + 8, gx + 10, gy + 10, IRON_D)
     for x in range(gx + 2, gx + 10):
-        px[x, gy + 10] = UMBER_BLK
+        px[x, gy + 10] = K_OUTLINE
 
-    # 4: Auto Deposit (brass/iron hopper funnel)
+    # 4: Auto Deposit (crystalline cyan-silver hopper funnel)
     gx, gy = 264, 170
-    fill_rect(px, gx + 1, gy + 2, gx + 11, gy + 4, BRASS_HI)
-    fill_rect(px, gx + 2, gy + 4, gx + 10, gy + 6, BRASS_M)
-    fill_rect(px, gx + 4, gy + 6, gx + 8, gy + 8, BRASS_D)
-    fill_rect(px, gx + 5, gy + 8, gx + 7, gy + 11, WALNUT_SH)
+    fill_rect(px, gx + 1, gy + 2, gx + 11, gy + 4, K_CYAN_GLOW)
+    fill_rect(px, gx + 2, gy + 4, gx + 10, gy + 6, K_CYAN_L)
+    fill_rect(px, gx + 4, gy + 6, gx + 8, gy + 8, K_CYAN_M)
+    fill_rect(px, gx + 5, gy + 8, gx + 7, gy + 11, K_CYAN_D)
 
     # -----------------------------------------------------------------------
-    # Create-style Walnut & Brass Parchment Left Drawer Panel at (300, 0, 118x88)
+    # Astral Crystal Left Drawer Panel at (300, 0, 118x88)
     # -----------------------------------------------------------------------
-    draw_walnut_brass_panel(img, 300, 0, 118, 88, header_h=12, corner_size=5)
-    draw_brass_divider(img, 306, 412, 17)
+    draw_klein_crystal_panel(img, 300, 0, 118, 88, header_h=12, corner_size=5)
+    draw_klein_divider(img, 306, 412, 17)
 
     img.save(OUT_DIR / "klein_terminal.png")
 
