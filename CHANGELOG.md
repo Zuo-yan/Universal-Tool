@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.12 - 2026-11-13
+- **Wormhole Ring Missing-Texture Fix & Dedicated Enclosed Dimensional Corridor**:
+  - Fixed `WormholeRenderer.VORTEX_TEXTURE` path from `textures/entity/stargate_portal_vortex.png` to `textures/block/stargate_portal_vortex.png`, eliminating the purple/black missing-texture checkerboard on the wormhole perimeter ring.
+  - Decoupled `WormholeCorridorManager` (`universal_tool:wormhole_transit`) completely from `PrivateSpaceManager` / `StarryPocketChunkGenerator`, creating an independent void dimension (`FlatLevelSource` + `BuiltinDimensionTypes.END_EFFECTS`).
+  - Rebuilt the transit corridor into an **enclosed dark deepslate & obsidian architectural tunnel** with a translucent `CYAN_STAINED_GLASS` / `TINTED_GLASS` walkway over glowing `SEA_LANTERN` & `CRYING_OBSIDIAN` under-floor, stepped octagonal cyan/amethyst energy arches (`z = 5, 10, 15`), soul-lantern & amethyst accents, and the destination-preview exit wormhole at the far end.
+
 ## 1.9.11 - 2026-11-13
 - **Astral Void-Glass & Crystalline Cyan Klein Bottle GUI Overhaul**:
   - Redesigned `klein_terminal.png` (`tools/craft_ui_machines.py`) from the previous warm parchment/walnut theme into a dedicated **Astral Void-Glass & Crystalline Cyan** theme matching the Klein Bottle item aesthetic: deep cosmic-indigo frame, glowing cyan-aqua corner brackets & dividers, recessed void-glass slots, crystalline cyan scrollbar & soul-cyan furnace/button glyphs, and amethyst-rose lock indicator.

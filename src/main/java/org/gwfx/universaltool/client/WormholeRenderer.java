@@ -23,7 +23,7 @@ import org.joml.Matrix4f;
  */
 public class WormholeRenderer extends EntityRenderer<WormholeEntity> {
     private static final ResourceLocation VORTEX_TEXTURE =
-            ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "textures/entity/stargate_portal_vortex.png");
+            ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "textures/block/stargate_portal_vortex.png");
     private static final int SEGMENTS = 24;
 
     public WormholeRenderer(EntityRendererProvider.Context context) {

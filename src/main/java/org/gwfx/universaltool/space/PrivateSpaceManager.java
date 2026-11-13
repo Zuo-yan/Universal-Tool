@@ -746,45 +746,6 @@ public final class PrivateSpaceManager {
         }
     }
 
-    /** Creates or loads a generic cloud-free starry void dimension (used by the wormhole transit corridor). */
-    public static ServerLevel getOrCreateStarryVoidLevel(MinecraftServer server, ResourceLocation dimensionId) {
-        ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, dimensionId);
-        ServerLevel existing = server.getLevel(key);
-        if (existing != null) {
-            PersonalDimensionRegistry.from(server).adoptExistingDimension(existing);
-            configureStarryTransitLevel(existing);
-            return existing;
-        }
-        try {
-            PersonalDimensionRegistry registry = PersonalDimensionRegistry.from(server);
-            Holder<Biome> cosmicBiome = server.overworld().registryAccess()
-                    .lookupOrThrow(Registries.BIOME)
-                    .getOrThrow(Biomes.THE_VOID);
-            ChunkGenerator generator = new StarryPocketChunkGenerator(new FixedBiomeSource(cosmicBiome));
-            DimensionType dimType = buildPrivatePocketDimensionType(server.overworld().dimensionType());
-            ServerLevel loaded = registry.canCreateDimension(dimensionId)
-                    ? registry.createDynamicDimension(dimensionId, generator, dimType)
-                    : registry.loadDynamicDimension(dimensionId, generator, dimType);
-            if (loaded != null) {
-                configureStarryTransitLevel(loaded);
-            }
-            return loaded;
-        } catch (RuntimeException exception) {
-            UniversalToolMod.LOGGER.error("Failed to load starry void level {}", dimensionId, exception);
-            return null;
-        }
-    }
-
-    private static void configureStarryTransitLevel(ServerLevel level) {
-        level.getWorldBorder().setCenter(0.0, 0.0);
-        level.getWorldBorder().setSize(59_999_968);
-        level.getWorldBorder().setWarningBlocks(0);
-        if (level.getLevelData() instanceof PersonalDimensionLevelData personalData) {
-            personalData.setWeatherRule(PrivateSpaceWorldTraits.WeatherRule.ALWAYS_CLEAR);
-        }
-        applyWeatherState(level, PrivateSpaceWorldTraits.WeatherRule.ALWAYS_CLEAR);
-    }
-
     public static void returnPlayer(ServerPlayer player) {
         PersonalSpaceSavedData data = PersonalSpaceSavedData.get(player.server);
         boolean fromPocket = isStarryPocket(player.serverLevel());
