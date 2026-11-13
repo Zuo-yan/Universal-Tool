@@ -41,9 +41,9 @@ public class WormholeRenderer extends EntityRenderer<WormholeEntity> {
         float age = entity.tickCount + partialTick;
         float pulse = 1.0F + 0.025F * Mth.sin(age * 0.16F);
         boolean exit = entity.isCorridorExit();
-        float rx = (exit ? 2.15F : 1.35F) * open * pulse;
-        float ry = (exit ? 1.85F : 1.45F) * open * pulse;
-        double centerY = exit ? 1.75D : 1.45D;
+        float rx = (exit ? 3.20F : 1.45F) * open * pulse;
+        float ry = (exit ? 2.25F : 1.50F) * open * pulse;
+        double centerY = exit ? 1.95D : 1.48D;
 
         poseStack.pushPose();
         poseStack.translate(0.0D, centerY, 0.0D);
@@ -51,10 +51,13 @@ public class WormholeRenderer extends EntityRenderer<WormholeEntity> {
 
         Matrix4f pose = poseStack.last().pose();
 
-        // 1. Inner destination vista aperture (waypoint screenshot with parallax, or dimension-themed horizon)
-        ResourceLocation photoTex = PhotoManager.getOrLoadTexture(entity.getPhotoId());
-        if (photoTex != null) {
-            renderPhotoVista(entity, pose, bufferSource, photoTex, rx, ry, centerY, open);
+        // 1. Inner destination vista aperture (live server-raycast vista preferred, fallback to saved photo or sky)
+        ResourceLocation vistaTex = PhotoManager.getOrLoadTexture(entity.getVistaId());
+        if (vistaTex == null) {
+            vistaTex = PhotoManager.getOrLoadTexture(entity.getPhotoId());
+        }
+        if (vistaTex != null) {
+            renderPhotoVista(entity, pose, bufferSource, vistaTex, rx, ry, centerY, open);
         } else {
             renderFallbackDimensionVista(entity.getDestDimension(), pose, bufferSource, rx, ry, age, open);
         }

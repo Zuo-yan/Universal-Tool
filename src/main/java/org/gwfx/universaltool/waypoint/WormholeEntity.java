@@ -30,6 +30,8 @@ public class WormholeEntity extends Entity {
             SynchedEntityData.defineId(WormholeEntity.class, EntityDataSerializers.STRING);
     private static final EntityDataAccessor<Boolean> DATA_CORRIDOR_EXIT =
             SynchedEntityData.defineId(WormholeEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<String> DATA_VISTA_ID =
+            SynchedEntityData.defineId(WormholeEntity.class, EntityDataSerializers.STRING);
 
     private static final int MAX_LIFETIME_TICKS = 240;
     private static final int CLOSE_ANIM_TICKS = 10;
@@ -76,6 +78,7 @@ public class WormholeEntity extends Entity {
         builder.define(DATA_PHOTO_ID, "");
         builder.define(DATA_DEST_DIM, "minecraft:overworld");
         builder.define(DATA_CORRIDOR_EXIT, false);
+        builder.define(DATA_VISTA_ID, "");
     }
 
     public boolean isClosing() {
@@ -84,6 +87,14 @@ public class WormholeEntity extends Entity {
 
     public String getPhotoId() {
         return this.entityData.get(DATA_PHOTO_ID);
+    }
+
+    public String getVistaId() {
+        return this.entityData.get(DATA_VISTA_ID);
+    }
+
+    public void setVistaId(String vistaId) {
+        this.entityData.set(DATA_VISTA_ID, vistaId != null ? vistaId : "");
     }
 
     public String getDestDimension() {
@@ -147,7 +158,7 @@ public class WormholeEntity extends Entity {
                     beginClosing();
                     return;
                 } else if (target != null) {
-                    WormholeCorridorManager.enterCorridor(entered, target, fromScroll);
+                    WormholeCorridorManager.enterCorridor(entered, target, fromScroll, getVistaId());
                     beginClosing();
                     return;
                 }
@@ -187,6 +198,7 @@ public class WormholeEntity extends Entity {
         lifeTicks = tag.getInt("LifeTicks");
         entityData.set(DATA_CORRIDOR_EXIT, tag.getBoolean("CorridorExit"));
         entityData.set(DATA_PHOTO_ID, tag.getString("PhotoId"));
+        entityData.set(DATA_VISTA_ID, tag.getString("VistaId"));
         if (tag.contains("DestDim")) {
             entityData.set(DATA_DEST_DIM, tag.getString("DestDim"));
         }
@@ -201,6 +213,7 @@ public class WormholeEntity extends Entity {
         tag.putInt("LifeTicks", lifeTicks);
         tag.putBoolean("CorridorExit", isCorridorExit());
         tag.putString("PhotoId", getPhotoId());
+        tag.putString("VistaId", getVistaId());
         tag.putString("DestDim", getDestDimension());
     }
 

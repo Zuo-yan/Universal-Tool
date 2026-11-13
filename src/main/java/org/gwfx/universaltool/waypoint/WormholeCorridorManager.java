@@ -84,6 +84,10 @@ public final class WormholeCorridorManager {
     private WormholeCorridorManager() {}
 
     public static void enterCorridor(ServerPlayer player, Waypoint target, boolean fromScroll) {
+        enterCorridor(player, target, fromScroll, "");
+    }
+
+    public static void enterCorridor(ServerPlayer player, Waypoint target, boolean fromScroll, String vistaId) {
         MinecraftServer server = player.server;
         ServerLevel transitLevel = getOrCreateTransitLevel(server);
         if (transitLevel == null) {
@@ -109,7 +113,7 @@ public final class WormholeCorridorManager {
             if (!SESSIONS.containsKey(uuid)) {
                 return;
             }
-            buildTransparentCorridor(transitLevel, laneX, uuid, target, fromScroll);
+            buildTransparentCorridor(transitLevel, laneX, uuid, target, fromScroll, vistaId);
             player.fallDistance = 0.0F;
             player.teleportTo(transitLevel, laneX + 0.5D, WALK_Y, SPAWN_Z, 0.0F, 0.0F);
             player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, MAX_CORRIDOR_TICKS, 1, false, false, false));
@@ -183,7 +187,7 @@ public final class WormholeCorridorManager {
     }
 
     private static void buildTransparentCorridor(ServerLevel level, int laneX, UUID ownerUuid,
-                                                 Waypoint target, boolean fromScroll) {
+                                                 Waypoint target, boolean fromScroll, String vistaId) {
         BlockState barrier = Blocks.BARRIER.defaultBlockState();
         BlockState air = Blocks.AIR.defaultBlockState();
 
@@ -220,6 +224,7 @@ public final class WormholeCorridorManager {
         if (exitWormhole != null) {
             exitWormhole.moveTo(laneX + 0.5D, WALK_Y, EXIT_Z, 0.0F, 0.0F);
             exitWormhole.configure(ownerUuid, target, fromScroll, true);
+            exitWormhole.setVistaId(vistaId);
             level.addFreshEntity(exitWormhole);
         }
     }

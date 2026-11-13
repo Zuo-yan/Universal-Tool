@@ -86,6 +86,8 @@ public final class ModPacketHandler {
                 dispatchClient(SyncSkillDataPayload.TYPE));
         registrar.playToClient(OpenSkillScreenPayload.TYPE, OpenSkillScreenPayload.STREAM_CODEC,
                 dispatchClient(OpenSkillScreenPayload.TYPE));
+        registrar.playToClient(WormholeLiveVistaPayload.TYPE, WormholeLiveVistaPayload.STREAM_CODEC,
+                dispatchClient(WormholeLiveVistaPayload.TYPE));
         registrar.playToClient(KleinSyncPayload.TYPE, KleinSyncPayload.STREAM_CODEC, KleinSyncPayload::handle);
     }
 }

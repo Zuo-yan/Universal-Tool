@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.15 - 2026-11-13
+- **Live Server-Side Destination Vista Raycasting & Panoramic Corridor Exit**:
+  - Added `LiveVistaSampler` (fast 3D DDA voxel raycaster capturing a live `112×63` 16:9 snapshot directly from the target `ServerLevel`, reflecting real-time blocks, water, sky/block lighting, and current day/night sky across dimensions) and `WormholeLiveVistaPayload` S2C sync into `PhotoManager.registerLiveVista`.
+  - Updated `TeleportManager`, `WormholeEntity`, and `WormholeCorridorManager` so both the entrance wormhole and the corridor exit wormhole display the live-sampled destination view.
+  - Enlarged the corridor exit wormhole (`rx=3.20, ry=2.25`) so the live destination vista fills the forward view inside the transparent corridor.
+
 ## 1.9.14 - 2026-11-13
 - **Corridor Legacy Block Cleanup Fix**:
   - Expanded the air-clearing envelope in `WormholeCorridorManager.buildTransparentCorridor` (`z = -2..20, dx = -4..4, y = 60..70`) so any leftover `v1.9.12` deepslate/obsidian blocks behind the exit wormhole (`z = 16..18`) are completely removed.

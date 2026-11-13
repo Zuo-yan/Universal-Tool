@@ -12,6 +12,7 @@ import org.gwfx.universaltool.network.PersonalSpaceScreenPayload;
 import org.gwfx.universaltool.network.PhoenixCinematicStartPayload;
 import org.gwfx.universaltool.network.SyncSkillDataPayload;
 import org.gwfx.universaltool.network.SyncWaypointsPayload;
+import org.gwfx.universaltool.network.WormholeLiveVistaPayload;
 import org.gwfx.universaltool.waypoint.Waypoint;
 
 import java.util.HashSet;
@@ -37,6 +38,12 @@ public final class ClientPayloadHandlers {
         ModPacketHandler.registerClientHandler(PersonalDimensionSyncPayload.TYPE, ClientPayloadHandlers::handlePersonalDimensionSync);
         ModPacketHandler.registerClientHandler(SyncSkillDataPayload.TYPE, ClientPayloadHandlers::handleSyncSkillData);
         ModPacketHandler.registerClientHandler(OpenSkillScreenPayload.TYPE, ClientPayloadHandlers::handleOpenSkillScreen);
+        ModPacketHandler.registerClientHandler(WormholeLiveVistaPayload.TYPE, ClientPayloadHandlers::handleWormholeLiveVista);
+    }
+
+    public static void handleWormholeLiveVista(WormholeLiveVistaPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> PhotoManager.registerLiveVista(
+                payload.vistaId(), payload.width(), payload.height(), payload.compressedRgb()));
     }
 
     public static void handleSyncWaypoints(SyncWaypointsPayload payload, IPayloadContext context) {

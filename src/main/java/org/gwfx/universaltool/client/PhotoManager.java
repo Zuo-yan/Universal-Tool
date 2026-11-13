@@ -180,6 +180,56 @@ public class PhotoManager {
         }
     }
 
+    /**
+     * Decompresses a server-sampled RGB24 live destination vista and registers it as a cached DynamicTexture.
+     */
+    public static void registerLiveVista(String vistaId, int width, int height, byte[] compressedRgb) {
+        if (vistaId == null || vistaId.isEmpty() || width <= 0 || height <= 0 || compressedRgb == null) {
+            return;
+        }
+        String safeId = sanitizePhotoId(vistaId);
+        if (safeId.isEmpty()) {
+            return;
+        }
+        int expected = width * height * 3;
+        byte[] raw = new byte[expected];
+        try {
+            java.util.zip.Inflater inflater = new java.util.zip.Inflater();
+            inflater.setInput(compressedRgb);
+            int decoded = inflater.inflate(raw);
+            inflater.end();
+            if (decoded < expected) {
+                return;
+            }
+            NativeImage image = new NativeImage(width, height, false);
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int idx = (y * width + x) * 3;
+                    int r = raw[idx] & 0xFF;
+                    int g = raw[idx + 1] & 0xFF;
+                    int b = raw[idx + 2] & 0xFF;
+                    int abgr = (0xFF << 24) | (b << 16) | (g << 8) | r;
+                    image.setPixelRGBA(x, y, abgr);
+                }
+            }
+            ResourceLocation old = TEXTURE_CACHE.remove(safeId);
+            if (old != null) {
+                Minecraft.getInstance().getTextureManager().release(old);
+            }
+            String rlPath = "vista_" + safeId.replace('.', '_').toLowerCase(java.util.Locale.ROOT);
+            ResourceLocation loc = ResourceLocation.tryBuild(UniversalToolMod.MODID, rlPath);
+            if (loc == null) {
+                image.close();
+                return;
+            }
+            DynamicTexture texture = new DynamicTexture(image);
+            Minecraft.getInstance().getTextureManager().register(loc, texture);
+            TEXTURE_CACHE.put(safeId, loc);
+        } catch (Exception e) {
+            UniversalToolMod.LOGGER.warn("Failed to decode live wormhole vista {}", vistaId, e);
+        }
+    }
+
     public static ResourceLocation getOrLoadTexture(String photoId) {
         String safeId = sanitizePhotoId(photoId);
         if (safeId.isEmpty()) return null;

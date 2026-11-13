@@ -73,6 +73,16 @@ public class TeleportManager {
         }
         wormhole.setPos(spawnPos.x, spawnPos.y, spawnPos.z);
         wormhole.configure(player, target, player.getYRot() + 180.0F, fromScroll);
+        byte[] liveVista = LiveVistaSampler.captureCompressed(player.server, target);
+        if (liveVista != null) {
+            String vistaId = "live_" + player.getUUID().toString().substring(0, 8) + "_" + System.currentTimeMillis();
+            wormhole.setVistaId(vistaId);
+            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(
+                    player,
+                    new org.gwfx.universaltool.network.WormholeLiveVistaPayload(
+                            vistaId, LiveVistaSampler.WIDTH, LiveVistaSampler.HEIGHT, liveVista)
+            );
+        }
         level.addFreshEntity(wormhole);
 
         level.playSound(null, spawnPos.x, spawnPos.y + 1.0, spawnPos.z,
