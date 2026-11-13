@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.0 - 2026-11-13
+
+- **Vanilla+ Textures & UI Overhaul**:
+  - Rebuilt all 7 UI screens (`PolymerizerScreen`, `PhoenixPodScreen`, `KleinScreen`, `UniversalLotteryMachineScreen`, `PersonalSpaceScreen` Star Gate GUI, `CodexScreen`, `SkillScreen` & `SkillWheelScreen`) and JEI `PolymerizerRecipeCategory` into classic Minecraft `#C6C6C6` beveled stone-gray panels, `#8B8B8B` recessed 18×18 slots, `#404040` headers, and authentic Vanilla `book.png` leather+parchment styling for `CodexScreen`.
+  - Redrew all 8 Star Gate biome emblems (`environment_*.png`), all 20 skill icons (`textures/gui/skills/*.png`) at crisp `16×16` Vanilla status-effect / advancement pixel art, and `counter_guard_aegis.png` / `counter_guard_ring.png` as crisp pixelated ward rune textures.
+  - Redrew all 17 item textures (`textures/item/*.png`) in Jappa 1.14+ pixel art (tinted outlines with zero `#000000` borders, classic oak/netherite handles, Vanilla glass/book/crystal palettes) and scaled `lightning_spear` to `32×32` 1× texel density with aligned model UVs.
+  - Retextured all 5 blocks (`Universal Polymerizer`, `Universal Lottery Machine`, `Personal Space Gate`, `Personal Space Return`, `Operation Phoenix Pod`) around Vanilla End & Magic block materials (Purpur, End Stone Bricks, Obsidian/Crying Obsidian, Enchanting Table crimson/gold trim, Bookshelf wood, and Vanilla glass) while preserving 3D model geometry and UV layouts.
+
 ## 1.5.2 - 2026-11-13
 
 - Fixed client crash when opening the creative inventory (`IllegalArgumentException: Itemstack 1 universal_tool:void_essence already exists in the tab's list`) by removing duplicate `VOID_ESSENCE` entries in `ModCreativeTabs`.
