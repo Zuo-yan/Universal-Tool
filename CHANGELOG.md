@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.8 - 2026-11-13
+- **Vanilla-Book Teleport Codex & Immersive Walk-In Spatial Wormhole**:
+  - Restyled `teleport_codex.png` (+ `.mcmeta`) directly from Minecraft 1.21.1's vanilla `book.png` silhouette with astral midnight-indigo leather cover, gold clasps, glowing cyan emblem, and diagonal shimmer glint.
+  - Unlocked all 36 waypoint slots by default (`WaypointData.DEFAULT_CAPACITY = 36`, `ClientWaypointCache` default `36`), removing the spatial-page expansion requirement before teleporting/recording across all 3 volumes.
+  - Replaced standing-still channel teleport with an immersive walk-in **Spatial Wormhole (`WormholeEntity` & `WormholeRenderer`)**: clicking Warp opens a floating, double-layered swirling cosmic wormhole ~2.3 blocks ahead of the player; walking inside teleports cleanly to the destination (supporting cross-dimension travel) and collapses the rift.
+
 ## 1.9.7 - 2026-11-13
 - **All 6 Universal Tool Tiers Dynamic Morphing & Vanilla 1.21.1 Silhouettes + Glint Accents**:
   - Extended dynamic form switching (`universal_tool:tool_form`) from Netherite-only to all 6 Universal Tool tiers (`wooden`, `stone`, `iron`, `golden`, `diamond`, `netherite`).

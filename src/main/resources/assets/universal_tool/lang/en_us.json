@@ -31,6 +31,7 @@
   "gui.universal_tool.codex.confirm": "Confirm Point",
   "message.universal_tool.on_cooldown": "§cTeleport is on cooldown...",
   "message.universal_tool.charging": "§bChanneling teleport (Do not move)...",
+  "message.universal_tool.wormhole_opened": "§bSpatial wormhole opened (%s) — step inside to warp!",
   "message.universal_tool.interrupted_moved": "§cTeleport cancelled due to movement!",
   "message.universal_tool.interrupted_damage": "§cTeleport cancelled due to damage!",
   "message.universal_tool.dimension_not_found": "§cDimension unreachable!",

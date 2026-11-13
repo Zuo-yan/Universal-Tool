@@ -8,7 +8,7 @@ import java.util.List;
 
 public class ClientWaypointCache {
     private static List<Waypoint> waypoints = new ArrayList<>();
-    private static int maxCapacity = 12;
+    private static int maxCapacity = 36;
 
     public static synchronized void update(List<Waypoint> list, int capacity) {
         waypoints = new ArrayList<>(list);
@@ -25,6 +25,6 @@ public class ClientWaypointCache {
 
     public static synchronized void clear() {
         waypoints = new ArrayList<>();
-        maxCapacity = 12;
+        maxCapacity = 36;
     }
 }

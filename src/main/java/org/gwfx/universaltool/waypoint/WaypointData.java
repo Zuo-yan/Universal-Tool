@@ -22,7 +22,7 @@ import java.util.List;
  */
 public class WaypointData {
 
-    public static final int DEFAULT_CAPACITY = 12;
+    public static final int DEFAULT_CAPACITY = 36;
     public static final int ULTIMATE_CAPACITY = 36;
     public static final int EXPAND_STEP = 4;
 

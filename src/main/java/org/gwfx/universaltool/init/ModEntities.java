@@ -7,6 +7,7 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.skill.LightningSpearProjectile;
+import org.gwfx.universaltool.waypoint.WormholeEntity;
 
 public final class ModEntities {
     public static final DeferredRegister<EntityType<?>> ENTITIES =
@@ -20,6 +21,15 @@ public final class ModEntities {
                     .clientTrackingRange(10)
                     .updateInterval(1)
                     .build("lightning_spear_projectile"));
+
+    public static final DeferredHolder<EntityType<?>, EntityType<WormholeEntity>>
+            WORMHOLE = ENTITIES.register("wormhole",
+            () -> EntityType.Builder.<WormholeEntity>of(
+                            WormholeEntity::new, MobCategory.MISC)
+                    .sized(1.30F, 2.15F)
+                    .clientTrackingRange(16)
+                    .updateInterval(2)
+                    .build("wormhole"));
 
     private ModEntities() {
     }

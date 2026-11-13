@@ -55,10 +55,47 @@ public class TeleportManager {
             return;
         }
 
-        ACTIVE_TASKS.put(player.getUUID(), new TeleportTask(player, target, fromScroll));
-        player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
-                SoundEvents.PORTAL_TRIGGER, SoundSource.PLAYERS, 0.4F, 1.6F);
-        player.displayClientMessage(Component.translatable("message.universal_tool.charging"), true);
+        ServerLevel level = player.serverLevel();
+        // 清理该玩家之前尚未进入的旧虫洞
+        for (WormholeEntity existing : level.getEntitiesOfClass(WormholeEntity.class, player.getBoundingBox().inflate(32.0D))) {
+            if (player.getUUID().equals(existing.getOwnerUuid())) {
+                existing.beginClosing();
+            }
+        }
+
+        Vec3 lookHoriz = Vec3.directionFromRotation(0.0F, player.getYRot()).normalize();
+        Vec3 spawnPos = findWormholeSpawnPos(level, player.position(), lookHoriz);
+
+        WormholeEntity wormhole = org.gwfx.universaltool.init.ModEntities.WORMHOLE.get().create(level);
+        if (wormhole == null) {
+            executeTeleport(player, target, fromScroll);
+            return;
+        }
+        wormhole.setPos(spawnPos.x, spawnPos.y, spawnPos.z);
+        wormhole.configure(player, target, player.getYRot() + 180.0F, fromScroll);
+        level.addFreshEntity(wormhole);
+
+        level.playSound(null, spawnPos.x, spawnPos.y + 1.0, spawnPos.z,
+                SoundEvents.PORTAL_TRIGGER, SoundSource.PLAYERS, 0.55F, 1.45F);
+        level.playSound(null, spawnPos.x, spawnPos.y + 1.0, spawnPos.z,
+                SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 0.65F, 1.25F);
+        level.sendParticles(net.minecraft.core.particles.ParticleTypes.REVERSE_PORTAL,
+                spawnPos.x, spawnPos.y + 1.1, spawnPos.z, 26, 0.35, 0.65, 0.35, 0.08);
+
+        player.displayClientMessage(Component.translatable("message.universal_tool.wormhole_opened", target.name()), true);
+    }
+
+    private static Vec3 findWormholeSpawnPos(ServerLevel level, Vec3 origin, Vec3 dir) {
+        for (double dist = 2.3D; dist >= 1.2D; dist -= 0.35D) {
+            Vec3 candidate = origin.add(dir.scale(dist));
+            BlockPos feet = BlockPos.containing(candidate.x, candidate.y + 0.1, candidate.z);
+            BlockPos head = feet.above();
+            if (level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
+                    && level.getBlockState(head).getCollisionShape(level, head).isEmpty()) {
+                return candidate;
+            }
+        }
+        return origin.add(dir.scale(1.4D));
     }
 
     @SubscribeEvent
@@ -114,7 +151,7 @@ public class TeleportManager {
         }
     }
 
-    private static void executeTeleport(ServerPlayer player, Waypoint target, boolean fromScroll) {
+    public static void executeTeleport(ServerPlayer player, Waypoint target, boolean fromScroll) {
         ResourceKey<net.minecraft.world.level.Level> dimKey = ResourceKey.create(Registries.DIMENSION, target.dimension());
         ServerLevel destLevel = player.server.getLevel(dimKey);
         if (destLevel == null) {

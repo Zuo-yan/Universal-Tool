@@ -86,6 +86,8 @@ public final class UniversalToolClientMod {
                 PersonalSpaceGateRenderer::new);
         event.registerEntityRenderer(ModEntities.LIGHTNING_SPEAR_PROJECTILE.get(),
                 LightningSpearRenderer::new);
+        event.registerEntityRenderer(ModEntities.WORMHOLE.get(),
+                WormholeRenderer::new);
     }
 
     @SubscribeEvent
