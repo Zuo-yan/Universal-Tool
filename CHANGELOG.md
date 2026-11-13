@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.6 - 2026-11-13
+- **Animated Morphing Netherite Universal Tool (`NetheriteToolForm` & 32×32 Animated Sprites)**:
+  - Redesigned `netherite_universal_tool` with 6 high-detail 32×32 8-frame interpolated animated spritesheets (`.png` + `.png.mcmeta`): an arcane folding amethyst-core Base Instrument (`netherite_universal_tool`) plus 5 functional forms (`_pickaxe`, `_axe`, `_shovel`, `_hoe`, `_sword`) sharing unified Netherite-gold-amethyst styling.
+  - Added typed `ModDataComponents.NETHERITE_TOOL_FORM`, `UniversalToolFormEvents`, `ItemProperties` predicate (`universal_tool:tool_form`), and `shouldCauseReequipAnimation` / `shouldCauseBlockBreakReset` overrides on `UniversalToolItem` so mining, chopping/stripping, digging/pathing, tilling/reaping, or attacking switches smoothly into the matching form and auto-folds back to Base after ~1.8s (`36` ticks) without hand bobbing or mining resets.
+
 ## 1.9.5 - 2026-11-13
 - **Half-Base to Full-Stargate Unfolding Animation (`PersonalSpaceGateRenderer` & `PersonalSpaceGateBlockEntity`)**:
   - Kept closed/idle `PersonalSpaceGateBlock` as the compact 1-block mossy carved stone pedestal base (`HALF = LOWER` only).

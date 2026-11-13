@@ -20,6 +20,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.item.NetheriteToolForm;
 import org.gwfx.universaltool.waypoint.Waypoint;
 
 import javax.annotation.Nullable;
@@ -51,6 +52,11 @@ public final class ModDataComponents {
             DATA_COMPONENTS.registerComponentType("teleport_target", builder -> builder
                     .persistent(Waypoint.CODEC)
                     .networkSynchronized(Waypoint.STREAM_CODEC));
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<NetheriteToolForm.FormData>> NETHERITE_TOOL_FORM =
+            DATA_COMPONENTS.registerComponentType("netherite_tool_form", builder -> builder
+                    .persistent(NetheriteToolForm.FormData.CODEC)
+                    .networkSynchronized(NetheriteToolForm.FormData.STREAM_CODEC));
 
     private ModDataComponents() {
     }

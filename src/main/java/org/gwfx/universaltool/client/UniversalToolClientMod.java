@@ -1,5 +1,9 @@
 package org.gwfx.universaltool.client;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.item.ItemProperties;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.Level;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -12,7 +16,9 @@ import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.init.ModBlockEntities;
 import org.gwfx.universaltool.init.ModEntities;
+import org.gwfx.universaltool.init.ModItems;
 import org.gwfx.universaltool.init.ModMenuTypes;
+import org.gwfx.universaltool.item.NetheriteToolForm;
 import org.gwfx.universaltool.item.TeleportCodexItem;
 import org.gwfx.universaltool.space.PrivateSpaceManager;
 
@@ -33,6 +39,15 @@ public final class UniversalToolClientMod {
                 () -> ClientWaypointCache.getWaypoints().size(),
                 ClientWaypointCache::getMaxCapacity
         );
+        event.enqueueWork(() -> ItemProperties.register(
+                ModItems.NETHERITE_UNIVERSAL_TOOL.get(),
+                ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "tool_form"),
+                (stack, level, entity, seed) -> {
+                    Level resolved = level != null ? level
+                            : (entity != null ? entity.level() : Minecraft.getInstance().level);
+                    return NetheriteToolForm.resolveActiveForm(stack, resolved).propertyValue();
+                }
+        ));
     }
 
     @SubscribeEvent

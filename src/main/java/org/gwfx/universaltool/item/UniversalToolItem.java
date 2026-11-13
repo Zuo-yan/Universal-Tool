@@ -6,6 +6,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -21,11 +22,13 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.common.ItemAbilities;
 import net.neoforged.neoforge.common.ItemAbility;
+import org.gwfx.universaltool.init.ModDataComponents;
 
 import java.util.List;
 
 /**
  * 万能工具（Universal Tool）—— 镐 · 斧 · 铲 · 锄 · 剑 五合一工具。
+ * 下界合金阶支持动态形态切换：闲置时为折叠紫晶核心基态，执行各功能时切换为对应动态兵器/工具形态。
  */
 public class UniversalToolItem extends TieredItem {
 
@@ -100,6 +103,7 @@ public class UniversalToolItem extends TieredItem {
             }
         }
         if (modified != null) {
+            NetheriteToolForm.activate(context.getItemInHand(), level, NetheriteToolForm.AXE);
             return finishTransformation(context, modified);
         }
 
@@ -107,6 +111,7 @@ public class UniversalToolItem extends TieredItem {
         modified = state.getToolModifiedState(context, ItemAbilities.HOE_TILL, false);
         if (modified != null) {
             level.playSound(player, pos, SoundEvents.HOE_TILL, SoundSource.BLOCKS, 1.0F, 1.0F);
+            NetheriteToolForm.activate(context.getItemInHand(), level, NetheriteToolForm.HOE);
             return finishTransformation(context, modified);
         }
 
@@ -114,6 +119,7 @@ public class UniversalToolItem extends TieredItem {
         BlockState flattened = state.getToolModifiedState(context, ItemAbilities.SHOVEL_FLATTEN, false);
         if (flattened != null && level.getBlockState(pos.above()).isAir()) {
             level.playSound(player, pos, SoundEvents.SHOVEL_FLATTEN, SoundSource.BLOCKS, 1.0F, 1.0F);
+            NetheriteToolForm.activate(context.getItemInHand(), level, NetheriteToolForm.SHOVEL);
             return finishTransformation(context, flattened);
         }
         modified = state.getToolModifiedState(context, ItemAbilities.SHOVEL_DOUSE, false);
@@ -121,10 +127,62 @@ public class UniversalToolItem extends TieredItem {
             if (!level.isClientSide()) {
                 level.levelEvent(null, 1009, pos, 0);
             }
+            NetheriteToolForm.activate(context.getItemInHand(), level, NetheriteToolForm.SHOVEL);
             return finishTransformation(context, modified);
         }
 
         return super.useOn(context);
+    }
+
+    @Override
+    public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+        NetheriteToolForm.activate(stack, attacker.level(), NetheriteToolForm.SWORD);
+        return super.hurtEnemy(stack, target, attacker);
+    }
+
+    @Override
+    public boolean mineBlock(ItemStack stack, Level level, BlockState state, BlockPos pos, LivingEntity miningEntity) {
+        NetheriteToolForm.activate(stack, level, NetheriteToolForm.detectForBlock(state));
+        return super.mineBlock(stack, level, state, pos, miningEntity);
+    }
+
+    @Override
+    public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
+        if (level.isClientSide || !NetheriteToolForm.supportsDynamicMorph(stack)) {
+            return;
+        }
+        NetheriteToolForm.FormData data = stack.get(ModDataComponents.NETHERITE_TOOL_FORM.get());
+        if (data != null && (!isSelected || level.getGameTime() > data.expireGameTime())) {
+            stack.remove(ModDataComponents.NETHERITE_TOOL_FORM.get());
+        }
+    }
+
+    @Override
+    public boolean shouldCauseReequipAnimation(ItemStack oldStack, ItemStack newStack, boolean slotChanged) {
+        if (slotChanged) {
+            return true;
+        }
+        return !equalsIgnoringForm(oldStack, newStack);
+    }
+
+    @Override
+    public boolean shouldCauseBlockBreakReset(ItemStack oldStack, ItemStack newStack) {
+        return !equalsIgnoringForm(oldStack, newStack);
+    }
+
+    private static boolean equalsIgnoringForm(ItemStack a, ItemStack b) {
+        if (!a.is(b.getItem()) || a.getCount() != b.getCount()) {
+            return false;
+        }
+        var key = ModDataComponents.NETHERITE_TOOL_FORM.get();
+        if (!a.has(key) && !b.has(key)) {
+            return ItemStack.isSameItemSameComponents(a, b);
+        }
+        ItemStack copyA = a.copy();
+        ItemStack copyB = b.copy();
+        copyA.remove(key);
+        copyB.remove(key);
+        return ItemStack.isSameItemSameComponents(copyA, copyB);
     }
 
     private static InteractionResult finishTransformation(UseOnContext context, BlockState newState) {
