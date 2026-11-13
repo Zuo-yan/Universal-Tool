@@ -122,46 +122,43 @@ public class SkillScreen extends Screen {
 
     private void renderHeader(GuiGraphics g, PlayerSkillData data, int mouseX, int mouseY) {
         int headerY = top + 5;
-        int titleX = left + 12;
-        SkillScreenStyle.drawDiamond(g, titleX, headerY + 6, SkillScreenStyle.BORDER_GOLD, true);
-        g.drawString(font, title, titleX + 10, headerY + 4, SkillScreenStyle.TEXT_GOLD, false);
+        int titleX = left + 10;
+        g.drawString(font, title, titleX, headerY + 5, SkillScreenStyle.TEXT_HEADER, false);
 
         int titleW = font.width(title);
         String levelStr = "Lv. " + data.level();
-        int levelX = titleX + 10 + titleW + 8;
-        g.drawString(font, levelStr, levelX, headerY + 4, SkillScreenStyle.BORDER_GOLD, false);
+        int levelX = titleX + titleW + 8;
+        g.drawString(font, levelStr, levelX, headerY + 5, SkillScreenStyle.TEXT_MUTED, false);
         int levelW = font.width(levelStr);
 
         int closeSize = 16;
         int closeX = left + panelW - closeSize - 8;
         int closeY = headerY + 2;
         boolean closeHover = inside(mouseX, mouseY, closeX, closeY, closeSize, closeSize);
-        g.fill(closeX, closeY, closeX + closeSize, closeY + closeSize,
-                closeHover ? 0xFF6A3828 : SkillScreenStyle.CARD_BORDER);
-        SkillScreenStyle.outline(g, closeX, closeY, closeSize, closeSize,
-                closeHover ? SkillScreenStyle.BORDER_GOLD : SkillScreenStyle.BORDER_BRONZE);
-        g.drawCenteredString(font, "X", closeX + closeSize / 2, closeY + 4,
-                closeHover ? SkillScreenStyle.TEXT_WHITE : SkillScreenStyle.TEXT_MUTED);
+        SkillScreenStyle.closeButton(g, closeX, closeY, closeSize, closeHover);
 
         String pointsStr = "◆ 技能点 " + data.skillPoints();
         int pointsW = font.width(pointsStr) + 12;
         int pointsX = closeX - pointsW - 6;
         int pointsY = headerY + 2;
         int pointsH = 16;
-        g.fill(pointsX, pointsY, pointsX + pointsW, pointsY + pointsH, SkillScreenStyle.PANEL_BG);
-        SkillScreenStyle.outline(g, pointsX, pointsY, pointsW, pointsH, SkillScreenStyle.BORDER_BRONZE);
+        SkillScreenStyle.recessed(g, pointsX, pointsY, pointsW, pointsH, SkillScreenStyle.PANEL_INNER);
         g.drawCenteredString(font, pointsStr, pointsX + pointsW / 2, pointsY + 4, SkillScreenStyle.TEXT_GOLD);
 
         int expX = levelX + levelW + 10;
         int expW = pointsX - expX - 10;
         if (expW > 40) {
-            int expY = headerY + 6;
-            int expH = 8;
+            int expY = headerY + 5;
+            int expH = 10;
             float ratio = data.experienceForNextLevel() == 0 ? 1.0F
                     : Math.min(1.0F, data.experience() / (float) data.experienceForNextLevel());
             String xpText = data.experience() + " / " + data.experienceForNextLevel();
             SkillScreenStyle.progressBar(g, expX, expY, expW, expH, ratio, xpText);
         }
+
+        // Etched MC separator groove beneath header
+        g.fill(left + 6, top + HEADER_H + 1, left + panelW - 6, top + HEADER_H + 2, SkillScreenStyle.BEVEL_LO);
+        g.fill(left + 6, top + HEADER_H + 2, left + panelW - 6, top + HEADER_H + 3, SkillScreenStyle.BEVEL_HI);
     }
 
     private void renderBrowser(GuiGraphics g, PlayerSkillData data, int x, int y, int w, int h,
@@ -175,13 +172,8 @@ public class SkillScreen extends Screen {
             int tx = x + 4 + i * (tabW + 2);
             boolean active = tab == i;
             boolean hover = inside(mouseX, mouseY, tx, tabY, tabW, tabH);
-            g.fill(tx, tabY, tx + tabW, tabY + tabH,
-                    active ? SkillScreenStyle.ROW_SELECTED : (hover ? SkillScreenStyle.ROW_HOVER : SkillScreenStyle.PANEL_BG));
-            SkillScreenStyle.outline(g, tx, tabY, tabW, tabH,
-                    active ? SkillScreenStyle.BORDER_GOLD : SkillScreenStyle.CARD_BORDER);
             String label = i == 0 ? "主动技能" : "被动技能";
-            g.drawCenteredString(font, label, tx + tabW / 2, tabY + 4,
-                    active ? SkillScreenStyle.TEXT_GOLD : (hover ? SkillScreenStyle.TEXT_WHITE : SkillScreenStyle.TEXT_MUTED));
+            SkillScreenStyle.tab(g, tx, tabY, tabW, tabH, label, active, hover);
         }
 
         List<SkillDefinition> skills = filteredSkills();
@@ -199,7 +191,7 @@ public class SkillScreen extends Screen {
         browserScroll = Math.max(0, Math.min(browserScroll, maxScroll));
 
         boolean hasScroll = maxScroll > 0;
-        int scrollBarW = 5;
+        int scrollBarW = 6;
         int cardW = hasScroll ? (w - 8 - scrollBarW - 2) : (w - 8);
 
         for (int i = 0; i < visible && i + browserScroll < skills.size(); i++) {
@@ -212,32 +204,31 @@ public class SkillScreen extends Screen {
             int curLevel = data.learnedLevel(skill.id());
             boolean unlocked = data.isUnlocked(skill.id());
 
-            g.fill(x + 4, ry, x + 4 + cardW, ry + rowH,
-                    selected ? SkillScreenStyle.ROW_SELECTED : (hover ? SkillScreenStyle.ROW_HOVER : SkillScreenStyle.ROW_BG));
-            SkillScreenStyle.outline(g, x + 4, ry, cardW, rowH,
-                    selected ? SkillScreenStyle.BORDER_GOLD : (hover ? SkillScreenStyle.BORDER_BRONZE : SkillScreenStyle.CARD_BORDER));
-
             if (selected) {
-                g.fill(x + 4, ry, x + 6, ry + rowH, SkillScreenStyle.BORDER_GOLD);
+                SkillScreenStyle.raised(g, x + 4, ry, cardW, rowH, SkillScreenStyle.ROW_SELECTED, SkillScreenStyle.OUTER_BORDER);
+                g.fill(x + 5, ry + 1, x + 7, ry + rowH - 1, SkillScreenStyle.BORDER_GOLD);
+            } else {
+                SkillScreenStyle.recessed(g, x + 4, ry, cardW, rowH, hover ? SkillScreenStyle.ROW_HOVER : SkillScreenStyle.ROW_BG);
             }
 
-            SkillScreenStyle.skillIcon(g, skill.id(), x + 7, ry + 3, 20, !unlocked);
+            // 18x18 recessed MC slot renders the 16x16 skill icon at exact 1:1 scale
+            SkillScreenStyle.skillIcon(g, skill.id(), x + 8, ry + 4, 18, !unlocked);
 
             String name = Component.translatable(skill.translationKey()).getString();
             int maxNameW = cardW - 55;
             g.drawString(font, SkillScreenStyle.trim(font, name, maxNameW),
-                    x + 30, ry + 3, selected ? SkillScreenStyle.TEXT_GOLD : SkillScreenStyle.TEXT_WHITE, false);
+                    x + 29, ry + 3, selected ? SkillScreenStyle.TEXT_GOLD : SkillScreenStyle.TEXT_WHITE, true);
 
-            SkillScreenStyle.masteryDiamonds(g, x + 30, ry + 15, curLevel, skill.maxLevel());
+            SkillScreenStyle.masteryDiamonds(g, x + 29, ry + 15, curLevel, skill.maxLevel());
 
             String lvlStr = curLevel + " / " + skill.maxLevel();
             int lvlW = font.width(lvlStr);
             g.drawString(font, lvlStr, x + 4 + cardW - lvlW - 4, ry + 9,
-                    learned ? SkillScreenStyle.BORDER_GOLD : SkillScreenStyle.TEXT_DIM, false);
+                    learned ? SkillScreenStyle.TEXT_GOLD : SkillScreenStyle.TEXT_MUTED_LIGHT, true);
         }
 
         if (skills.isEmpty()) {
-            g.drawCenteredString(font, "没有匹配的技能", x + w / 2, y + h / 2 - 4, SkillScreenStyle.TEXT_MUTED);
+            SkillScreenStyle.drawCenteredNoShadow(g, font, "没有匹配的技能", x + w / 2, y + h / 2 - 4, SkillScreenStyle.TEXT_MUTED);
         }
 
         if (hasScroll) {
@@ -266,7 +257,7 @@ public class SkillScreen extends Screen {
 
         int textLeft = x + pad + iconSize + 8;
         g.drawString(font, Component.translatable(skill.translationKey()),
-                textLeft, y + pad, SkillScreenStyle.TEXT_GOLD, false);
+                textLeft, y + pad, SkillScreenStyle.TEXT_HEADER, false);
 
         String masteryText = "熟练度 " + learned + " / " + skill.maxLevel();
         g.drawString(font, masteryText, textLeft, y + pad + 11, SkillScreenStyle.TEXT_MUTED, false);
@@ -300,64 +291,61 @@ public class SkillScreen extends Screen {
 
         int effectBoxY = y + pad + iconSize + 6 + maxDescLines * 10 + 4;
         int effectBoxH = 38;
-        g.fill(x + pad, effectBoxY, x + w - pad, effectBoxY + effectBoxH, SkillScreenStyle.PANEL_INNER);
-        SkillScreenStyle.outline(g, x + pad, effectBoxY, w - pad * 2, effectBoxH, SkillScreenStyle.CARD_BORDER);
-        g.drawString(font, "等级效果", x + pad + 5, effectBoxY + 3, SkillScreenStyle.BORDER_GOLD, false);
+        SkillScreenStyle.recessed(g, x + pad, effectBoxY, w - pad * 2, effectBoxH, SkillScreenStyle.PANEL_INNER);
+        g.drawString(font, "等级效果", x + pad + 5, effectBoxY + 3, SkillScreenStyle.TEXT_GOLD, true);
 
         int maxStatW = w - pad * 2 - 10;
         if (learned <= 0) {
             String nextLine = "下一级: " + SkillStatFormatter.format(skill.id(), 1);
             g.drawString(font, SkillScreenStyle.trim(font, nextLine, maxStatW),
-                    x + pad + 5, effectBoxY + 14, SkillScreenStyle.TEXT_WHITE, false);
+                    x + pad + 5, effectBoxY + 14, SkillScreenStyle.TEXT_WHITE, true);
 
             String costLine = "学习消耗 " + skill.costAt(1) + " 技能点";
-            g.drawString(font, costLine, x + pad + 5, effectBoxY + 25, SkillScreenStyle.TEXT_MUTED, false);
+            g.drawString(font, costLine, x + pad + 5, effectBoxY + 25, SkillScreenStyle.TEXT_MUTED_LIGHT, true);
         } else if (learned < skill.maxLevel()) {
             String curLine = "当前: " + SkillStatFormatter.format(skill.id(), learned);
             g.drawString(font, SkillScreenStyle.trim(font, curLine, maxStatW),
-                    x + pad + 5, effectBoxY + 14, SkillScreenStyle.TEXT_WHITE, false);
+                    x + pad + 5, effectBoxY + 14, SkillScreenStyle.TEXT_WHITE, true);
 
             int nextCost = skill.costAt(learned + 1);
             String nextLine = "下级: " + SkillStatFormatter.format(skill.id(), learned + 1)
                     + " (消耗 " + nextCost + " 点)";
             g.drawString(font, SkillScreenStyle.trim(font, nextLine, maxStatW),
-                    x + pad + 5, effectBoxY + 25, SkillScreenStyle.TEXT_GOLD, false);
+                    x + pad + 5, effectBoxY + 25, SkillScreenStyle.TEXT_GOLD, true);
         } else {
             String curLine = "当前: " + SkillStatFormatter.format(skill.id(), learned);
             g.drawString(font, SkillScreenStyle.trim(font, curLine, maxStatW),
-                    x + pad + 5, effectBoxY + 14, SkillScreenStyle.TEXT_GOLD, false);
-            g.drawString(font, "已升至最高等级", x + pad + 5, effectBoxY + 25, SkillScreenStyle.GREEN, false);
+                    x + pad + 5, effectBoxY + 14, SkillScreenStyle.TEXT_GOLD, true);
+            g.drawString(font, "已升至最高等级", x + pad + 5, effectBoxY + 25, SkillScreenStyle.GREEN, true);
         }
 
         int unlockBoxY = effectBoxY + effectBoxH + 3;
         int unlockBoxH = 17;
-        g.fill(x + pad, unlockBoxY, x + w - pad, unlockBoxY + unlockBoxH, SkillScreenStyle.PANEL_INNER);
-        SkillScreenStyle.outline(g, x + pad, unlockBoxY, w - pad * 2, unlockBoxH, SkillScreenStyle.CARD_BORDER);
+        SkillScreenStyle.recessed(g, x + pad, unlockBoxY, w - pad * 2, unlockBoxH, SkillScreenStyle.PANEL_INNER);
 
         String condStr = Component.translatable(skill.unlockKey()).getString();
         if (condStr.startsWith("解锁：") || condStr.startsWith("解锁: ")) {
             condStr = condStr.substring(3);
         }
         g.drawString(font, SkillScreenStyle.trim(font, "解锁: " + condStr, w - pad * 2 - 52),
-                x + pad + 5, unlockBoxY + 5, unlocked ? SkillScreenStyle.TEXT_BODY : SkillScreenStyle.RED, false);
+                x + pad + 5, unlockBoxY + 5, unlocked ? SkillScreenStyle.TEXT_BODY_LIGHT : SkillScreenStyle.RED, true);
 
         String reqBadge = unlocked ? "✔ 已满足" : "✘ 未达成";
         int reqBadgeW = font.width(reqBadge);
         g.drawString(font, reqBadge, x + w - pad - reqBadgeW - 4, unlockBoxY + 5,
-                unlocked ? SkillScreenStyle.GREEN : SkillScreenStyle.RED, false);
+                unlocked ? SkillScreenStyle.GREEN : SkillScreenStyle.RED, true);
 
         int statBoxY = unlockBoxY + unlockBoxH + 3;
         int statBoxH = 16;
-        g.fill(x + pad, statBoxY, x + w - pad, statBoxY + statBoxH, SkillScreenStyle.PANEL_INNER);
-        SkillScreenStyle.outline(g, x + pad, statBoxY, w - pad * 2, statBoxH, SkillScreenStyle.CARD_BORDER);
+        SkillScreenStyle.recessed(g, x + pad, statBoxY, w - pad * 2, statBoxH, SkillScreenStyle.PANEL_INNER);
 
         String cdText = skill.cooldownTicks() > 0 ? ("冷却: " + (skill.cooldownTicks() / 20.0F) + "s") : "被动常驻";
         String rangeText = "范围: " + getSkillRange(skill.id());
         String costText = learned >= skill.maxLevel() ? "已满级" : ("消耗: ◆" + skill.costAt(learned + 1));
 
-        g.drawString(font, cdText, x + pad + 5, statBoxY + 4, SkillScreenStyle.TEXT_MUTED, false);
-        g.drawString(font, rangeText, x + pad + (w - pad * 2) / 3, statBoxY + 4, SkillScreenStyle.TEXT_MUTED, false);
-        g.drawString(font, costText, x + w - pad - font.width(costText) - 5, statBoxY + 4, SkillScreenStyle.TEXT_GOLD, false);
+        g.drawString(font, cdText, x + pad + 5, statBoxY + 4, SkillScreenStyle.TEXT_MUTED_LIGHT, true);
+        g.drawString(font, rangeText, x + pad + (w - pad * 2) / 3, statBoxY + 4, SkillScreenStyle.TEXT_MUTED_LIGHT, true);
+        g.drawString(font, costText, x + w - pad - font.width(costText) - 5, statBoxY + 4, SkillScreenStyle.TEXT_GOLD, true);
 
         int btnH = 20;
         int btnW = Math.min(180, w - pad * 2);
@@ -397,21 +385,14 @@ public class SkillScreen extends Screen {
             int tx = x + 4 + i * (tabW + 2);
             boolean active = loadoutTab == i;
             boolean hover = inside(mouseX, mouseY, tx, tabY, tabW, tabH);
-            g.fill(tx, tabY, tx + tabW, tabY + tabH,
-                    active ? SkillScreenStyle.ROW_SELECTED : (hover ? SkillScreenStyle.ROW_HOVER : SkillScreenStyle.PANEL_BG));
-            SkillScreenStyle.outline(g, tx, tabY, tabW, tabH,
-                    active ? SkillScreenStyle.BORDER_GOLD : SkillScreenStyle.CARD_BORDER);
-
             String label = i == 0
                     ? ("主动 " + activeCount + "/" + activeMax)
                     : ("被动 " + passiveCount + "/" + passiveMax);
-            g.drawCenteredString(font, label, tx + tabW / 2, tabY + 4,
-                    active ? SkillScreenStyle.TEXT_GOLD : (hover ? SkillScreenStyle.TEXT_WHITE : SkillScreenStyle.TEXT_MUTED));
+            SkillScreenStyle.tab(g, tx, tabY, tabW, tabH, label, active, hover);
         }
 
         boolean showingActive = loadoutTab == 0;
         int maxSlots = showingActive ? activeMax : passiveMax;
-        List<String> currentLoadout = showingActive ? data.activeLoadout() : data.passiveLoadout();
 
         int slotsTop = tabY + tabH + 4;
         int slotsH = h - (slotsTop - y) - 6;
@@ -424,7 +405,7 @@ public class SkillScreen extends Screen {
         loadoutScroll = Math.max(0, Math.min(loadoutScroll, maxLoadoutScroll));
 
         boolean hasScroll = maxLoadoutScroll > 0;
-        int scrollBarW = 5;
+        int scrollBarW = 6;
         int slotW = hasScroll ? (w - 8 - scrollBarW - 2) : (w - 8);
 
         for (int i = 0; i < visibleSlots && i + loadoutScroll < maxSlots; i++) {
@@ -451,46 +432,47 @@ public class SkillScreen extends Screen {
         boolean selectedInLoadout = filled && active == loadoutSelectionIsActive
                 && index == loadoutSelectionIndex;
 
-        g.fill(x, y, x + w, y + h,
-                selectedInLoadout ? (current ? 0xFF2A3D35 : 0xFF3B2F25)
-                        : (hover ? SkillScreenStyle.ROW_HOVER : SkillScreenStyle.ROW_BG));
-        SkillScreenStyle.outline(g, x, y, w, h,
-                selectedInLoadout ? (current ? SkillScreenStyle.TEAL : SkillScreenStyle.BORDER_GOLD)
-                        : (hover ? SkillScreenStyle.BORDER_BRONZE : SkillScreenStyle.CARD_BORDER));
+        if (selectedInLoadout) {
+            int selBg = current ? 0xFF476953 : SkillScreenStyle.ROW_SELECTED;
+            SkillScreenStyle.raised(g, x, y, w, h, selBg, SkillScreenStyle.OUTER_BORDER);
+        } else {
+            SkillScreenStyle.recessed(g, x, y, w, h, hover ? SkillScreenStyle.ROW_HOVER : SkillScreenStyle.ROW_BG);
+        }
 
         int badgeSize = h - 4;
         int badgeX = x + 2;
         int badgeY = y + 2;
-        g.fill(badgeX, badgeY, badgeX + badgeSize, badgeY + badgeSize, SkillScreenStyle.PANEL_INNER);
-        SkillScreenStyle.outline(g, badgeX, badgeY, badgeSize, badgeSize, SkillScreenStyle.CARD_BORDER);
+        SkillScreenStyle.recessed(g, badgeX, badgeY, badgeSize, badgeSize, 0xFF707070);
         g.drawCenteredString(font, Integer.toString(index + 1), badgeX + badgeSize / 2, badgeY + (badgeSize - 8) / 2,
                 SkillScreenStyle.TEXT_GOLD);
 
         if (!filled) {
-            g.drawString(font, "空槽位", badgeX + badgeSize + 6, y + (h - 8) / 2, SkillScreenStyle.TEXT_DIM, false);
+            g.drawString(font, "空槽位", badgeX + badgeSize + 6, y + (h - 8) / 2, 0xFFD0D0D0, true);
             return;
         }
 
-        int iconSize = Math.max(12, Math.min(18, h - 4));
+        int iconSize = h >= 20 ? 18 : 16;
         SkillScreenStyle.skillIcon(g, id, badgeX + badgeSize + 3, y + (h - iconSize) / 2, iconSize, false);
 
         String name = Component.translatable("skill.universal_tool." + id).getString();
         int nameLeft = badgeX + badgeSize + iconSize + 6;
         int maxW = w - (nameLeft - x) - 18;
-        g.drawString(font, SkillScreenStyle.trim(font, name, maxW), nameLeft, y + (h - 8) / 2, SkillScreenStyle.TEXT_WHITE, false);
+        g.drawString(font, SkillScreenStyle.trim(font, name, maxW), nameLeft, y + (h - 8) / 2, SkillScreenStyle.TEXT_WHITE, true);
 
         int btnSize = 12;
         int btnX = x + w - btnSize - 3;
         int btnY = y + (h - btnSize) / 2;
         boolean btnHover = inside(mouseX, mouseY, btnX, btnY, btnSize, btnSize);
-        g.fill(btnX, btnY, btnX + btnSize, btnY + btnSize, btnHover ? 0xFF6A2E2E : SkillScreenStyle.PANEL_INNER);
-        SkillScreenStyle.outline(g, btnX, btnY, btnSize, btnSize, btnHover ? SkillScreenStyle.RED : SkillScreenStyle.CARD_BORDER);
-        g.drawCenteredString(font, "-", btnX + btnSize / 2, btnY + 2, btnHover ? SkillScreenStyle.RED : SkillScreenStyle.TEXT_MUTED);
+        SkillScreenStyle.raised(g, btnX, btnY, btnSize, btnSize,
+                btnHover ? 0xFFB84C4C : 0xFF7A7A7A,
+                btnHover ? SkillScreenStyle.BEVEL_HI : SkillScreenStyle.OUTER_BORDER);
+        g.drawCenteredString(font, "-", btnX + btnSize / 2, btnY + 2, SkillScreenStyle.TEXT_WHITE);
     }
 
     private void renderFooter(GuiGraphics g, PlayerSkillData data, int mouseX, int mouseY) {
         int footerY = top + panelH - 22;
-        g.fill(left + 6, footerY - 2, left + panelW - 6, footerY - 1, SkillScreenStyle.CARD_BORDER);
+        g.fill(left + 6, footerY - 3, left + panelW - 6, footerY - 2, SkillScreenStyle.BEVEL_LO);
+        g.fill(left + 6, footerY - 2, left + panelW - 6, footerY - 1, SkillScreenStyle.BEVEL_HI);
 
         String tip = "ℹ 使用鼠标选择技能，点击学习或装配到槽位";
         boolean combatLocked = data.inCombat(Minecraft.getInstance().level == null ? 0L
@@ -498,7 +480,8 @@ public class SkillScreen extends Screen {
         if (combatLocked) {
             tip = "ℹ 战斗中不可修改技能，脱战10秒后可重置";
         }
-        g.drawString(font, tip, left + 12, footerY + 5, SkillScreenStyle.TEXT_MUTED, false);
+        g.drawString(font, tip, left + 12, footerY + 5,
+                combatLocked ? SkillScreenStyle.RED_DARK : SkillScreenStyle.TEXT_MUTED, false);
 
         List<SkillDefinition> skills = filteredSkills();
         boolean canReset = !skills.isEmpty() && !combatLocked
@@ -632,7 +615,7 @@ public class SkillScreen extends Screen {
         int rowGap = 2;
         int visible = Math.max(1, (listH + rowGap) / (rowH + rowGap));
         int maxScroll = Math.max(0, skills.size() - visible);
-        int scrollBarW = 5;
+        int scrollBarW = 6;
 
         if (maxScroll > 0) {
             int sbX = col1X + leftW - scrollBarW - 4;
@@ -697,7 +680,7 @@ public class SkillScreen extends Screen {
 
         int visibleSlots = Math.max(1, (slotsH + 2) / (slotH + 2));
         int maxLoadoutScroll = Math.max(0, maxSlots - visibleSlots);
-        int loadoutScrollBarW = 5;
+        int loadoutScrollBarW = 6;
         int slotW = maxLoadoutScroll > 0 ? (rightW - 8 - loadoutScrollBarW - 2) : (rightW - 8);
 
         if (maxLoadoutScroll > 0) {
@@ -799,17 +782,8 @@ public class SkillScreen extends Screen {
         int mX = modalX();
         int mY = modalY();
 
-        // Solid opaque modal card background
-        g.fill(mX, mY, mX + mW, mY + mH, 0xFF140D1C);
-        SkillScreenStyle.outline(g, mX, mY, mW, mH, SkillScreenStyle.BORDER_GOLD);
-        SkillScreenStyle.outline(g, mX + 2, mY + 2, mW - 4, mH - 4, SkillScreenStyle.CARD_BORDER);
-        g.fill(mX + 4, mY + 4, mX + mW - 4, mY + 5, SkillScreenStyle.BORDER_BRONZE_HI);
-
-        // Corner diamond ornaments
-        SkillScreenStyle.drawDiamond(g, mX + 3, mY + 3, SkillScreenStyle.BORDER_GOLD, true);
-        SkillScreenStyle.drawDiamond(g, mX + mW - 8, mY + 3, SkillScreenStyle.BORDER_GOLD, true);
-        SkillScreenStyle.drawDiamond(g, mX + 3, mY + mH - 8, SkillScreenStyle.BORDER_GOLD, true);
-        SkillScreenStyle.drawDiamond(g, mX + mW - 8, mY + mH - 8, SkillScreenStyle.BORDER_GOLD, true);
+        // Classic MC #C6C6C6 beveled modal window
+        SkillScreenStyle.frame(g, mX, mY, mW, mH);
 
         int pad = 12;
         int iconSize = 34;
@@ -825,7 +799,7 @@ public class SkillScreen extends Screen {
 
         // Header: Skill name
         g.drawString(font, Component.translatable(skill.translationKey()),
-                textLeft, iconY, SkillScreenStyle.TEXT_GOLD, false);
+                textLeft, iconY, SkillScreenStyle.TEXT_HEADER, false);
 
         // Header: Badges
         int badgeY = iconY + 12;
@@ -841,7 +815,7 @@ public class SkillScreen extends Screen {
         SkillScreenStyle.badge(g, textLeft + typeW + 4, badgeY, roleW, 11, roleStr,
                 SkillScreenStyle.BADGE_ROLE_BG, SkillScreenStyle.BADGE_ROLE_BORDER, SkillScreenStyle.BADGE_ROLE_TEXT);
 
-        // Header: Mastery diamonds
+        // Header: Mastery pips
         String masteryText = "熟练度 " + learned + " / " + skill.maxLevel();
         g.drawString(font, masteryText, textLeft, badgeY + 13, SkillScreenStyle.TEXT_MUTED, false);
         SkillScreenStyle.masteryDiamonds(g, textLeft + font.width(masteryText) + 6, badgeY + 15,
@@ -852,83 +826,76 @@ public class SkillScreen extends Screen {
         int closeX = mX + mW - closeSize - 10;
         int closeY = mY + 8;
         boolean closeHover = inside(mouseX, mouseY, closeX, closeY, closeSize, closeSize);
-        g.fill(closeX, closeY, closeX + closeSize, closeY + closeSize,
-                closeHover ? 0xFF6A3828 : SkillScreenStyle.CARD_BORDER);
-        SkillScreenStyle.outline(g, closeX, closeY, closeSize, closeSize,
-                closeHover ? SkillScreenStyle.BORDER_GOLD : SkillScreenStyle.BORDER_BRONZE);
-        g.drawCenteredString(font, "X", closeX + closeSize / 2, closeY + 4,
-                closeHover ? SkillScreenStyle.TEXT_WHITE : SkillScreenStyle.TEXT_MUTED);
+        SkillScreenStyle.closeButton(g, closeX, closeY, closeSize, closeHover);
 
-        // Divider
+        // Etched divider groove
         int divY = iconY + iconSize + 6;
-        g.fill(mX + pad, divY, mX + mW - pad, divY + 1, SkillScreenStyle.CARD_BORDER);
+        g.fill(mX + pad, divY, mX + mW - pad, divY + 1, SkillScreenStyle.BEVEL_LO);
+        g.fill(mX + pad, divY + 1, mX + mW - pad, divY + 2, SkillScreenStyle.BEVEL_HI);
 
         int sectionW = mW - pad * 2;
 
         // Section 1: Level Effects Box
         int effY = divY + 6;
         int effH = 46;
-        g.fill(mX + pad, effY, mX + pad + sectionW, effY + effH, SkillScreenStyle.PANEL_INNER);
-        SkillScreenStyle.outline(g, mX + pad, effY, sectionW, effH, SkillScreenStyle.CARD_BORDER);
-        g.drawString(font, "◈ 等级效果", mX + pad + 6, effY + 4, SkillScreenStyle.BORDER_GOLD, false);
+        SkillScreenStyle.recessed(g, mX + pad, effY, sectionW, effH, SkillScreenStyle.PANEL_INNER);
+        g.drawString(font, "◈ 等级效果", mX + pad + 6, effY + 4, SkillScreenStyle.TEXT_GOLD, true);
 
         int effTextY = effY + 16;
         if (learned <= 0) {
             String nextLine = "下一级: " + SkillStatFormatter.format(skill.id(), 1);
             g.drawString(font, SkillScreenStyle.trim(font, nextLine, sectionW - 12),
-                    mX + pad + 6, effTextY, SkillScreenStyle.TEXT_WHITE, false);
+                    mX + pad + 6, effTextY, SkillScreenStyle.TEXT_WHITE, true);
             String costLine = "学习消耗: ◆ " + skill.costAt(1) + " 技能点";
-            g.drawString(font, costLine, mX + pad + 6, effTextY + 12, SkillScreenStyle.TEXT_MUTED, false);
+            g.drawString(font, costLine, mX + pad + 6, effTextY + 12, SkillScreenStyle.TEXT_MUTED_LIGHT, true);
         } else if (learned < skill.maxLevel()) {
             String curLine = "当前 (Lv." + learned + "): " + SkillStatFormatter.format(skill.id(), learned);
             g.drawString(font, SkillScreenStyle.trim(font, curLine, sectionW - 12),
-                    mX + pad + 6, effTextY, SkillScreenStyle.TEXT_WHITE, false);
+                    mX + pad + 6, effTextY, SkillScreenStyle.TEXT_WHITE, true);
             int nextCost = skill.costAt(learned + 1);
             String nextLine = "下一级 (Lv." + (learned + 1) + "): " + SkillStatFormatter.format(skill.id(), learned + 1)
                     + "  ·  消耗 ◆ " + nextCost + " 点";
             g.drawString(font, SkillScreenStyle.trim(font, nextLine, sectionW - 12),
-                    mX + pad + 6, effTextY + 12, SkillScreenStyle.TEXT_GOLD, false);
+                    mX + pad + 6, effTextY + 12, SkillScreenStyle.TEXT_GOLD, true);
         } else {
             String curLine = "当前 (Lv." + learned + " 满级): " + SkillStatFormatter.format(skill.id(), learned);
             g.drawString(font, SkillScreenStyle.trim(font, curLine, sectionW - 12),
-                    mX + pad + 6, effTextY, SkillScreenStyle.TEXT_GOLD, false);
-            g.drawString(font, "已升至最高等级", mX + pad + 6, effTextY + 12, SkillScreenStyle.GREEN, false);
+                    mX + pad + 6, effTextY, SkillScreenStyle.TEXT_GOLD, true);
+            g.drawString(font, "已升至最高等级", mX + pad + 6, effTextY + 12, SkillScreenStyle.GREEN, true);
         }
 
         // Section 2: Mechanics & Detailed Description
         int descBoxY = effY + effH + 5;
         int bottomReserved = 58;
         int descBoxH = Math.max(50, mH - (descBoxY - mY) - bottomReserved);
-        g.fill(mX + pad, descBoxY, mX + pad + sectionW, descBoxY + descBoxH, SkillScreenStyle.PANEL_INNER);
-        SkillScreenStyle.outline(g, mX + pad, descBoxY, sectionW, descBoxH, SkillScreenStyle.CARD_BORDER);
-        g.drawString(font, "◈ 机制与技能说明", mX + pad + 6, descBoxY + 4, SkillScreenStyle.BORDER_GOLD, false);
+        SkillScreenStyle.recessed(g, mX + pad, descBoxY, sectionW, descBoxH, SkillScreenStyle.PANEL_INNER);
+        g.drawString(font, "◈ 机制与技能说明", mX + pad + 6, descBoxY + 4, SkillScreenStyle.TEXT_GOLD, true);
 
         int descLineY = descBoxY + 16;
         List<net.minecraft.util.FormattedCharSequence> descLines =
                 font.split(Component.translatable(skill.descriptionKey()), sectionW - 14);
         int maxLines = Math.max(1, (descBoxH - 20) / 11);
         for (int i = 0; i < Math.min(descLines.size(), maxLines); i++) {
-            g.drawString(font, descLines.get(i), mX + pad + 6, descLineY, SkillScreenStyle.TEXT_BODY, false);
+            g.drawString(font, descLines.get(i), mX + pad + 6, descLineY, SkillScreenStyle.TEXT_BODY_LIGHT, true);
             descLineY += 11;
         }
 
         // Section 3: Unlock Requirements Box
         int unlY = descBoxY + descBoxH + 5;
         int unlH = 22;
-        g.fill(mX + pad, unlY, mX + pad + sectionW, unlY + unlH, SkillScreenStyle.PANEL_INNER);
-        SkillScreenStyle.outline(g, mX + pad, unlY, sectionW, unlH, SkillScreenStyle.CARD_BORDER);
+        SkillScreenStyle.recessed(g, mX + pad, unlY, sectionW, unlH, SkillScreenStyle.PANEL_INNER);
 
         String condStr = Component.translatable(skill.unlockKey()).getString();
         if (condStr.startsWith("解锁：") || condStr.startsWith("解锁: ")) {
             condStr = condStr.substring(3);
         }
         g.drawString(font, SkillScreenStyle.trim(font, "◈ 解锁条件: " + condStr, sectionW - 70),
-                mX + pad + 6, unlY + 7, unlocked ? SkillScreenStyle.TEXT_BODY : SkillScreenStyle.RED, false);
+                mX + pad + 6, unlY + 7, unlocked ? SkillScreenStyle.TEXT_BODY_LIGHT : SkillScreenStyle.RED, true);
 
         String reqBadge = unlocked ? "✔ 已满足" : "✘ 未达成";
         int reqBadgeW = font.width(reqBadge);
         g.drawString(font, reqBadge, mX + pad + sectionW - reqBadgeW - 6, unlY + 7,
-                unlocked ? SkillScreenStyle.GREEN : SkillScreenStyle.RED, false);
+                unlocked ? SkillScreenStyle.GREEN : SkillScreenStyle.RED, true);
 
         // Section 4: Parameters & Bottom Footer Bar
         int footerBarY = unlY + unlH + 5;

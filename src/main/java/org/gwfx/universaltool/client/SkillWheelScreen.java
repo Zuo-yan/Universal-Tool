@@ -25,6 +25,9 @@ import java.util.List;
  * </ul>
  */
 public class SkillWheelScreen extends Screen {
+    private static final int CARD_W = 58;
+    private static final int CARD_H = 44;
+
     private int highlightedSlot;
 
     public SkillWheelScreen() {
@@ -40,7 +43,7 @@ public class SkillWheelScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        g.fill(0, 0, width, height, 0x6608050C);
+        g.fill(0, 0, width, height, 0x66000000);
 
         PlayerSkillData data = ClientSkillCache.data();
         List<String> loadout = data.activeLoadout();
@@ -53,16 +56,14 @@ public class SkillWheelScreen extends Screen {
         int cx = width / 2;
         int cy = height / 2;
 
-        int radius = count <= 3 ? 72 : 92;
-        int cardW = 54;
-        int cardH = 46;
+        int radius = count <= 3 ? 74 : 94;
 
         boolean directHover = false;
         for (int i = 0; i < count; i++) {
             double angle = -Math.PI / 2 + Math.PI * 2 * i / count;
-            int x = cx + (int) (Math.cos(angle) * radius) - cardW / 2;
-            int y = cy + (int) (Math.sin(angle) * radius) - cardH / 2;
-            if (mouseX >= x && mouseX < x + cardW && mouseY >= y && mouseY < y + cardH) {
+            int x = cx + (int) (Math.cos(angle) * radius) - CARD_W / 2;
+            int y = cy + (int) (Math.sin(angle) * radius) - CARD_H / 2;
+            if (mouseX >= x && mouseX < x + CARD_W && mouseY >= y && mouseY < y + CARD_H) {
                 highlightedSlot = i;
                 directHover = true;
                 break;
@@ -82,52 +83,54 @@ public class SkillWheelScreen extends Screen {
 
         for (int i = 0; i < count; i++) {
             double angle = -Math.PI / 2 + Math.PI * 2 * i / count;
-            int x = cx + (int) (Math.cos(angle) * radius) - cardW / 2;
-            int y = cy + (int) (Math.sin(angle) * radius) - cardH / 2;
+            int x = cx + (int) (Math.cos(angle) * radius) - CARD_W / 2;
+            int y = cy + (int) (Math.sin(angle) * radius) - CARD_H / 2;
             String id = loadout.get(i);
             boolean selected = i == highlightedSlot;
             boolean onCooldown = data.onCooldown(id);
 
-            int bg = selected ? 0xEE4D3622 : 0xDD181220;
-            int border = selected ? SkillScreenStyle.BORDER_GOLD_GLOW : (onCooldown ? SkillScreenStyle.CARD_BORDER : SkillScreenStyle.BORDER_BRONZE);
+            int bg = selected ? 0xFFE2DFCE : (onCooldown ? 0xFFA6A6A6 : SkillScreenStyle.FRAME_BG);
+            int border = selected ? 0xFF3A2B00 : SkillScreenStyle.OUTER_BORDER;
 
-            g.fill(x, y, x + cardW, y + cardH, bg);
-            SkillScreenStyle.outline(g, x, y, cardW, cardH, border);
+            // Classic MC #C6C6C6 / Advancement-frame beveled card
+            SkillScreenStyle.raised(g, x, y, CARD_W, CARD_H, bg, border);
             if (selected) {
-                g.fill(x + 1, y + 1, x + cardW - 1, y + 2, SkillScreenStyle.BORDER_GOLD);
+                SkillScreenStyle.outline(g, x + 1, y + 1, CARD_W - 2, CARD_H - 2, SkillScreenStyle.BORDER_GOLD);
             }
 
-            int iconSize = 22;
-            SkillScreenStyle.skillIcon(g, id, x + (cardW - iconSize) / 2, y + 4, iconSize, onCooldown);
+            // 18x18 recessed MC slot renders the 16x16 skill icon at exact 1:1 resolution
+            int iconSize = 18;
+            SkillScreenStyle.skillIcon(g, id, x + (CARD_W - iconSize) / 2, y + 6, iconSize, onCooldown);
 
             if (onCooldown) {
                 long seconds = (data.cooldownRemainingMillis(id) + 999) / 1000;
-                g.drawCenteredString(font, "§c" + seconds + "s", x + cardW / 2, y + 30, 0xFFFF5555);
+                SkillScreenStyle.drawCenteredNoShadow(g, font, seconds + "s",
+                        x + CARD_W / 2, y + 29, SkillScreenStyle.RED_DARK);
             } else {
                 String name = Component.translatable("skill.universal_tool." + id).getString();
-                g.drawCenteredString(font, SkillScreenStyle.trim(font, name, cardW - 6), x + cardW / 2, y + 31,
-                        selected ? SkillScreenStyle.TEXT_GOLD : SkillScreenStyle.TEXT_WHITE);
+                SkillScreenStyle.drawCenteredNoShadow(g, font, SkillScreenStyle.trim(font, name, CARD_W - 8),
+                        x + CARD_W / 2, y + 29, selected ? 0xFF1E1E1E : SkillScreenStyle.TEXT_HEADER);
             }
         }
 
         if (highlightedSlot >= 0 && highlightedSlot < count) {
             String selectedId = loadout.get(highlightedSlot);
-            int centerSize = 36;
-            g.fill(cx - centerSize / 2, cy - centerSize / 2, cx + centerSize / 2, cy + centerSize / 2, 0xEE140F1B);
-            SkillScreenStyle.outline(g, cx - centerSize / 2, cy - centerSize / 2, centerSize, centerSize, SkillScreenStyle.BORDER_GOLD);
-            SkillScreenStyle.skillIcon(g, selectedId, cx - 11, cy - 11, 22, data.onCooldown(selectedId));
+            int centerSize = 42;
+            SkillScreenStyle.frame(g, cx - centerSize / 2, cy - centerSize / 2, centerSize, centerSize);
+            // 34x34 recessed slot renders the 16x16 icon at crisp 2x (32x32)
+            SkillScreenStyle.skillIcon(g, selectedId, cx - 17, cy - 17, 34, data.onCooldown(selectedId));
 
             String selectedName = Component.translatable("skill.universal_tool." + selectedId).getString();
-            g.drawCenteredString(font, selectedName, cx, cy - radius - 20, SkillScreenStyle.TEXT_GOLD);
+            g.drawCenteredString(font, selectedName, cx, cy - radius - 22, SkillScreenStyle.TEXT_GOLD);
 
             String status = data.onCooldown(selectedId)
                     ? "§c冷却中 (" + ((data.cooldownRemainingMillis(selectedId) + 999) / 1000) + "s)"
                     : "§a就绪 · 按 [" + SkillKeybinds.CAST.getTranslatedKeyMessage().getString() + "] 施放";
-            g.drawCenteredString(font, status, cx, cy + radius + 18, 0xFFFFFFFF);
+            g.drawCenteredString(font, status, cx, cy + radius + 18, SkillScreenStyle.TEXT_WHITE);
         }
 
         String hint = "移动鼠标或滑动滚轮选择 · 松开 [" + SkillKeybinds.SELECT.getTranslatedKeyMessage().getString() + "] 确认";
-        g.drawCenteredString(font, hint, cx, height - 28, SkillScreenStyle.TEXT_MUTED);
+        g.drawCenteredString(font, hint, cx, height - 28, SkillScreenStyle.TEXT_MUTED_LIGHT);
     }
 
     @Override
@@ -158,15 +161,13 @@ public class SkillWheelScreen extends Screen {
         int count = loadout.size();
         int cx = width / 2;
         int cy = height / 2;
-        int radius = count <= 3 ? 72 : 92;
-        int cardW = 54;
-        int cardH = 46;
+        int radius = count <= 3 ? 74 : 94;
 
         for (int i = 0; i < count; i++) {
             double angle = -Math.PI / 2 + Math.PI * 2 * i / count;
-            int x = cx + (int) (Math.cos(angle) * radius) - cardW / 2;
-            int y = cy + (int) (Math.sin(angle) * radius) - cardH / 2;
-            if (mouseX >= x && mouseX < x + cardW && mouseY >= y && mouseY < y + cardH) {
+            int x = cx + (int) (Math.cos(angle) * radius) - CARD_W / 2;
+            int y = cy + (int) (Math.sin(angle) * radius) - CARD_H / 2;
+            if (mouseX >= x && mouseX < x + CARD_W && mouseY >= y && mouseY < y + CARD_H) {
                 highlightedSlot = i;
                 return;
             }
