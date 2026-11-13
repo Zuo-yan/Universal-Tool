@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.13 - 2026-11-13
+- **Larger Panoramic Wormhole Portal & Purely Transparent Transit Corridor**:
+  - Enlarged `WormholeRenderer` aperture (`rx=1.35, ry=1.45` at entrance; `rx=2.15, ry=1.85` at corridor exit) and widened screenshot UV sampling (`rAper=0.86`, `±0.45` UV span) so the full destination vista is clearly visible without heavy cropping.
+  - Replaced solid stone/obsidian tunnel walls in `WormholeCorridorManager` with a **purely transparent invisible-barrier corridor** (`Blocks.BARRIER` floor, guard rails, and ceiling + subtle floating `END_ROD` rings), keeping the entire view clear with the large destination-preview exit wormhole directly ahead.
+
 ## 1.9.12 - 2026-11-13
 - **Wormhole Ring Missing-Texture Fix & Dedicated Enclosed Dimensional Corridor**:
   - Fixed `WormholeRenderer.VORTEX_TEXTURE` path from `textures/entity/stargate_portal_vortex.png` to `textures/block/stargate_portal_vortex.png`, eliminating the purple/black missing-texture checkerboard on the wormhole perimeter ring.

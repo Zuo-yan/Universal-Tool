@@ -42,9 +42,9 @@ import org.gwfx.universaltool.init.ModEntities;
 import org.gwfx.universaltool.space.PersonalDimensionRegistry;
 
 /**
- * Manages the dedicated enclosed Wormhole Transit Corridor dimension ({@code universal_tool:wormhole_transit}),
- * completely independent of Private Space. Builds a dark deepslate tunnel with a translucent cyan-glass
- * walkway over glowing void-core blocks, stepped cyan/amethyst energy arches, and an exit wormhole ahead.
+ * Manages the transparent Spatial Wormhole Transit Corridor ({@code universal_tool:wormhole_transit}).
+ * Builds an invisible barrier walkway with zero solid architecture so the player sprints through
+ * open cosmic space straight toward the large destination-vista exit wormhole ahead.
  */
 @EventBusSubscriber(modid = UniversalToolMod.MODID)
 public final class WormholeCorridorManager {
@@ -53,15 +53,14 @@ public final class WormholeCorridorManager {
     public static final ResourceKey<Level> TRANSIT_DIM_KEY =
             ResourceKey.create(Registries.DIMENSION, TRANSIT_DIM_ID);
 
-    private static final int UNDER_Y = 62;
     private static final int FLOOR_Y = 63;
     private static final int WALK_Y = 64;
     private static final int CEIL_Y = 68;
     private static final int Z_START = 0;
-    private static final int Z_END = 18;
-    private static final double SPAWN_Z = 1.8D;
-    private static final double EXIT_Z = 16.2D;
-    private static final double COMPLETE_Z = 15.4D;
+    private static final int Z_END = 14;
+    private static final double SPAWN_Z = 1.5D;
+    private static final double EXIT_Z = 12.5D;
+    private static final double COMPLETE_Z = 11.5D;
     private static final int MAX_CORRIDOR_TICKS = 240;
 
     private record TransitSession(
@@ -110,7 +109,7 @@ public final class WormholeCorridorManager {
             if (!SESSIONS.containsKey(uuid)) {
                 return;
             }
-            buildEnclosedCorridor(transitLevel, laneX, uuid, target, fromScroll);
+            buildTransparentCorridor(transitLevel, laneX, uuid, target, fromScroll);
             player.fallDistance = 0.0F;
             player.teleportTo(transitLevel, laneX + 0.5D, WALK_Y, SPAWN_Z, 0.0F, 0.0F);
             player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, MAX_CORRIDOR_TICKS, 1, false, false, false));
@@ -183,82 +182,38 @@ public final class WormholeCorridorManager {
         }
     }
 
-    private static void buildEnclosedCorridor(ServerLevel level, int laneX, UUID ownerUuid,
-                                              Waypoint target, boolean fromScroll) {
-        BlockState wallBrick = Blocks.DEEPSLATE_BRICKS.defaultBlockState();
-        BlockState wallTile = Blocks.DEEPSLATE_TILES.defaultBlockState();
-        BlockState obsidian = Blocks.OBSIDIAN.defaultBlockState();
-        BlockState cryingObs = Blocks.CRYING_OBSIDIAN.defaultBlockState();
-        BlockState centerGlass = Blocks.CYAN_STAINED_GLASS.defaultBlockState();
-        BlockState sideGlass = Blocks.TINTED_GLASS.defaultBlockState();
-        BlockState cyanGlow = Blocks.SEA_LANTERN.defaultBlockState();
-        BlockState amethystGlow = Blocks.PEARLESCENT_FROGLIGHT.defaultBlockState();
-        BlockState amethystCrystal = Blocks.AMETHYST_BLOCK.defaultBlockState();
+    private static void buildTransparentCorridor(ServerLevel level, int laneX, UUID ownerUuid,
+                                                 Waypoint target, boolean fromScroll) {
+        BlockState barrier = Blocks.BARRIER.defaultBlockState();
         BlockState air = Blocks.AIR.defaultBlockState();
 
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        for (int z = Z_START; z <= Z_END; z++) {
-            boolean endCap = (z == Z_START || z == Z_END);
-            boolean isArch = (z == 5 || z == 10 || z == 15);
-            BlockState archMat = (z == 10) ? amethystGlow : cyanGlow;
-
+        for (int z = Z_START - 1; z <= Z_END + 1; z++) {
+            boolean insideZ = (z >= Z_START && z <= Z_END);
             for (int dx = -3; dx <= 3; dx++) {
                 int x = laneX + dx;
                 int adx = Math.abs(dx);
+                // Clear any leftover blocks beneath from prior layouts
+                level.setBlock(pos.set(x, FLOOR_Y - 2, z), air, 2);
+                level.setBlock(pos.set(x, FLOOR_Y - 1, z), air, 2);
 
-                // Solid obsidian base beneath the glowing glass walkway
-                level.setBlock(pos.set(x, UNDER_Y - 1, z), obsidian, 2);
-
-                if (endCap) {
-                    for (int y = UNDER_Y; y <= CEIL_Y; y++) {
-                        boolean frameGlow = (adx == 1 && y >= WALK_Y && y <= CEIL_Y - 1) || (dx == 0 && y == CEIL_Y - 1);
-                        level.setBlock(pos.set(x, y, z), (z == Z_END && frameGlow) ? cyanGlow : wallBrick, 2);
-                    }
-                    continue;
-                }
-
-                // Under-floor glowing core beneath glass walkway (dx = -1..1)
-                if (adx <= 1) {
-                    BlockState under = (dx == 0 && z % 3 == 0) ? cyanGlow
-                            : (adx == 1 && z % 2 == 0) ? cryingObs : obsidian;
-                    level.setBlock(pos.set(x, UNDER_Y, z), under, 2);
-                    level.setBlock(pos.set(x, FLOOR_Y, z), dx == 0 ? centerGlass : sideGlass, 2);
-                } else {
-                    level.setBlock(pos.set(x, UNDER_Y, z), obsidian, 2);
-                    level.setBlock(pos.set(x, FLOOR_Y, z), (adx == 2 && isArch) ? archMat : wallTile, 2);
-                }
-
-                // Enclosed walls (dx = +-3) and ceiling (y = CEIL_Y)
                 if (adx == 3) {
-                    for (int y = WALK_Y; y <= CEIL_Y; y++) {
-                        level.setBlock(pos.set(x, y, z), wallBrick, 2);
-                    }
-                    continue;
-                }
-
-                level.setBlock(pos.set(x, CEIL_Y, z), wallBrick, 2);
-
-                // Interior tunnel (dx = -2..2, y = WALK_Y..CEIL_Y-1)
-                for (int y = WALK_Y; y <= CEIL_Y - 1; y++) {
-                    if (isArch) {
-                        boolean inOctagonalArch =
-                                (adx == 2 && y <= WALK_Y + 2)
-                                || (adx == 1 && y == WALK_Y + 3)
-                                || (dx == 0 && y == WALK_Y + 3);
-                        level.setBlock(pos.set(x, y, z), inOctagonalArch ? archMat : air, 2);
-                    } else if (adx == 2) {
-                        if (y == WALK_Y && z % 3 == 0) {
-                            level.setBlock(pos.set(x, y, z), (z % 2 == 0) ? amethystCrystal : wallTile, 2);
-                        } else if (y == WALK_Y + 1 && z % 3 == 0 && z % 2 == 1) {
-                            level.setBlock(pos.set(x, y, z), Blocks.SOUL_LANTERN.defaultBlockState(), 2);
-                        } else if (y >= WALK_Y + 3) {
-                            level.setBlock(pos.set(x, y, z), wallTile, 2);
-                        } else {
-                            level.setBlock(pos.set(x, y, z), air, 2);
-                        }
-                    } else {
+                    for (int y = FLOOR_Y; y <= CEIL_Y; y++) {
                         level.setBlock(pos.set(x, y, z), air, 2);
                     }
+                    continue;
+                }
+
+                boolean isSideWall = (adx == 2);
+                if (insideZ && !isSideWall) {
+                    level.setBlock(pos.set(x, FLOOR_Y, z), barrier, 2);
+                } else {
+                    level.setBlock(pos.set(x, FLOOR_Y, z), air, 2);
+                }
+
+                for (int y = WALK_Y; y <= CEIL_Y; y++) {
+                    boolean shell = !insideZ || isSideWall || y == CEIL_Y;
+                    level.setBlock(pos.set(x, y, z), shell ? barrier : air, 2);
                 }
             }
         }
@@ -321,11 +276,11 @@ public final class WormholeCorridorManager {
 
     private static void emitCorridorParticles(ServerLevel level, int laneX, int tick) {
         double phase = (tick * 0.25D) % (Math.PI * 2.0D);
-        for (int zArch : new int[]{5, 10, 15}) {
+        for (int zArch : new int[]{4, 7, 10}) {
             for (int i = 0; i < 6; i++) {
                 double a = phase + i * (Math.PI / 3.0D);
-                double px = laneX + 0.5D + Math.cos(a) * 1.1D;
-                double py = WALK_Y + 1.35D + Math.sin(a) * 1.1D;
+                double px = laneX + 0.5D + Math.cos(a) * 1.55D;
+                double py = WALK_Y + 1.55D + Math.sin(a) * 1.45D;
                 level.sendParticles(ParticleTypes.END_ROD, px, py, zArch + 0.5D, 1, 0.0D, 0.0D, 0.0D, 0.0D);
             }
         }

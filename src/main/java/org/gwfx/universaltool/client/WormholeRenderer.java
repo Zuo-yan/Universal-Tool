@@ -39,12 +39,14 @@ public class WormholeRenderer extends EntityRenderer<WormholeEntity> {
         }
 
         float age = entity.tickCount + partialTick;
-        float pulse = 1.0F + 0.03F * Mth.sin(age * 0.16F);
-        float rx = 0.64F * open * pulse;
-        float ry = 1.02F * open * pulse;
+        float pulse = 1.0F + 0.025F * Mth.sin(age * 0.16F);
+        boolean exit = entity.isCorridorExit();
+        float rx = (exit ? 2.15F : 1.35F) * open * pulse;
+        float ry = (exit ? 1.85F : 1.45F) * open * pulse;
+        double centerY = exit ? 1.75D : 1.45D;
 
         poseStack.pushPose();
-        poseStack.translate(0.0D, 1.08D, 0.0D);
+        poseStack.translate(0.0D, centerY, 0.0D);
         poseStack.mulPose(Axis.YP.rotationDegrees(-entity.getYRot()));
 
         Matrix4f pose = poseStack.last().pose();
@@ -52,7 +54,7 @@ public class WormholeRenderer extends EntityRenderer<WormholeEntity> {
         // 1. Inner destination vista aperture (waypoint screenshot with parallax, or dimension-themed horizon)
         ResourceLocation photoTex = PhotoManager.getOrLoadTexture(entity.getPhotoId());
         if (photoTex != null) {
-            renderPhotoVista(entity, pose, bufferSource, photoTex, rx, ry, open);
+            renderPhotoVista(entity, pose, bufferSource, photoTex, rx, ry, centerY, open);
         } else {
             renderFallbackDimensionVista(entity.getDestDimension(), pose, bufferSource, rx, ry, age, open);
         }
@@ -64,22 +66,22 @@ public class WormholeRenderer extends EntityRenderer<WormholeEntity> {
     }
 
     private static void renderPhotoVista(WormholeEntity entity, Matrix4f pose, MultiBufferSource bufferSource,
-                                         ResourceLocation photoTex, float rx, float ry, float open) {
+                                         ResourceLocation photoTex, float rx, float ry, double centerY, float open) {
         Vec3 camPos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-        Vec3 toCam = camPos.subtract(entity.getX(), entity.getY() + 1.08D, entity.getZ());
+        Vec3 toCam = camPos.subtract(entity.getX(), entity.getY() + centerY, entity.getZ());
         double radYaw = Math.toRadians(entity.getYRot());
         double rightX = Math.cos(radYaw);
         double rightZ = Math.sin(radYaw);
         double dist = Math.max(0.8D, toCam.length());
-        float parallaxU = Mth.clamp((float) ((toCam.x * rightX + toCam.z * rightZ) / dist) * 0.10F, -0.11F, 0.11F);
-        float parallaxV = Mth.clamp((float) (toCam.y / dist) * 0.10F, -0.11F, 0.11F);
+        float parallaxU = Mth.clamp((float) ((toCam.x * rightX + toCam.z * rightZ) / dist) * 0.05F, -0.045F, 0.045F);
+        float parallaxV = Mth.clamp((float) (toCam.y / dist) * 0.05F, -0.045F, 0.045F);
 
         VertexConsumer vc = bufferSource.getBuffer(RenderType.entityTranslucent(photoTex));
-        float rAper = 0.78F;
+        float rAper = 0.86F;
         float cxU = 0.5F + parallaxU;
         float cyV = 0.5F - parallaxV;
-        int centerAlpha = (int) (245 * open);
-        int edgeAlpha = (int) (205 * open);
+        int centerAlpha = (int) (252 * open);
+        int edgeAlpha = (int) (228 * open);
 
         for (int i = 0; i < SEGMENTS; i++) {
             float a0 = (float) (i * Math.PI * 2.0D / SEGMENTS);
@@ -90,10 +92,10 @@ public class WormholeRenderer extends EntityRenderer<WormholeEntity> {
             float x0 = c0 * rx * rAper, y0 = s0 * ry * rAper;
             float x1 = c1 * rx * rAper, y1 = s1 * ry * rAper;
 
-            float u0 = Mth.clamp(cxU + c0 * 0.36F, 0.02F, 0.98F);
-            float v0 = Mth.clamp(cyV - s0 * 0.36F, 0.02F, 0.98F);
-            float u1 = Mth.clamp(cxU + c1 * 0.36F, 0.02F, 0.98F);
-            float v1 = Mth.clamp(cyV - s1 * 0.36F, 0.02F, 0.98F);
+            float u0 = Mth.clamp(cxU + c0 * 0.45F, 0.01F, 0.99F);
+            float v0 = Mth.clamp(cyV - s0 * 0.45F, 0.01F, 0.99F);
+            float u1 = Mth.clamp(cxU + c1 * 0.45F, 0.01F, 0.99F);
+            float v1 = Mth.clamp(cyV - s1 * 0.45F, 0.01F, 0.99F);
 
             // Quad fan slice (duplicate center vertex for QUADS)
             emitVistaQuad(vc, pose,
@@ -155,7 +157,7 @@ public class WormholeRenderer extends EntityRenderer<WormholeEntity> {
         VertexConsumer vc = bufferSource.getBuffer(RenderType.entityTranslucentEmissive(VORTEX_TEXTURE));
         float rot = age * 0.085F;
         float cr = Mth.cos(rot), sr = Mth.sin(rot);
-        float rIn = 0.72F;
+        float rIn = 0.82F;
         float rOut = 1.06F;
         int innerAlpha = (int) (235 * open);
         int outerAlpha = (int) (95 * open);

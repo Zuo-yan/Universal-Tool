@@ -137,7 +137,7 @@ public class WormholeEntity extends Entity {
         if (tickCount >= 6) {
             List<ServerPlayer> players = level().getEntitiesOfClass(
                     ServerPlayer.class,
-                    getBoundingBox().inflate(0.22D),
+                    getBoundingBox().inflate(0.55D),
                     p -> ownerUuid == null || p.getUUID().equals(ownerUuid)
             );
             if (!players.isEmpty()) {
