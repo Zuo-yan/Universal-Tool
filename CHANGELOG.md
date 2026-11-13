@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.4 - 2026-11-13
+- **Fix Missing Texture & Distorted Portal Quad on Stargate**:
+  - Removed reference to nonexistent `personal_space_gate_energy.png` in `PersonalSpaceGateRenderer` that caused the purple-black missing texture checkerboard.
+  - Replaced the rotated square quad with a 24-segment pointed-oval fan (`rx = 0.56`, `ry = 1.00`) using rotating UV coordinates on `stargate_portal_vortex.png`, eliminating corner clipping/shearing outside the arch and Z-fighting.
+  - Added `PrivateSpaceManager.ensureUpperHalf` so pre-existing single-block `v1.9.2` gates in saved worlds automatically sprout their upper pointed-oval arch half when interacted with or opened.
+
 ## 1.9.3 - 2026-11-13
 - **Two-Block Pointed-Oval Rune Stone Stargate & Swirling Cyan Vortex**:
   - Upgraded `PersonalSpaceGateBlock` (`HALF = DOUBLE_BLOCK_HALF`, `LOWER`/`UPPER`) and `PersonalGateGeometry` into a 2-block-tall (`~2.5` blocks visual height) pointed-oval carved & mossy stone arch with 4 glowing cyan rune cross-nodes and inner cyan energy veins (`stargate_arch.png`, `personal_space_gate_lower.json`, `personal_space_gate_upper.json`).

@@ -20,13 +20,12 @@ import org.gwfx.universaltool.space.PersonalSpaceGateBlockEntity;
 import org.joml.Matrix4f;
 
 /**
- * 星门动态能量漩涡渲染器：平时保持中空苔石符文门框；开启后在两格高尖拱内生成电青色像素螺旋能量漩涡，玩家走入即传送。
+ * 星门动态能量漩涡渲染器：平时保持中空苔石符文门框；开启后在两格高尖拱内以旋转UV贴合椭圆门洞渲染电青色螺旋漩涡。
  */
 public class PersonalSpaceGateRenderer implements BlockEntityRenderer<PersonalSpaceGateBlockEntity> {
     private static final ResourceLocation VORTEX_TEXTURE = ResourceLocation.fromNamespaceAndPath(
             UniversalToolMod.MODID, "textures/block/stargate_portal_vortex.png");
-    private static final ResourceLocation ENERGY_RING_TEXTURE = ResourceLocation.fromNamespaceAndPath(
-            UniversalToolMod.MODID, "textures/block/personal_space_gate_energy.png");
+    private static final int SEGMENTS = 24;
 
     public PersonalSpaceGateRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -51,69 +50,59 @@ public class PersonalSpaceGateRenderer implements BlockEntityRenderer<PersonalSp
 
         float time = gate.getLevel() != null ? gate.getLevel().getGameTime() + partialTick : partialTick;
         Direction facing = state.getValue(PersonalSpaceGateBlock.FACING);
-        int accent = accentColorForMode(gate.getPortalMode(), gate.getPortalEnvironment());
-        int ar = (accent >> 16) & 0xFF;
-        int ag = (accent >> 8) & 0xFF;
-        int ab = accent & 0xFF;
 
         poseStack.pushPose();
-        // 锚定在两格高尖拱门洞中心 (y = 0.25 .. 2.38, width = 1.18)
-        poseStack.translate(0.5D, 1.32D, 0.5D);
+        // 锚定在两格高尖拱门洞中心 (y = 0.28 .. 2.28, width = 1.12)
+        poseStack.translate(0.5D, 1.28D, 0.5D);
         poseStack.mulPose(Axis.YP.rotationDegrees(yawForFacing(facing)));
-        float pulse = 1.0F + 0.025F * Mth.sin(time * 0.16F);
-        poseStack.scale(0.62F * pulse, 1.08F * pulse, 0.62F);
 
         VertexConsumer vortexConsumer = bufferSource.getBuffer(RenderType.entityTranslucentEmissive(VORTEX_TEXTURE));
-        // 1. 主电青像素螺旋漩涡（双面可见）
-        renderSpinningQuad(poseStack, vortexConsumer, 0.98F, 0.014F, time * 0.065F, 220, 255, 255, 245);
-        // 2. 反向内层深空漩涡（营造层次感与淡淡界域色调）
-        int ir = Math.min(255, (140 + ar) / 2);
-        int ig = Math.min(255, (235 + ag) / 2);
-        int ib = Math.min(255, (255 + ab) / 2);
-        renderSpinningQuad(poseStack, vortexConsumer, 0.82F, -0.014F, -time * 0.095F, ir, ig, ib, 175);
+        Matrix4f mat = poseStack.last().pose();
+        float rx = 0.56F;
+        float ry = 1.00F;
+        float angle = time * 0.075F;
+        float cos = Mth.cos(angle);
+        float sin = Mth.sin(angle);
 
-        // 3. 外圈微弱能量辉光环
-        VertexConsumer ringConsumer = bufferSource.getBuffer(RenderType.entityTranslucentEmissive(ENERGY_RING_TEXTURE));
-        renderSpinningQuad(poseStack, ringConsumer, 1.02F, 0.004F, -time * 0.03F, 110, 245, 255, 115);
+        renderOvalVortexSide(mat, vortexConsumer, rx, ry, 0.015F, 1.0F, cos, sin, 235, 255, 255, 240);
+        renderOvalVortexSide(mat, vortexConsumer, rx, ry, -0.015F, -1.0F, cos, sin, 235, 255, 255, 240);
 
         poseStack.popPose();
     }
 
-    private static void renderSpinningQuad(PoseStack poseStack, VertexConsumer consumer, float radius,
-                                         float zOffset, float angleRad, int r, int g, int b, int a) {
-        poseStack.pushPose();
-        poseStack.mulPose(Axis.ZP.rotation(angleRad));
-        Matrix4f mat = poseStack.last().pose();
+    private static void renderOvalVortexSide(Matrix4f mat, VertexConsumer consumer,
+                                             float rx, float ry, float z, float nz,
+                                             float cos, float sin, int r, int g, int b, int a) {
+        for (int i = 0; i < SEGMENTS; i++) {
+            int i0 = nz > 0 ? i : i + 1;
+            int i1 = nz > 0 ? i + 1 : i;
+            float a0 = (float) (i0 * Math.PI * 2.0D / SEGMENTS);
+            float a1 = (float) (i1 * Math.PI * 2.0D / SEGMENTS);
 
-        // 正面
-        consumer.addVertex(mat, -radius, -radius, zOffset).setColor(r, g, b, a)
-                .setUv(0.0F, 1.0F).setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, 1.0F);
-        consumer.addVertex(mat, radius, -radius, zOffset).setColor(r, g, b, a)
-                .setUv(1.0F, 1.0F).setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, 1.0F);
-        consumer.addVertex(mat, radius, radius, zOffset).setColor(r, g, b, a)
-                .setUv(1.0F, 0.0F).setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, 1.0F);
-        consumer.addVertex(mat, -radius, radius, zOffset).setColor(r, g, b, a)
-                .setUv(0.0F, 0.0F).setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, 1.0F);
+            float nx0 = Mth.cos(a0);
+            float ny0 = Mth.sin(a0);
+            float nx1 = Mth.cos(a1);
+            float ny1 = Mth.sin(a1);
 
-        // 背面
-        consumer.addVertex(mat, -radius, radius, -zOffset).setColor(r, g, b, a)
-                .setUv(0.0F, 0.0F).setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, -1.0F);
-        consumer.addVertex(mat, radius, radius, -zOffset).setColor(r, g, b, a)
-                .setUv(1.0F, 0.0F).setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, -1.0F);
-        consumer.addVertex(mat, radius, -radius, -zOffset).setColor(r, g, b, a)
-                .setUv(1.0F, 1.0F).setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, -1.0F);
-        consumer.addVertex(mat, -radius, -radius, -zOffset).setColor(r, g, b, a)
-                .setUv(0.0F, 1.0F).setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, -1.0F);
+            float u0 = 0.5F + (nx0 * cos - ny0 * sin) * 0.47F;
+            float v0 = 0.5F + (nx0 * sin + ny0 * cos) * 0.47F;
+            float u1 = 0.5F + (nx1 * cos - ny1 * sin) * 0.47F;
+            float v1 = 0.5F + (nx1 * sin + ny1 * cos) * 0.47F;
 
-        poseStack.popPose();
+            // 使用退化四边形 (center, center, p0, p1) 在 QUADS 模式下无缝绘制椭圆扇形，避免方角超出门框
+            consumer.addVertex(mat, 0.0F, 0.0F, z).setColor(r, g, b, a)
+                    .setUv(0.5F, 0.5F).setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, nz);
+            consumer.addVertex(mat, 0.0F, 0.0F, z).setColor(r, g, b, a)
+                    .setUv(0.5F, 0.5F).setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, nz);
+            consumer.addVertex(mat, nx0 * rx, ny0 * ry, z).setColor(r, g, b, a)
+                    .setUv(u0, v0).setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, nz);
+            consumer.addVertex(mat, nx1 * rx, ny1 * ry, z).setColor(r, g, b, a)
+                    .setUv(u1, v1).setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, nz);
+        }
     }
 
     private static float yawForFacing(Direction facing) {
@@ -122,21 +111,6 @@ public class PersonalSpaceGateRenderer implements BlockEntityRenderer<PersonalSp
             case WEST -> 90.0F;
             case EAST -> -90.0F;
             default -> 0.0F;
-        };
-    }
-
-    private static int accentColorForMode(int mode, String envId) {
-        if (mode == PersonalSpaceGateBlockEntity.MODE_PERSONAL) {
-            return 0x6FF7FF;
-        }
-        return switch (envId) {
-            case "deep_dark" -> 0x45E5D8;
-            case "ancient_city" -> 0x5CC8FF;
-            case "nether_fortress" -> 0x62E2FF;
-            case "crimson_forest" -> 0x76D6FF;
-            case "end_city" -> 0x9C8CFF;
-            case "trial_chambers" -> 0x56E8D8;
-            default -> 0x4BE8FF;
         };
     }
 }
