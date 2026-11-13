@@ -101,11 +101,12 @@ public class PersonalSpaceScreen extends Screen {
     private static final ResourceLocation PANEL_TEXTURE = ResourceLocation.fromNamespaceAndPath(
             "universal_tool", "textures/gui/personal_space_panel.png");
 
-    private static final int COLOR_TITLE = 0xFFF0E8D6;
-    private static final int COLOR_BODY = 0xFFB4C2D1;
-    private static final int COLOR_LABEL = 0xFF80D5D3;
-    private static final int COLOR_HINT = 0xFF9EB4C2;
-    private static final int COLOR_ERROR = 0xFFE0645F;
+    private static final int COLOR_KICKER = 0xFF555555;
+    private static final int COLOR_TITLE = 0xFF404040;
+    private static final int COLOR_BODY = 0xFF555555;
+    private static final int COLOR_LABEL = 0xFF404040;
+    private static final int COLOR_HINT = 0xFF555555;
+    private static final int COLOR_ERROR = 0xFFAA0000;
 
     /** Ticks to wait for a server verdict before letting the player try again. */
     private static final int RESULT_TIMEOUT_TICKS = 100;
@@ -204,8 +205,8 @@ public class PersonalSpaceScreen extends Screen {
                 Component.translatable("screen.universal_tool.personal_space.password"));
         box.setMaxLength(PrivateSpaceRules.MAX_PASSWORD_LENGTH);
         box.setBordered(false);
-        box.setTextColor(0xFFE5ECF7);
-        box.setTextColorUneditable(0xFF8290A4);
+        box.setTextColor(0xFFE0E0E0);
+        box.setTextColorUneditable(0xFF707070);
         box.setHint(hint);
         box.setFormatter((value, index) -> FormattedCharSequence.forward("•".repeat(value.length()), Style.EMPTY));
         box.setResponder(value -> clearError());
@@ -318,9 +319,9 @@ public class PersonalSpaceScreen extends Screen {
         graphics.blit(PANEL_TEXTURE, x, y, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, PANEL_WIDTH, PANEL_HEIGHT);
 
         graphics.drawString(font, Component.translatable("screen.universal_tool.personal_space.kicker"),
-                x + MARGIN + 2, y + 12, 0xFF83DAD7, false);
-        graphics.drawCenteredString(font, title, x + PANEL_WIDTH / 2, y + 24, COLOR_TITLE);
-        graphics.drawCenteredString(font, subtitle(), x + PANEL_WIDTH / 2, y + 36, COLOR_BODY);
+                x + MARGIN + 2, y + 12, COLOR_KICKER, false);
+        drawCentered(graphics, title, x + PANEL_WIDTH / 2, y + 24, COLOR_TITLE);
+        drawCentered(graphics, subtitle(), x + PANEL_WIDTH / 2, y + 36, COLOR_BODY);
 
         if (mode == CREATE) renderCreate(graphics, x, y);
         else if (mode == VISIT) renderVisit(graphics, x, y);
@@ -333,14 +334,18 @@ public class PersonalSpaceScreen extends Screen {
         renderChipTooltip(graphics, mouseX, mouseY);
     }
 
+    private void drawCentered(GuiGraphics graphics, Component text, int centerX, int y, int color) {
+        graphics.drawString(font, text, centerX - font.width(text) / 2, y, color, false);
+    }
+
     private void renderCreate(GuiGraphics graphics, int x, int y) {
-        graphics.drawCenteredString(font, Component.translatable("screen.universal_tool.personal_space.choose_environment"),
-                x + PANEL_WIDTH / 2, y + CREATE_HEADING_Y, 0xFFD6C7A5);
+        drawCentered(graphics, Component.translatable("screen.universal_tool.personal_space.choose_environment"),
+                x + PANEL_WIDTH / 2, y + CREATE_HEADING_Y, COLOR_LABEL);
         // The chip row itself is drawn by EnvironmentChip, which is registered as a renderable widget.
-        graphics.drawCenteredString(font, selectedEnvironment.displayName(),
+        drawCentered(graphics, selectedEnvironment.displayName(),
                 x + PANEL_WIDTH / 2, y + CREATE_NAME_Y, COLOR_TITLE);
         drawSilhouette(graphics, x + MARGIN, y + CREATE_SILHOUETTE_Y, CONTENT_WIDTH, SILHOUETTE_HEIGHT, selectedEnvironment);
-        graphics.drawCenteredString(font,
+        drawCentered(graphics,
                 Component.translatable("screen.universal_tool.personal_space.environment_" + selectedEnvironment.id()),
                 x + PANEL_WIDTH / 2, y + CREATE_DESCRIPTION_Y, COLOR_HINT);
         drawFieldPair(graphics, x, y, CREATE_PASSWORD_LABEL_Y);
@@ -350,7 +355,7 @@ public class PersonalSpaceScreen extends Screen {
         label(graphics, "password_label", x + MARGIN, y + VISIT_PASSWORD_LABEL_Y);
         drawInputFrame(graphics, x + MARGIN, y + VISIT_PASSWORD_LABEL_Y + LABEL_TO_FIELD,
                 CONTENT_WIDTH, FIELD_HEIGHT, password.isFocused(), passwordInvalid);
-        graphics.drawCenteredString(font, Component.translatable("screen.universal_tool.personal_space.visit_hint"),
+        drawCentered(graphics, Component.translatable("screen.universal_tool.personal_space.visit_hint"),
                 x + PANEL_WIDTH / 2, y + VISIT_HINT_Y, COLOR_HINT);
     }
 
@@ -382,7 +387,7 @@ public class PersonalSpaceScreen extends Screen {
         };
         Component message = Component.translatable(errorKey, PrivateSpaceRules.MIN_PASSWORD_LENGTH,
                 PrivateSpaceRules.MAX_PASSWORD_LENGTH);
-        graphics.drawCenteredString(font, message, x + PANEL_WIDTH / 2, y + statusY, COLOR_ERROR);
+        drawCentered(graphics, message, x + PANEL_WIDTH / 2, y + statusY, COLOR_ERROR);
     }
 
     /**
@@ -400,13 +405,9 @@ public class PersonalSpaceScreen extends Screen {
 
     private static void drawInputFrame(GuiGraphics graphics, int x, int y, int width, int height,
                                        boolean focused, boolean invalid) {
-        int accent = invalid ? COLOR_ERROR : focused ? 0xFF73D7D2 : 0xFF59677B;
-        graphics.fill(x, y, x + width, y + height, 0xFF0C1420);
-        graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, 0xFF182433);
-        graphics.fill(x, y, x + width, y + 1, accent);
-        graphics.fill(x, y + height - 1, x + width, y + height, invalid ? COLOR_ERROR : 0xFF344457);
-        graphics.fill(x, y, x + 1, y + height, invalid ? COLOR_ERROR : 0xFF344457);
-        graphics.fill(x + width - 1, y, x + width, y + height, invalid ? COLOR_ERROR : 0xFF344457);
+        int border = invalid ? 0xFFFF5555 : focused ? 0xFFFFFFFF : 0xFFA0A0A0;
+        graphics.fill(x, y, x + width, y + height, border);
+        graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, 0xFF000000);
     }
 
     // ------------------------------------------------------------- silhouette
@@ -421,8 +422,14 @@ public class PersonalSpaceScreen extends Screen {
      */
     private void drawSilhouette(GuiGraphics graphics, int x, int y, int width, int height,
                                 PrivateSpaceEnvironment environment) {
-        graphics.fill(x - 1, y - 1, x + width + 1, y + height + 1, 0xFF22303F);
-        graphics.fill(x, y, x + width, y + height, 0xFF0E1822);
+        // Classic Minecraft recessed inset: #373737 top/left shadow, #FFFFFF bottom/right highlight.
+        graphics.fill(x - 1, y - 1, x + width, y, 0xFF373737);
+        graphics.fill(x - 1, y - 1, x, y + height, 0xFF373737);
+        graphics.fill(x, y + height, x + width + 1, y + height + 1, 0xFFFFFFFF);
+        graphics.fill(x + width, y, x + width + 1, y + height + 1, 0xFFFFFFFF);
+        graphics.fill(x + width, y - 1, x + width + 1, y, 0xFF8B8B8B);
+        graphics.fill(x - 1, y + height, x, y + height + 1, 0xFF8B8B8B);
+        graphics.fill(x, y, x + width, y + height, 0xFF202938);
         int baseline = y + height - 1;
         Prototype prototype = environment.profile().prototype();
         int bodyColor = silhouetteBodyColor(prototype);
@@ -441,25 +448,26 @@ public class PersonalSpaceScreen extends Screen {
 
     private static int silhouetteBodyColor(Prototype prototype) {
         return switch (prototype) {
-            case HIGHLAND -> 0xFF3E2944;
-            case PEAKS -> 0xFF3D2A5C;
-            case SANCTUM -> 0xFF143542;
-            case ROLLING -> 0xFF2B463F;
-            case CALDERA -> 0xFF3B2428;
-            case GLACIER -> 0xFF204B66;
-            default -> 0xFF1F4A52;
+            case HIGHLAND -> 0xFF7A5943; // Dirt / Cherry earth
+            case PEAKS -> 0xFF5E3B8A;    // Amethyst block
+            case SANCTUM -> 0xFF2B2B34;  // Deepslate
+            case ROLLING -> 0xFF756556;  // Mycelium earth
+            case CALDERA -> 0xFF241833;  // Obsidian
+            case GLACIER -> 0xFF6EA3E8;  // Packed / Blue Ice
+            case SKY -> 0xFF7F7F7F;      // Stone
+            default -> 0xFF866043;       // Dirt
         };
     }
 
     private static int silhouetteTopColor(Prototype prototype) {
         return switch (prototype) {
-            case HIGHLAND -> 0xFFD98AB2;
-            case PEAKS -> 0xFFB47EE8;
-            case SANCTUM -> 0xFF38C4C2;
-            case ROLLING -> 0xFF7AD6A2;
-            case CALDERA -> 0xFFE5A44D;
-            case GLACIER -> 0xFF8BE5FF;
-            default -> 0xFF43949A;
+            case HIGHLAND -> 0xFFF4A8C7; // Cherry blossom
+            case PEAKS -> 0xFFE0DDD5;    // Calcite
+            case SANCTUM -> 0xFF1CC9C4;  // Sculk
+            case ROLLING -> 0xFF8E7A8D;  // Mycelium
+            case CALDERA -> 0xFFEA6F1F;  // Magma / Lava
+            case GLACIER -> 0xFFF2FAFF;  // Snow
+            default -> 0xFF79C05A;       // Plains grass
         };
     }
 
@@ -517,27 +525,29 @@ public class PersonalSpaceScreen extends Screen {
         protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
             this.hovered = isHovered();
             boolean selected = environment == selectedEnvironment;
-            int fill = selected ? 0xFF1B4C55 : hovered ? 0xFF2A3550 : 0xFF202B3B;
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, 0xFF0A111A);
-            graphics.fill(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1, fill);
-            int edge = selected ? 0xFF70CEC8 : hovered ? 0xFF9A7BD0 : 0xFF3A4859;
-            outline(graphics, edge);
-            if (selected) {
-                // A one-pixel halo, drawn outside the tile so the row rhythm stays even.
-                graphics.fill(getX() - 1, getY() - 1, getX() + width + 1, getY(), 0x5570CEC8);
-                graphics.fill(getX() - 1, getY() + height, getX() + width + 1, getY() + height + 1, 0x5570CEC8);
-                graphics.fill(getX() - 1, getY(), getX(), getY() + height, 0x5570CEC8);
-                graphics.fill(getX() + width, getY(), getX() + width + 1, getY() + height, 0x5570CEC8);
-            }
-            graphics.blit(emblem, getX() + CHIP_INSET, getY() + CHIP_INSET, 0, 0,
-                    EMBLEM_SIZE, EMBLEM_SIZE, EMBLEM_SIZE, EMBLEM_SIZE);
-        }
+            int x = getX();
+            int y = getY();
 
-        private void outline(GuiGraphics graphics, int color) {
-            graphics.fill(getX() + 1, getY() + 1, getX() + width - 1, getY() + 2, color);
-            graphics.fill(getX() + 1, getY() + height - 2, getX() + width - 1, getY() + height - 1, color);
-            graphics.fill(getX() + 1, getY() + 1, getX() + 2, getY() + height - 1, color);
-            graphics.fill(getX() + width - 2, getY() + 1, getX() + width - 1, getY() + height - 1, color);
+            if (selected) {
+                // Classic MC hotbar/advancement selection frame around recessed slot.
+                graphics.fill(x - 1, y - 1, x + width + 1, y + height + 1, 0xFF000000);
+                graphics.fill(x, y, x + width, y + height, 0xFFFFD857);
+                graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, 0xFF373737);
+                graphics.fill(x + 2, y + 2, x + width - 1, y + height - 1, 0xFFFFFFFF);
+                graphics.fill(x + 2, y + 2, x + width - 2, y + height - 2, 0xFF6B7867);
+            } else {
+                // Standard MC 24x24 recessed slot (#373737 top/left, #FFFFFF bottom/right, #8B8B8B well).
+                graphics.fill(x, y, x + width, y + height, 0xFF8B8B8B);
+                graphics.fill(x, y, x + width - 1, y + 1, 0xFF373737);
+                graphics.fill(x, y, x + 1, y + height - 1, 0xFF373737);
+                graphics.fill(x + 1, y + height - 1, x + width, y + height, 0xFFFFFFFF);
+                graphics.fill(x + width - 1, y + 1, x + width, y + height, 0xFFFFFFFF);
+                if (hovered) {
+                    graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, 0xFFA6A6A6);
+                }
+            }
+            graphics.blit(emblem, x + CHIP_INSET, y + CHIP_INSET, 0, 0,
+                    EMBLEM_SIZE, EMBLEM_SIZE, EMBLEM_SIZE, EMBLEM_SIZE);
         }
 
         @Override
@@ -565,16 +575,24 @@ public class PersonalSpaceScreen extends Screen {
 
         @Override
         protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            int fill = !active ? 0xFF252D3B : isHovered()
-                    ? (primary ? 0xFF286568 : 0xFF46546A)
-                    : (primary ? 0xFF1C4A53 : 0xFF303C50);
-            int edge = primary ? 0xFF70CEC8 : 0xFF7D8DA1;
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, 0xFF0A111A);
-            graphics.fill(getX() + 1, getY() + 1, getX() + width - 1, getY() + height - 1, fill);
-            graphics.fill(getX() + 1, getY() + 1, getX() + width - 1, getY() + 2, active ? edge : 0xFF3B4553);
-            graphics.fill(getX() + 1, getY() + height - 2, getX() + width - 1, getY() + height - 1, 0xFF101925);
-            graphics.drawCenteredString(Minecraft.getInstance().font, getMessage(), getX() + width / 2,
-                    getY() + (height - 8) / 2, active ? 0xFFF1E9D8 : 0xFF8B95A3);
+            int x = getX();
+            int y = getY();
+            boolean hover = active && isHovered();
+            int border = !active ? 0xFF373737 : (hover ? 0xFFFFFFFF : 0xFF000000);
+            int fill = !active ? 0xFF585858 : (hover ? 0xFF7B88B8 : 0xFF8B8B8B);
+            int hi = !active ? 0xFF6B6B6B : (hover ? 0xFFAEB8E0 : 0xFFC6C6C6);
+            int lo = !active ? 0xFF424242 : (hover ? 0xFF4F5980 : 0xFF555555);
+
+            graphics.fill(x, y, x + width, y + height, border);
+            graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, fill);
+            graphics.fill(x + 1, y + 1, x + width - 1, y + 2, hi);
+            graphics.fill(x + 1, y + 1, x + 2, y + height - 1, hi);
+            graphics.fill(x + 1, y + height - 2, x + width - 1, y + height - 1, lo);
+            graphics.fill(x + width - 2, y + 2, x + width - 1, y + height - 1, lo);
+
+            int textColor = !active ? 0xFFA0A0A0 : (hover ? 0xFFFFFFA0 : (primary ? 0xFFFFFFFF : 0xFFE0E0E0));
+            graphics.drawCenteredString(Minecraft.getInstance().font, getMessage(), x + width / 2,
+                    y + (height - 8) / 2, textColor);
         }
     }
 }
