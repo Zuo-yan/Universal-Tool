@@ -58,6 +58,13 @@ public class PolymerizerRecipe implements Recipe<PolymerizerRecipeInput> {
         return ingredients;
     }
 
+    @Override
+    public NonNullList<Ingredient> getIngredients() {
+        NonNullList<Ingredient> list = NonNullList.create();
+        list.addAll(ingredients);
+        return list;
+    }
+
     public ItemStack getResult() {
         return result;
     }

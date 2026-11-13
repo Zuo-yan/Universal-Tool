@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.5.0 - 2026-11-13
+
+- **Architecture & Dedicated Server Side Isolation**:
+  - Removed all client-only imports and registrations from `UniversalToolMod`, `network/` payload classes, `space/`, and `TeleportCodexItem`, routing client screens, BERs, entity renderers, keybinds, and S2C payload handlers through dedicated client-only entrypoints.
+  - Introduced `AbstractDoubleEntityBlock` for shared two-block-tall `BaseEntityBlock` placement and cleanup across Operation Phoenix Pod and Universal Lottery Machine.
+  - Decomposed `SkillManager` into focused combat, active-skill execution, and passive-skill handlers, and internationalized skill stat formatting.
+- **Configuration, Data Components & Attachments**:
+  - Added NeoForge `COMMON` config (`ModConfigs`) externalizing `polymerizerDefaultTicks`, `teleportCooldownTicks`, `phoenixCultivationTicks`, `skillXpMultiplier`, and `lotteryBaseScrapChance`.
+  - Added typed Minecraft 1.21.1 `ModDataComponents` (`DNA_OWNER`, `NUTRIENT_SNAPSHOT`, `TELEPORT_TARGET`) with backward-compatible `DataComponents.CUSTOM_DATA` fallback readers.
+  - Consolidated attachment registration in `ModAttachments` while preserving existing `waypoint_data` and `skill_data` keys.
+- **Pocket Realm 8 Fantastical Landscapes**:
+  - Replaced the 5 mundane overworld-style realm presets with 5 fantastical landscapes alongside upgraded Starlit Superflat, Celestial Sky Archipelago, and Mystic Cherry Sanctuary: `AMETHYST_STARFALL`, `SCULK_SANCTUM`, `MUSHROOM_WONDERLAND`, `OBSIDIAN_FORGE`, and `AURORA_GLACIER`.
+  - Added tapered stalactite undersides, multi-layered geological strata, and bounded procedural landmarks, with seamless legacy ID mapping (`plains`, `desert`, `snowy_plains`, `birch_forest`, `savanna`).
+- **Art, Models & Rendering Overhaul**:
+  - Unified world assets around a 1× texel-density Arcane-Tech style, upgrading the Universal Polymerizer to a 3D astrolabe pedestal with BER item/particle rendering, fixing Phoenix Pod 180° door orientation, and resolving Lottery Machine UV/emissive/die-face rendering issues.
+- **Klein Hyper-Storage, Void Lottery & JEI Integration**:
+  - Documented Klein Bottle Hyper-Storage and Universal Lottery Machine (Void Dice, Cosmic Roulette, Void Slots 777) in `README.md` and `GLOSSARY.md`, and added JEI `addIngredientInfo` pages for core machines and items.
+  - Hardened server authority and persistence: permission checks on `/ut` commands, server-authoritative waypoint coordinates and item checks, path-traversal sanitization in `PhotoManager`, missing block loot tables, container/extra-reward drops on block removal, Phoenix rebirth inventory duplication prevention, Polymerizer recipe duration/crafting remainder support, and Klein scroll-wheel inventory insert.
+
 ## 1.3.1 - 2026-10-31
 
 - Added the Universal Repair Material and its anvil integration, including the Klein Bottle anvil.

@@ -26,9 +26,12 @@ public final class SkillCommands {
     private static void registerBranches(CommandDispatcher<CommandSourceStack> dispatcher,
                                          LiteralArgumentBuilder<CommandSourceStack> root) {
         dispatcher.register(root
+                .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("unlockall")
+                        .requires(source -> source.hasPermission(2))
                         .executes(ctx -> executeUnlockAll(ctx.getSource())))
                 .then(Commands.literal("max")
+                        .requires(source -> source.hasPermission(2))
                         .executes(ctx -> executeMax(ctx.getSource()))));
     }
 

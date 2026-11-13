@@ -22,4 +22,9 @@ public class ClientWaypointCache {
     public static synchronized int getMaxCapacity() {
         return maxCapacity;
     }
+
+    public static synchronized void clear() {
+        waypoints = new ArrayList<>();
+        maxCapacity = 12;
+    }
 }

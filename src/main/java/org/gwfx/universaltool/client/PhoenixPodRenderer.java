@@ -37,7 +37,13 @@ public class PhoenixPodRenderer implements BlockEntityRenderer<PhoenixPodBlockEn
 
         PodState state = be.getPodState();
         Direction facing = be.getBlockState().getValue(PhoenixPodBlock.FACING);
-        float rotation = -facing.toYRot();
+        float rotation = switch (facing) {
+            case NORTH -> 0.0F;
+            case EAST -> -90.0F;
+            case SOUTH -> 180.0F;
+            case WEST -> 90.0F;
+            default -> 0.0F;
+        };
         float door = be.getDoorProgress();
 
         // 1. 严格使用单缓冲绘制左右对开生化大门 (从 y=0.20 到 y=1.78 一体通高，中间无任何断层横梁)
@@ -85,10 +91,10 @@ public class PhoenixPodRenderer implements BlockEntityRenderer<PhoenixPodBlockEn
         poseStack.mulPose(com.mojang.math.Axis.YP.rotationDegrees(rotation));
 
         if (door > 0.0F) {
-            // 开门出舱阶段：克隆体向前滑行并迈步踏出底盘
+            // 开门出舱阶段：克隆体向前(-Z开口侧)滑行并迈步踏出底盘
             float forward = door * 0.60F;
             float stepDown = door * 0.15F;
-            poseStack.translate(0, -stepDown, forward);
+            poseStack.translate(0, -stepDown, -forward);
         } else {
             // 待命悬浮微动
             float time = (be.getLevel() != null ? be.getLevel().getGameTime() : 0) + partialTick;

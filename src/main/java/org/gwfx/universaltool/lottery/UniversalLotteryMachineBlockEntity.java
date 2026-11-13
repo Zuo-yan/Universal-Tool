@@ -751,6 +751,14 @@ public class UniversalLotteryMachineBlockEntity extends BlockEntity implements M
             Containers.dropItemStack(level, pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5, this.pendingReward);
             this.pendingReward = ItemStack.EMPTY;
         }
+        if (!this.pendingExtraRewards.isEmpty()) {
+            for (ItemStack extra : this.pendingExtraRewards) {
+                if (!extra.isEmpty()) {
+                    Containers.dropItemStack(level, pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5, extra);
+                }
+            }
+            this.pendingExtraRewards.clear();
+        }
     }
 
     @Override

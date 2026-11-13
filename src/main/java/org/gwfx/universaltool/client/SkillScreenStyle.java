@@ -133,7 +133,8 @@ final class SkillScreenStyle {
         outline(g, x, y, size, size, border);
         int iconInner = size - 2;
         if (iconInner > 0) {
-            g.blit(icon(id), x + 1, y + 1, iconInner, iconInner, 0, 0, 32, 32, 32, 32);
+            // 32x32 skill PNGs reserve [0..3, 28..31] for their own baked frame; crop [4..28) so scaling stays sharp inside our 1px border.
+            g.blit(icon(id), x + 1, y + 1, iconInner, iconInner, 4.0F, 4.0F, 24, 24, 32, 32);
         }
         if (locked) {
             g.fill(x + 1, y + 1, x + size - 1, y + size - 1, 0xAA120D16);

@@ -37,7 +37,6 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.UniversalToolMod;
-import org.gwfx.universaltool.client.PersonalSpaceScreen;
 import org.gwfx.universaltool.init.ModBlocks;
 import org.gwfx.universaltool.network.PersonalSpaceActionPayload;
 import org.gwfx.universaltool.network.PersonalSpaceResultPayload;
@@ -73,9 +72,9 @@ public final class PrivateSpaceManager {
         Optional<PersonalSpaceSavedData.SpaceRecord> space = data.getSpace(owner);
         if (owner.equals(player.getUUID())) {
             if (space.isEmpty()) {
-                openScreen(player, gate.getBlockPos(), PersonalSpaceScreen.CREATE);
+                openScreen(player, gate.getBlockPos(), ACTION_CREATE);
             } else if (sneaking) {
-                openScreen(player, gate.getBlockPos(), PersonalSpaceScreen.CHANGE_PASSWORD);
+                openScreen(player, gate.getBlockPos(), ACTION_CHANGE_PASSWORD);
             } else {
                 enterSpace(player, space.get());
             }
@@ -86,7 +85,7 @@ public final class PrivateSpaceManager {
             player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.not_created"), true);
             return;
         }
-        openScreen(player, gate.getBlockPos(), PersonalSpaceScreen.VISIT);
+        openScreen(player, gate.getBlockPos(), ACTION_VISIT);
     }
 
     private static void openScreen(ServerPlayer player, BlockPos gatePos, int mode) {
@@ -252,7 +251,7 @@ public final class PrivateSpaceManager {
                 source.ambientLight(), source.monsterSettings());
     }
 
-    static void configureLevel(ServerLevel level, PrivateSpaceEnvironment environment, boolean fresh) {
+    public static void configureLevel(ServerLevel level, PrivateSpaceEnvironment environment, boolean fresh) {
         level.getWorldBorder().setCenter(0.0, 0.0);
         level.getWorldBorder().setSize(59_999_968);
         level.getWorldBorder().setWarningBlocks(0);
@@ -480,7 +479,7 @@ public final class PrivateSpaceManager {
         });
     }
 
-    static ServerLevel getOrLoadSpace(MinecraftServer server, PersonalSpaceSavedData.SpaceRecord record) {
+    public static ServerLevel getOrLoadSpace(MinecraftServer server, PersonalSpaceSavedData.SpaceRecord record) {
         ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, record.dimension());
         ServerLevel level = server.getLevel(key);
         if (level != null) {

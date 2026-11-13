@@ -5,12 +5,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.gwfx.universaltool.UniversalToolMod;
-import org.gwfx.universaltool.client.PersonalSpaceScreen;
 
 /**
  * Opens the gate terminal on the client.
@@ -36,10 +32,5 @@ public record PersonalSpaceScreenPayload(BlockPos gatePos, int mode, String owne
     @Override
     public Type<? extends CustomPacketPayload> type() {
         return TYPE;
-    }
-
-    public static void handle(PersonalSpaceScreenPayload payload, IPayloadContext context) {
-        context.enqueueWork(() -> org.gwfx.universaltool.client.ClientScreens.openPersonalSpace(
-                payload.gatePos(), payload.mode(), payload.ownerName(), payload.environmentId()));
     }
 }

@@ -11,7 +11,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.gwfx.universaltool.UniversalToolMod;
-import org.gwfx.universaltool.init.ModItems;
+import org.gwfx.universaltool.item.TeleportCodexItem;
 import org.gwfx.universaltool.item.TeleportScrollItem;
 import org.gwfx.universaltool.waypoint.Waypoint;
 import org.gwfx.universaltool.waypoint.WaypointData;
@@ -29,7 +29,7 @@ public record WriteScrollPayload(String waypointId) implements CustomPacketPaylo
 
     public static void handle(WriteScrollPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
-            if (context.player() instanceof ServerPlayer player) {
+            if (context.player() instanceof ServerPlayer player && TeleportCodexItem.hasCodex(player)) {
                 WaypointData data = player.getData(WaypointData.ATTACHMENT.get());
                 for (Waypoint wp : data.getWaypoints()) {
                     if (wp.id().equals(payload.waypointId())) {

@@ -1528,7 +1528,7 @@
   "textures": [
     {
       "name": "personal_space_return_atlas.png",
-      "path": "A:/Game/Code/Minecraft-Mod/\u6d93\u56ea\u5158\u5bb8\u30e5\u53ff/src/main/resources/assets/universal_tool/textures/block/personal_space_return_atlas.png",
+      "path": "C:\\Code\\Minecraft\\Universal-Tool\\src\\main\\resources\\assets\\universal_tool\\textures\\block\\personal_space_return_atlas.png",
       "folder": "block",
       "namespace": "universal_tool",
       "id": "0",
@@ -1557,7 +1557,7 @@
       "internal": true,
       "saved": true,
       "uuid": "6fe987bc-526a-6851-f37b-34d11f78f415",
-      "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAB0klEQVR42u2ZMUoGMRCFcww7b+ARBAv/1kK0URsLtVOQvxBEFCysFMTGHxEFK/Ua2tjaWXkBrxCZhYEwhdnNi2QTXjGQTXYg87LzPsK6tZVtj8TbwzcUc8ubUOzvTv3J9Mxfnl/5+5tZN5Y5Gcuczut7Oq/vuee7J4+EFPF49OG3Fq/96frLoLEK8PrzlRSSGxanBYcihOLIXCiOrLmYQjGFpYiU4mUcCjC/cegXLm672Pl8757DsGsqALp/ZxWxillFreK5BOhbuIYKgO7fWUWsYlZRq7gUkVK8jO0X0KdwXVMB0P27HCaYU4C+bRC2wF8nHPtCRmOCQ/rftgBEAdRFcwkwpP9DAZqiwJA2aI4CqRiEKTAWE0zFIEyBHCZYEoMwBVAXzWWCqRhshgKpGGyGAqmXIZgCLVyHIQpMllY9EqgLl853B3vHHgnUhUvnw18A6sKl82EBUBcunQ8LMPYTjlIA9YCx9zgpEKNAjhYgBWqmAOoBpEDtFMjRAqQA7wKkAO8C1VKgdhcv/l+gegrU7uIwBVo/4X//L1A9BWp3cVKAFCAFSAFSgBQgBUgBUoAUIAVIAVKAFCAFSAFSgBQgBUgBUoAUIAVIAVKAFOiX/wuzefRViUBiuQAAAABJRU5ErkJggg=="
+      "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAACBklEQVR42u2XPU4DMRSE9xAIKlJQIQEFEjVCFDS0CEHHMSIqxBkoOQANVe7AASgQHVegSb3oWZroxfh3vfYSMcXE8e4m8Xz75q3TbW3v9iV6Xn7352/v/dfrySDtPz4ZyXdAO5c3K+F3fO9L1cnL4uGwP724dUrOu47fX83MKAsWCPIduQIAbd6GEDI/BggD4PpubswcHJ/9Es7Le4xasliYWH7MV+ZkLiOOYa6PuSoAFdWqCgwA29Rs72gNgAsMrhETYkYv2DYAOHruqgAxL9fJKMebRcBlMAYAAgDfndZz+7wGIKY/X3oz2gCqR6BEAABzqTHQAGAaQqxaVEGX2vR85wHAVfahGPgAIA4AUD0Cupylyemm54uEbpi6AnJjIJ8FHJd5AKgagZTMh5qiBpAbAw3AVrMI5DY9HwDc6dQYaAA2hFbmR22Csee+HQMbgEsx86NEINTwUpqiHYGcGMhntZnW5tcikLITDO0DZEE5MdAAcg1XewqEMu+DYO8DcmKACAw1X+UpMHQnOPTP0JTmR2uCJZo8AvYdzJ3HKiilwqZU9CkQEzZKQ/QnAMiLXlTunAAIgAAIgAA2HUCJNh5A6UaGESAAAiAAAvjvADb67/DUCyAAAiAAAiAAAiAAAiAAAiAAAiAAAiAAAiAAAiAAAiAAAiAAAiAAAiAAAiAAAiCA6voBskHdJTMzu8wAAAAASUVORK5CYII="
     }
   ],
   "display": {
