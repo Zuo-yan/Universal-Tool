@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.2 - 2026-11-13
+
+- Fixed client crash when opening the creative inventory (`IllegalArgumentException: Itemstack 1 universal_tool:void_essence already exists in the tab's list`) by removing duplicate `VOID_ESSENCE` entries in `ModCreativeTabs`.
+
 ## 1.5.1 - 2026-11-13
 
 - Merged remote `origin/main` (`1.5.0`) with local Void Essence polymerizing feature (`1.4.1`).

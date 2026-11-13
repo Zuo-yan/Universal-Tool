@@ -37,9 +37,6 @@ public class ModCreativeTabs {
                         output.accept(ModItems.UNIVERSAL_LOTTERY_MACHINE.get());
                         output.accept(ModItems.VOID_SCRAP.get());
                         output.accept(ModItems.VOID_ESSENCE.get());
-                        output.accept(ModItems.VOID_ESSENCE.get());
-                        output.accept(ModItems.VOID_ESSENCE.get());
-                        output.accept(ModItems.VOID_ESSENCE.get());
                         // 凤凰计划
                         output.accept(ModItems.DNA_SYRINGE.get());
                         output.accept(ModItems.NUTRIENT_SOLUTION.get());
@@ -52,9 +49,6 @@ public class ModCreativeTabs {
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES
                 || event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
             event.accept(ModItems.UNIVERSAL_REPAIR_MATERIAL.get());
-            event.accept(ModItems.VOID_ESSENCE.get());
-            event.accept(ModItems.VOID_ESSENCE.get());
-            event.accept(ModItems.VOID_ESSENCE.get());
             event.accept(ModItems.VOID_ESSENCE.get());
         }
     }
