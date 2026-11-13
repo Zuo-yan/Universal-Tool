@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.0 - 2026-11-13
+
+- **Arcane Brass & Illuminated Parchment Overhaul (Create / Ars Nouveau Aesthetic)**:
+  - **32×32 High-Craft Items & Skill Icons**: Upgraded all 17 items and 20 skill icons to `32×32` hand-crafted pixel art (`tools/craft_items_skills.py`) — reshaping the 6 Universal Tools into diagonal Paxel-Halberds, `klein_bottle` into a true 4D looping crystal bottle, `teleport_codex` into an isometric gilded grimoire, `teleport_scroll` into a wax-sealed diagonal scroll, `void_scrap` into a forged void-obsidian ingot chunk, and `counter_guard_aegis`/`counter_guard_ring` into `64×64` golden-brass ward runes.
+  - **Architectural 3D Block Models & Clean Textures**: Rebuilt all 11 `models/block/*.json`, 4 block-item `gui` display transforms, and 8 block texture atlases (`tools/craft_blocks.py`) around Dark Basalt Slate, Warm Alabaster, Walnut Timber, Create-style Brushed Brass, Clear Crystal Glass, and Astral Teal/Amethyst focal cores (eliminating noisy checkerboard static). Updated `UniversalLotteryMachineRenderer` atlas swatches to match.
+  - **Warm Parchment, Walnut & Brass UIs**: Upgraded all 7 UI screens (`PolymerizerScreen`, `PhoenixPodScreen`, `KleinScreen`, `UniversalLotteryMachineScreen`, `PersonalSpaceScreen` Star Gate + 8 `32×32` biome medallions, `CodexScreen`, `SkillScreen` & `SkillWheelScreen`) and JEI `PolymerizerRecipeCategory` to a unified illuminated parchment, walnut wood, and burnished brass workshop aesthetic.
+
 ## 1.6.0 - 2026-11-13
 
 - **Vanilla+ Textures & UI Overhaul**:
