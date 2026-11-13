@@ -88,23 +88,29 @@ public class PolymerizerRecipeCategory implements IRecipeCategory<PolymerizerRec
 
     @Override
     public void draw(PolymerizerRecipe recipe, IRecipeSlotsView recipeSlotsView, GuiGraphics guiGraphics, double mouseX, double mouseY) {
-        // 1. 外环紫水晶/铜导管环 (匹配 PolymerizerScreen)
+        // 1. 抛光黄铜与奥术青金星盘外环 (匹配 PolymerizerScreen)
         for (int py = CENTER_Y - 46; py <= CENTER_Y + 46; py++) {
             for (int px = CENTER_X - 46; px <= CENTER_X + 46; px++) {
                 double dist = Math.hypot(px - CENTER_X, py - CENTER_Y);
-                if (dist >= 43.0 && dist <= 45.2) {
-                    int color = (dist >= 43.5 && dist <= 44.6)
-                            ? (((px + py) & 1) == 0 ? 0xFFB87333 : 0xFF9C6FD6)
-                            : 0xFF555555;
+                if (dist >= 42.5 && dist <= 45.5) {
+                    int color;
+                    if (dist >= 43.3 && dist <= 44.7) {
+                        double ang = (Math.toDegrees(Math.atan2(py - CENTER_Y, px - CENTER_X)) + 360.0) % 30.0;
+                        color = (ang >= 12.0 && ang <= 18.0)
+                                ? 0xFF2FA89E
+                                : (((px + py) & 1) == 0 ? 0xFFD6A84E : 0xFFF2D88A);
+                    } else {
+                        color = dist > 44.7 ? 0xFF5C4028 : 0xFF9E7330;
+                    }
                     guiGraphics.fill(px, py, px + 1, py + 1, color);
-                } else if (dist >= 12.2 && dist <= 14.5) {
-                    int color = ((px + py) % 3 == 0) ? 0xFF9C6FD6 : 0xFFB87333;
+                } else if (dist >= 12.4 && dist <= 15.0) {
+                    int color = ((px + py) % 4 == 0) ? 0xFF6DE0D6 : 0xFFD6A84E;
                     guiGraphics.fill(px, py, px + 1, py + 1, color);
                 }
             }
         }
 
-        // 2. 12 条辐射导管连线与动态紫水晶能量脉冲
+        // 2. 12 条辐射导管连线与动态奥术青金-鎏金脉冲
         int pulsePhase = (int) ((System.currentTimeMillis() / 180L) % 6);
         for (int i = 0; i < 12; i++) {
             double rad = Math.toRadians(i * 30.0 - 90.0);
@@ -112,17 +118,17 @@ public class PolymerizerRecipeCategory implements IRecipeCategory<PolymerizerRec
             int oy = (int) Math.round(CENTER_Y + 35.0 * Math.sin(rad));
             int ix = (int) Math.round(CENTER_X + 14.0 * Math.cos(rad));
             int iy = (int) Math.round(CENTER_Y + 14.0 * Math.sin(rad));
-            int coreColor = (i % 2 == 0) ? 0xFF9C6FD6 : 0xFFDA9258;
+            int coreColor = (i % 2 == 0) ? 0xFF2FA89E : 0xFFD6A84E;
             drawConduitLine(guiGraphics, ox, oy, ix, iy, coreColor, pulsePhase);
         }
 
-        // 3. 中心产物槽铜/紫水晶角标装饰
+        // 3. 中心产物槽鎏金黄铜角标装饰
         int sx = CENTER_X - 10;
         int sy = CENTER_Y - 10;
-        guiGraphics.fill(sx, sy, sx + 2, sy + 2, 0xFFDA9258);
-        guiGraphics.fill(sx + 18, sy, sx + 20, sy + 2, 0xFFDA9258);
-        guiGraphics.fill(sx, sy + 18, sx + 2, sy + 20, 0xFFDA9258);
-        guiGraphics.fill(sx + 18, sy + 18, sx + 20, sy + 20, 0xFFDA9258);
+        guiGraphics.fill(sx, sy, sx + 2, sy + 2, 0xFFF2D88A);
+        guiGraphics.fill(sx + 18, sy, sx + 20, sy + 2, 0xFFF2D88A);
+        guiGraphics.fill(sx, sy + 18, sx + 2, sy + 20, 0xFFF2D88A);
+        guiGraphics.fill(sx + 18, sy + 18, sx + 20, sy + 20, 0xFFF2D88A);
     }
 
     private static void drawConduitLine(GuiGraphics guiGraphics, int x0, int y0, int x1, int y1, int coreColor, int pulsePhase) {
@@ -131,13 +137,13 @@ public class PolymerizerRecipeCategory implements IRecipeCategory<PolymerizerRec
         for (int s = 0; s <= steps; s++) {
             int px = (int) Math.round(x0 + (x1 - x0) * (s / (double) steps));
             int py = (int) Math.round(y0 + (y1 - y0) * (s / (double) steps));
-            guiGraphics.fill(px - 1, py, px + 2, py + 1, 0xFF555555);
-            guiGraphics.fill(px, py - 1, px + 1, py + 2, 0xFF555555);
+            guiGraphics.fill(px - 1, py, px + 2, py + 1, 0xFF5C4028);
+            guiGraphics.fill(px, py - 1, px + 1, py + 2, 0xFF5C4028);
         }
         for (int s = 0; s <= steps; s++) {
             int px = (int) Math.round(x0 + (x1 - x0) * (s / (double) steps));
             int py = (int) Math.round(y0 + (y1 - y0) * (s / (double) steps));
-            int c = (s % 6 == pulsePhase) ? 0xFFC49BFF : coreColor;
+            int c = (s % 6 == pulsePhase) ? 0xFF6DE0D6 : coreColor;
             guiGraphics.fill(px, py, px + 1, py + 1, c);
         }
     }
