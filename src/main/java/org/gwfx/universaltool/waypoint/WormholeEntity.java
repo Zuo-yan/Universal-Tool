@@ -149,19 +149,23 @@ public class WormholeEntity extends Entity {
             List<ServerPlayer> players = level().getEntitiesOfClass(
                     ServerPlayer.class,
                     getBoundingBox().inflate(0.55D),
-                    p -> ownerUuid == null || p.getUUID().equals(ownerUuid)
+                    p -> !p.isSpectator() && (!isCorridorExit() || ownerUuid == null || p.getUUID().equals(ownerUuid))
             );
             if (!players.isEmpty()) {
                 ServerPlayer entered = players.get(0);
+                if (level() instanceof ServerLevel serverLevel) {
+                    serverLevel.sendParticles(ParticleTypes.REVERSE_PORTAL,
+                            getX(), getY() + 1.4D, getZ(), 18, 0.45D, 0.75D, 0.45D, 0.06D);
+                    serverLevel.playSound(null, getX(), getY() + 1.0D, getZ(),
+                            SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 0.6F, 1.55F);
+                }
                 if (isCorridorExit()) {
                     WormholeCorridorManager.completeTransit(entered);
-                    beginClosing();
-                    return;
                 } else if (target != null) {
                     WormholeCorridorManager.enterCorridor(entered, target, fromScroll, getVistaId());
-                    beginClosing();
-                    return;
                 }
+                discard();
+                return;
             }
         }
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.16 - 2026-11-13
+- **Corridor Starfield Accents & Instant Wormhole Closure on Entry**:
+  - Added a 3D twinkling cosmic starfield (`seedStarfield` + ongoing outer `END_ROD` / `ENCHANT` / `PORTAL` starlight particles) surrounding the transparent wormhole corridor without obstructing the forward destination vista.
+  - Updated `WormholeEntity` so any non-spectator player entering an entrance wormhole (or the owner hitting the corridor exit) immediately collapses and discards the wormhole with a crisp particle burst instead of lingering.
+
 ## 1.9.15 - 2026-11-13
 - **Live Server-Side Destination Vista Raycasting & Panoramic Corridor Exit**:
   - Added `LiveVistaSampler` (fast 3D DDA voxel raycaster capturing a live `112×63` 16:9 snapshot directly from the target `ServerLevel`, reflecting real-time blocks, water, sky/block lighting, and current day/night sky across dimensions) and `WormholeLiveVistaPayload` S2C sync into `PhotoManager.registerLiveVista`.
