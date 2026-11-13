@@ -23,7 +23,10 @@ import org.gwfx.universaltool.klein.KleinRenamePayload;
 public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private static final ResourceLocation GUI_TEXTURE =
             ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "textures/gui/container/klein_terminal.png");
-    private static final int CYAN = 0xFF62D9D1, BRASS = 0xFFB29A61, TEXT = 0xFFE2D8B8;
+    private static final int LABEL_DARK = 0xFF404040;
+    private static final int EDITBOX_TEXT = 0xFFE0E0E0;
+    private static final int BTN_TEXT = 0xFFE0E0E0;
+    private static final int BTN_TEXT_HOVER = 0xFFFFFFA0;
     private static final int BUTTON_X = 172, BUTTON_Y = 153, BUTTON_STEP = 15, BUTTON_SIZE = 14;
     private static final int SCROLL_TRACK_HEIGHT = KleinMenu.VISIBLE_ROWS * 18;
     private EditBox search;
@@ -49,7 +52,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         search = new EditBox(font, leftPos + 22, topPos + 26, 96, 11, Component.empty());
         search.setMaxLength(64);
         search.setBordered(false);
-        search.setTextColor(TEXT);
+        search.setTextColor(EDITBOX_TEXT);
         search.setHint(Component.translatable("gui.universal_tool.klein.search"));
         search.setResponder(value -> menu.setView(value, menu.sortMode(), menu.descending()));
         addRenderableWidget(search);
@@ -59,7 +62,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         anvilName = new EditBox(font, drawerX + 18, drawerY + 23, 82, 10, Component.empty());
         anvilName.setMaxLength(50);
         anvilName.setBordered(false);
-        anvilName.setTextColor(TEXT);
+        anvilName.setTextColor(EDITBOX_TEXT);
         anvilName.setHint(Component.translatable("gui.universal_tool.klein.anvil_name_hint"));
         anvilName.setResponder(this::onAnvilNameChanged);
         anvilName.setVisible(menu.drawerMode() == KleinMenu.DRAWER_ANVIL);
@@ -131,32 +134,36 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
 
         g.blit(GUI_TEXTURE, x, y, 0, 0, imageWidth, imageHeight, 512, 512);
 
-        // Header bar: Title & Count Badge (y=9, perfectly vertically centered)
-        g.drawString(font, Component.translatable("item.universal_tool.klein_bottle"), x + 26, y + 9, TEXT, false);
+        // Header bar: Title & Count Badge (y=9, classic MC #404040)
+        g.drawString(font, Component.translatable("item.universal_tool.klein_bottle"), x + 26, y + 9, LABEL_DARK, false);
         String countBadge = menu.filtered().size() + " / \u221e";
-        g.drawString(font, countBadge, x + 172 - font.width(countBadge), y + 9, BRASS, false);
+        g.drawString(font, countBadge, x + 172 - font.width(countBadge), y + 9, LABEL_DARK, false);
 
         // Close button hover highlight (y=7..18)
         if (mouseX >= x + 178 && mouseX < x + 189 && mouseY >= y + 7 && mouseY < y + 18) {
-            g.fill(x + 178, y + 7, x + 188, y + 17, 0x60FF4040);
+            g.fill(x + 178, y + 7, x + 188, y + 17, 0x50FF4040);
         }
 
         // Sort Button: (126, 24, w=37, h=15)
+        boolean sortHovered = mouseX >= x + 126 && mouseX < x + 163 && mouseY >= y + 24 && mouseY < y + 39;
+        drawMcButton(g, x + 126, y + 24, 37, 15, sortHovered);
         String modeLabel = switch (menu.sortMode()) {
             case KleinMenu.SORT_NAME -> Component.translatable("gui.universal_tool.klein.name").getString();
             case KleinMenu.SORT_MOD -> Component.translatable("gui.universal_tool.klein.sort_mod").getString();
             default -> Component.translatable("gui.universal_tool.klein.quantity").getString();
         };
-        g.drawCenteredString(font, Component.literal(modeLabel), x + 144, y + 28, CYAN);
-        border(g, x + 126, y + 24, 37, 15, CYAN);
+        g.drawString(font, modeLabel, x + 144 - font.width(modeLabel) / 2, y + 28,
+                sortHovered ? BTN_TEXT_HOVER : BTN_TEXT, true);
 
         // Direction Button: (166, 24, w=21, h=15)
+        boolean dirHovered = mouseX >= x + 166 && mouseX < x + 187 && mouseY >= y + 24 && mouseY < y + 39;
+        drawMcButton(g, x + 166, y + 24, 21, 15, dirHovered);
         String dirLabel = menu.descending() ? "\u2193" : "\u2191";
-        g.drawCenteredString(font, Component.literal(dirLabel), x + 176, y + 28, CYAN);
-        border(g, x + 166, y + 24, 21, 15, menu.descending() ? CYAN : BRASS);
+        g.drawString(font, dirLabel, x + 176 - font.width(dirLabel) / 2, y + 28,
+                dirHovered ? BTN_TEXT_HOVER : BTN_TEXT, true);
 
-        // Inventory section divider label
-        g.drawString(font, Component.literal("\u2727 ").append(Component.translatable("gui.universal_tool.klein.inventory")).append(" \u2727"), x + 8, y + 142, BRASS, false);
+        // Inventory section label
+        g.drawString(font, Component.translatable("gui.universal_tool.klein.inventory"), x + 8, y + 142, LABEL_DARK, false);
 
         // Right action buttons (5 buttons)
         for (int i = 0; i < 5; i++) {
@@ -213,7 +220,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             case KleinMenu.DRAWER_SMELTING -> Component.translatable("gui.universal_tool.klein.tab_smelting");
             default -> Component.translatable("gui.universal_tool.klein.tab_anvil");
         };
-        g.drawCenteredString(font, title, drawerX + KleinMenu.DRAWER_WIDTH / 2, drawerY + 6, BRASS);
+        g.drawString(font, title, drawerX + (KleinMenu.DRAWER_WIDTH - font.width(title)) / 2, drawerY + 6, LABEL_DARK, false);
 
         if (mode == KleinMenu.DRAWER_CRAFTING) {
             for (int row = 0; row < 3; row++) {
@@ -230,10 +237,10 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             g.blit(GUI_TEXTURE, drawerX + 53, drawerY + 45, 248, 48, 12, 14, 512, 512);
             drawSocket(g, drawerX + 50, drawerY + 61);
         } else {
-            // Anvil Mode: Rename box frame at (14, 20, w=90, h=16)
-            g.fill(drawerX + 14, drawerY + 20, drawerX + 104, drawerY + 36, 0xFF060E12);
+            // Anvil Mode: Classic MC #000000 EditBox frame at (14, 20, w=90, h=16)
+            g.fill(drawerX + 14, drawerY + 20, drawerX + 104, drawerY + 36, 0xFF000000);
             border(g, drawerX + 14, drawerY + 20, 90, 16,
-                    anvilName.isFocused() ? CYAN : 0xFF183E46);
+                    anvilName.isFocused() ? 0xFFFFFFFF : 0xFFA0A0A0);
 
             drawSocket(g, drawerX + KleinMenu.ANVIL_LEFT_X, drawerY + KleinMenu.DRAWER_RESULT_Y);
             g.blit(GUI_TEXTURE, drawerX + 36, drawerY + 49, 236, 48, 7, 7, 512, 512);
@@ -245,6 +252,8 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
                 int color = (minecraft != null && minecraft.player != null
                         && (minecraft.player.getAbilities().instabuild || minecraft.player.experienceLevel >= menu.anvilCost()))
                         ? 0xFF80FF20 : 0xFFFF6060;
+                int cw = font.width(costText);
+                g.fill(drawerX + 12, drawerY + 66, drawerX + 16 + cw, drawerY + 78, 0x80000000);
                 g.drawString(font, costText, drawerX + 14, drawerY + 68, color, true);
             }
         }
@@ -497,6 +506,18 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         BigDecimal value = new BigDecimal(amount).movePointLeft(exponent).setScale(1, RoundingMode.DOWN);
         String suffix = exponent < 6 ? "K" : exponent < 9 ? "M" : exponent < 12 ? "B" : "e" + exponent;
         return value.stripTrailingZeros().toPlainString() + suffix;
+    }
+
+    private static void drawMcButton(GuiGraphics g, int x, int y, int w, int h, boolean hovered) {
+        int face = hovered ? 0xFF7D88BD : 0xFF7E7E7E;
+        int hi = hovered ? 0xFFB4BCE2 : 0xFFB0B0B0;
+        int sh = hovered ? 0xFF4F5678 : 0xFF545454;
+        g.fill(x, y, x + w, y + h, 0xFF000000);
+        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, face);
+        g.fill(x + 1, y + 1, x + w - 1, y + 2, hi);
+        g.fill(x + 1, y + 1, x + 2, y + h - 1, hi);
+        g.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, sh);
+        g.fill(x + w - 2, y + 1, x + w - 1, y + h - 1, sh);
     }
 
     private static void border(GuiGraphics g, int x, int y, int w, int h, int color) {

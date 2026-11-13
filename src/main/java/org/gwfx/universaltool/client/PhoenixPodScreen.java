@@ -46,8 +46,8 @@ public class PhoenixPodScreen extends AbstractContainerScreen<PhoenixPodMenu> {
 
     @Override
     protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        guiGraphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, 0xFFF5D678, true);
-        guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, 0xFFF0E8D6, false);
+        guiGraphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, 0xFF404040, false);
+        guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, 0xFF404040, false);
     }
 
     @Override
@@ -66,8 +66,13 @@ public class PhoenixPodScreen extends AbstractContainerScreen<PhoenixPodMenu> {
             // 进度条渲染 (u=176, v=0, w=24, h=16)
             int progress = this.menu.getProgress();
             int max = this.menu.getMaxProgress();
-            int scaledW = (int) (24.0F * progress / max);
+            int scaledW = max > 0 ? Math.min(24, (int) (24.0F * progress / max)) : 0;
             guiGraphics.blit(GUI_TEXTURE, relX + 76, relY + 36, 176, 0, scaledW, 16);
+
+            // 玻璃管下方火焰微光点缀
+            int flameFlicker = (int) ((System.currentTimeMillis() / 160L) % 3);
+            guiGraphics.fill(relX + 86, relY + 58 - flameFlicker, relX + 90, relY + 61, 0xFFEA580C);
+            guiGraphics.fill(relX + 87, relY + 59, relX + 89, relY + 61, 0xFFFDE047);
         } else if (state == PodState.READY) {
             // 就绪绿灯 (u=176, v=16, 24x16)
             guiGraphics.blit(GUI_TEXTURE, relX + 76, relY + 36, 176, 16, 24, 16);
@@ -82,13 +87,19 @@ public class PhoenixPodScreen extends AbstractContainerScreen<PhoenixPodMenu> {
         Component statusText = switch (state) {
             case EMPTY -> Component.translatable("gui.universal_tool.phoenix.state_empty");
             case CULTIVATING -> {
-                int pct = (int) (100.0F * this.menu.getProgress() / this.menu.getMaxProgress());
+                int pct = this.menu.getMaxProgress() > 0
+                        ? (int) (100.0F * this.menu.getProgress() / this.menu.getMaxProgress())
+                        : 0;
                 yield Component.translatable("gui.universal_tool.phoenix.state_cultivating", pct);
             }
             case READY -> Component.translatable("gui.universal_tool.phoenix.state_ready");
         };
         int textX = relX + (this.imageWidth - this.font.width(statusText)) / 2;
-        int statusColor = (state == PodState.EMPTY) ? 0xFFF0E8D6 : 0xFF9CF5F0;
+        int statusColor = switch (state) {
+            case EMPTY -> 0xFF404040;
+            case CULTIVATING -> 0xFF9E3B10;
+            case READY -> 0xFF1E6B24;
+        };
         guiGraphics.drawString(this.font, statusText, textX, relY + 21, statusColor, false);
     }
 

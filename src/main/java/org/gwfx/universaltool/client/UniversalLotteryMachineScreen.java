@@ -382,17 +382,18 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
         int relX = this.leftPos;
         int relY = this.topPos;
 
-        // 1. 绘制左侧 3 个模式突出标签
+        // 1. 绘制左侧 3 个原版风格外挂模式标签
         renderModeTabs(guiGraphics, relX, relY, mouseX, mouseY);
 
-        // 2. 背景主面板 (深邃石质星空暗色 + 双层古典鎏金框)
-        guiGraphics.fill(relX, relY, relX + this.imageWidth, relY + this.imageHeight, 0xFF12141C);
-        guiGraphics.renderOutline(relX, relY, this.imageWidth, this.imageHeight, 0xFFD4AF37);
-        guiGraphics.renderOutline(relX + 2, relY + 2, this.imageWidth - 4, this.imageHeight - 4, 0xFF353B48);
+        // 2. 经典 MC #C6C6C6 斜切倒角主容器面板
+        LotterySubModeRenderers.drawMcPanel(guiGraphics, relX, relY, this.imageWidth, this.imageHeight);
 
-        // 3. 顶部饰带与唯一主标题 (完全水平居中)
-        guiGraphics.fill(relX + 4, relY + 4, relX + this.imageWidth - 4, relY + 18, 0xFF1E212B);
-        guiGraphics.renderOutline(relX + 4, relY + 4, this.imageWidth - 8, 14, 0xFF6A5328);
+        // 3. 顶部原版标题栏与红石金铆钉饰线
+        LotterySubModeRenderers.drawGroove(guiGraphics, relX + 7, relX + this.imageWidth - 7, relY + 18);
+        guiGraphics.fill(relX + 8, relY + 8, relX + 11, relY + 11, 0xFFB88324);
+        guiGraphics.fill(relX + 9, relY + 9, relX + 10, relY + 10, 0xFFDC2626);
+        guiGraphics.fill(relX + this.imageWidth - 11, relY + 8, relX + this.imageWidth - 8, relY + 11, 0xFFB88324);
+        guiGraphics.fill(relX + this.imageWidth - 10, relY + 9, relX + this.imageWidth - 9, relY + 10, 0xFFDC2626);
 
         Component titleComp = switch (this.clientSelectedTab) {
             case 1 -> Component.translatable("gui.universal_tool.lottery.title.wheel");
@@ -400,19 +401,18 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
             default -> Component.translatable("gui.universal_tool.lottery.title.dice");
         };
         int titleW = this.font.width(titleComp);
-        guiGraphics.drawString(this.font, titleComp, relX + (this.imageWidth - titleW) / 2, relY + 7, 0xFFFDE047, false);
+        guiGraphics.drawString(this.font, titleComp, relX + (this.imageWidth - titleW) / 2, relY + 6, LotterySubModeRenderers.COLOR_LABEL, false);
 
-        // 4. 左侧输入槽
+        // 4. 左侧输入槽 (18x18 #8B8B8B 凹陷槽)
         int inX = relX + UniversalLotteryMachineMenu.INPUT_SLOT_X - 1;
         int inY = relY + UniversalLotteryMachineMenu.INPUT_SLOT_Y - 1;
-        guiGraphics.fill(inX, inY, inX + 20, inY + 20, 0xFF0A0C12);
-        guiGraphics.renderOutline(inX, inY, 20, 20, 0xFFD4AF37);
+        LotterySubModeRenderers.drawMcSlot(guiGraphics, inX, inY);
 
         // 输入槽上方标签居中对齐于槽位中线 (relX + 29)
         Component slotLabel = Component.translatable(this.clientSelectedTab == 0
                 ? "gui.universal_tool.lottery.slot_label.dice"
                 : "gui.universal_tool.lottery.slot_label.bet");
-        guiGraphics.drawString(this.font, slotLabel, relX + 29 - this.font.width(slotLabel) / 2, relY + 34, 0xFFE0E0E0, false);
+        guiGraphics.drawString(this.font, slotLabel, relX + 29 - this.font.width(slotLabel) / 2, relY + 34, LotterySubModeRenderers.COLOR_LABEL, false);
 
         // 5. 根据所选标签渲染左侧附属控制
         renderLeftSlotControls(guiGraphics, relX, relY, inX, inY, mouseX, mouseY);
@@ -429,25 +429,25 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
                     this.diceRotX, this.diceRotY, this.diceRotZ, getCurrentDisplayOdds());
         }
 
-        // 7. 右侧奖励槽位
+        // 7. 右侧金边奖励槽位
         int outX = relX + UniversalLotteryMachineMenu.OUTPUT_SLOT_X - 1;
         int outY = relY + UniversalLotteryMachineMenu.OUTPUT_SLOT_Y - 1;
-        guiGraphics.fill(outX, outY, outX + 20, outY + 20, 0xFF0F0A1C);
-        guiGraphics.renderOutline(outX, outY, 20, 20, 0xFFFACC15);
+        LotterySubModeRenderers.drawGoldTrimSlot(guiGraphics, outX, outY);
 
         // 奖励标签居中对齐于槽位中线 (relX + 167)
         Component rewardLabel = Component.translatable("gui.universal_tool.lottery.slot_label.reward");
-        guiGraphics.drawString(this.font, rewardLabel, relX + 167 - this.font.width(rewardLabel) / 2, relY + 34, 0xFFFFE082, false);
+        guiGraphics.drawString(this.font, rewardLabel, relX + 167 - this.font.width(rewardLabel) / 2, relY + 34, LotterySubModeRenderers.COLOR_LABEL, false);
 
         // 8. 右侧操作核心按钮 (ROLL / SPIN / PULL)
         renderActionButton(guiGraphics, relX, relY, mouseX, mouseY);
 
-        // 9. 玩家背包与快捷栏 (居中对齐)
+        // 9. 分割凹槽与玩家背包网格
+        LotterySubModeRenderers.drawGroove(guiGraphics, relX + 7, relX + this.imageWidth - 7, relY + 120);
         renderPlayerInventoryGrid(guiGraphics, relX, relY);
     }
 
     /**
-     * 绘制左侧外突的 3 个玩法切换标签
+     * 绘制左侧外突的 3 个原版配方书风格玩法切换标签
      */
     private void renderModeTabs(GuiGraphics guiGraphics, int relX, int relY, int mouseX, int mouseY) {
         Component[] tabNames = new Component[]{
@@ -464,19 +464,25 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
             boolean isActive = (this.clientSelectedTab == i);
             boolean isHovered = mouseX >= tabX && mouseX < relX && mouseY >= tabY && mouseY <= tabY + tabH;
 
-            int bgColor = isActive ? 0xFF2A154A : (isHovered ? 0xFF1C1E2B : 0xFF12141D);
-            int borderColor = isActive ? 0xFFFACC15 : (isHovered ? 0xFF9CA3AF : 0xFF4B5563);
+            int bg = isActive ? LotterySubModeRenderers.COLOR_PANEL : (isHovered ? 0xFFB0B0B0 : 0xFF9A9A9A);
+            int hi = isActive ? LotterySubModeRenderers.COLOR_WHITE : 0xFFDCDCDC;
+            int sh = LotterySubModeRenderers.COLOR_SHADOW;
 
-            guiGraphics.fill(tabX, tabY, relX, tabY + tabH, bgColor);
-            guiGraphics.renderOutline(tabX, tabY, tabW, tabH, borderColor);
+            guiGraphics.fill(tabX, tabY, relX + (isActive ? 3 : 0), tabY + tabH, 0xFF000000);
+            guiGraphics.fill(tabX + 1, tabY + 1, relX + (isActive ? 3 : 0), tabY + tabH - 1, bg);
+            guiGraphics.fill(tabX + 1, tabY + 1, relX + (isActive ? 2 : 0), tabY + 2, hi);
+            guiGraphics.fill(tabX + 1, tabY + 1, tabX + 2, tabY + tabH - 1, hi);
+            guiGraphics.fill(tabX + 1, tabY + tabH - 2, relX + (isActive ? 2 : 0), tabY + tabH - 1, sh);
+
             if (isActive) {
-                guiGraphics.fill(relX - 1, tabY + 1, relX + 1, tabY + tabH - 1, bgColor);
+                guiGraphics.fill(tabX + 2, tabY + 4, tabX + 4, tabY + tabH - 4, 0xFFD97706);
+                guiGraphics.fill(tabX + 2, tabY + 11, tabX + 4, tabY + 15, 0xFFDC2626);
             }
 
-            int textColor = isActive ? 0xFFFFFFFF : (isHovered ? 0xFFE2E8F0 : 0xFF94A3B8);
-            int tx = tabX + (tabW - this.font.width(tabNames[i])) / 2;
-            int ty = tabY + (tabH - 9) / 2;
-            guiGraphics.drawString(this.font, tabNames[i], tx, ty, textColor, true);
+            int textColor = isActive ? LotterySubModeRenderers.COLOR_LABEL : (isHovered ? 0xFF2B2B2B : 0xFF3E3E3E);
+            int tx = tabX + 2 + (tabW - 2 - this.font.width(tabNames[i])) / 2;
+            int ty = tabY + (tabH - 8) / 2;
+            guiGraphics.drawString(this.font, tabNames[i], tx, ty, textColor, false);
         }
     }
 
@@ -491,11 +497,10 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
             if (hasItem && currentPoints > 0) {
                 String shortPts = currentPoints >= 100000L ? (currentPoints / 1000L + "k") : String.valueOf(currentPoints);
                 int ptsW = this.font.width(shortPts);
-                int boxW = Math.max(22, ptsW + 4);
-                int boxX = inX + 10 - boxW / 2;
-                guiGraphics.fill(boxX, inY + 22, boxX + boxW, inY + 32, 0xEE0F131C);
-                guiGraphics.renderOutline(boxX, inY + 22, boxW, 10, 0xFF6A5328);
-                guiGraphics.drawString(this.font, shortPts, inX + 10 - ptsW / 2, inY + 23, 0xFFFACC15, false);
+                int boxW = Math.max(22, ptsW + 6);
+                int boxX = inX + 9 - boxW / 2;
+                LotterySubModeRenderers.drawOakPlaque(guiGraphics, boxX, inY + 22, boxW, 11);
+                guiGraphics.drawString(this.font, shortPts, inX + 9 - ptsW / 2, inY + 23, 0xFFFACC15, true);
             }
 
             LotteryValuator.RarityTier currentTier = this.menu.getTier();
@@ -517,21 +522,20 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
             boolean hoverMinus = mouseX >= minusX && mouseX <= minusX + 12 && mouseY >= btnY && mouseY <= btnY + 12;
             boolean hoverPlus = mouseX >= plusX && mouseX <= plusX + 12 && mouseY >= btnY && mouseY <= btnY + 12;
 
-            guiGraphics.fill(minusX, btnY, minusX + 12, btnY + 12, hoverMinus ? 0xFF4B5563 : 0xFF1F2937);
-            guiGraphics.renderOutline(minusX, btnY, 12, 12, 0xFFD4AF37);
-            guiGraphics.drawString(this.font, "-", minusX + 4, btnY + 2, 0xFFFFFFFF, false);
+            LotterySubModeRenderers.drawMcButton(guiGraphics, minusX, btnY, 12, 12, hoverMinus, true, false);
+            guiGraphics.drawString(this.font, "-", minusX + 4, btnY + 2, hoverMinus ? 0xFFFFFFA0 : 0xFFFFFFFF, true);
 
             String betStr = "×" + this.clientWheelBet;
-            guiGraphics.drawString(this.font, betStr, relX + 29 - this.font.width(betStr) / 2, btnY + 2, 0xFFFACC15, false);
+            guiGraphics.drawString(this.font, betStr, relX + 29 - this.font.width(betStr) / 2, btnY + 2, LotterySubModeRenderers.COLOR_LABEL, false);
 
-            guiGraphics.fill(plusX, btnY, plusX + 12, btnY + 12, hoverPlus ? 0xFF4B5563 : 0xFF1F2937);
-            guiGraphics.renderOutline(plusX, btnY, 12, 12, 0xFFD4AF37);
-            guiGraphics.drawString(this.font, "+", plusX + 3, btnY + 2, 0xFFFFFFFF, false);
+            LotterySubModeRenderers.drawMcButton(guiGraphics, plusX, btnY, 12, 12, hoverPlus, true, false);
+            guiGraphics.drawString(this.font, "+", plusX + 3, btnY + 2, hoverPlus ? 0xFFFFFFA0 : 0xFFFFFFFF, true);
 
-            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.wheel.odds_common"), relX + 6, relY + 83, 0xFF94A3B8, false);
-            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.wheel.odds_rare"), relX + 6, relY + 92, 0xFF38BDF8, false);
-            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.wheel.odds_epic"), relX + 6, relY + 101, 0xFFC084FC, false);
-            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.wheel.odds_legend"), relX + 6, relY + 110, 0xFFFBBF24, false);
+            LotterySubModeRenderers.drawOakPlaque(guiGraphics, relX + 4, relY + 80, 62, 40);
+            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.wheel.odds_common"), relX + 6, relY + 83, 0xFF94A3B8, true);
+            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.wheel.odds_rare"), relX + 6, relY + 92, 0xFF38BDF8, true);
+            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.wheel.odds_epic"), relX + 6, relY + 101, 0xFFC084FC, true);
+            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.wheel.odds_legend"), relX + 6, relY + 110, 0xFFFBBF24, true);
         } else {
             int[] mults = new int[]{1, 2, 5};
             int btnY = inY + 23;
@@ -541,20 +545,18 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
                 boolean selected = (this.clientSlotMultiplier == m);
                 boolean hovered = mouseX >= bx && mouseX <= bx + 14 && mouseY >= btnY && mouseY <= btnY + 13;
 
-                int color = selected ? 0xFF7C3AED : (hovered ? 0xFF374151 : 0xFF1F2937);
-                int border = selected ? 0xFFFACC15 : 0xFF4B5563;
-
-                guiGraphics.fill(bx, btnY, bx + 14, btnY + 13, color);
-                guiGraphics.renderOutline(bx, btnY, 14, 13, border);
+                LotterySubModeRenderers.drawMcButton(guiGraphics, bx, btnY, 14, 13, hovered, true, selected);
 
                 String label = m + "x";
                 int tx = bx + (14 - this.font.width(label)) / 2;
-                guiGraphics.drawString(this.font, label, tx, btnY + 3, selected ? 0xFFFFFFFF : 0xFF9CA3AF, false);
+                int labelColor = selected ? 0xFFFFFFFF : (hovered ? 0xFFFFFFA0 : 0xFFE0E0E0);
+                guiGraphics.drawString(this.font, label, tx, btnY + 3, labelColor, true);
             }
 
-            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.slot.rule_3"), relX + 6, relY + 85, 0xFFE879F9, false);
-            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.slot.rule_2"), relX + 6, relY + 96, 0xFFFDE047, false);
-            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.slot.rule_1"), relX + 6, relY + 107, 0xFF94A3B8, false);
+            LotterySubModeRenderers.drawOakPlaque(guiGraphics, relX + 4, relY + 82, 48, 36);
+            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.slot.rule_3"), relX + 6, relY + 85, 0xFFE879F9, true);
+            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.slot.rule_2"), relX + 6, relY + 96, 0xFFFDE047, true);
+            guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.slot.rule_1"), relX + 6, relY + 107, 0xFFCBD5E1, true);
         }
     }
 
@@ -571,11 +573,7 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
         boolean canRoll = this.menu.canRoll(this.clientSelectedTab, bet);
         boolean hovered = mouseX >= btnX && mouseX <= btnX + btnW && mouseY >= btnY && mouseY <= btnY + btnH;
 
-        int btnColor = canRoll ? (hovered ? 0xFFF59E0B : 0xFFD97706) : 0xFF4B5563;
-        int btnBorder = canRoll ? 0xFFFDE68A : 0xFF374151;
-
-        guiGraphics.fill(btnX, btnY, btnX + btnW, btnY + btnH, btnColor);
-        guiGraphics.renderOutline(btnX, btnY, btnW, btnH, btnBorder);
+        LotterySubModeRenderers.drawMcButton(guiGraphics, btnX, btnY, btnW, btnH, hovered, canRoll, canRoll);
 
         Component btnLabel;
         if (this.menu.isRolling()) {
@@ -590,10 +588,10 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
             };
         }
 
-        int labelColor = canRoll ? 0xFFFFFFFF : 0xFF9CA3AF;
+        int labelColor = canRoll ? (hovered ? 0xFFFFFFA0 : 0xFFFFFFFF) : 0xFFA0A0A0;
         guiGraphics.drawString(this.font, btnLabel, btnX + (btnW - this.font.width(btnLabel)) / 2, btnY + 8, labelColor, true);
 
-        // 消耗提示 (位于按钮正下方，字色温润清晰)
+        // 消耗提示 (位于按钮正下方)
         if (this.clientSelectedTab != 0) {
             Component costText = Component.translatable(
                     (this.clientSelectedTab == 2 && bet > 1)
@@ -601,30 +599,28 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
                             : "gui.universal_tool.lottery.cost.exact",
                     bet);
             int cw = this.font.width(costText);
-            guiGraphics.drawString(this.font, costText, btnX + (btnW - cw) / 2, btnY + 26, 0xFF94A3B8, false);
+            guiGraphics.drawString(this.font, costText, btnX + (btnW - cw) / 2, btnY + 26, LotterySubModeRenderers.COLOR_LABEL, false);
         }
     }
 
     /**
-     * 绘制玩家背包与快捷栏网格
+     * 绘制玩家背包与快捷栏网格 (标准 18x18 #8B8B8B 凹陷槽)
      */
     private void renderPlayerInventoryGrid(GuiGraphics guiGraphics, int relX, int relY) {
-        guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.inventory"), relX + 17, relY + 124, 0xFF9E9E9E, false);
+        guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.inventory"), relX + 17, relY + 124, LotterySubModeRenderers.COLOR_LABEL, false);
 
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                int sx = relX + 17 + col * 18;
-                int sy = relY + 134 + row * 18;
-                guiGraphics.fill(sx, sy, sx + 16, sy + 16, 0xFF181B24);
-                guiGraphics.renderOutline(sx - 1, sy - 1, 18, 18, 0xFF374151);
+                int sx = relX + 16 + col * 18;
+                int sy = relY + 133 + row * 18;
+                LotterySubModeRenderers.drawMcSlot(guiGraphics, sx, sy);
             }
         }
 
         for (int col = 0; col < 9; col++) {
-            int sx = relX + 17 + col * 18;
-            int sy = relY + 192;
-            guiGraphics.fill(sx, sy, sx + 16, sy + 16, 0xFF181B24);
-            guiGraphics.renderOutline(sx - 1, sy - 1, 18, 18, 0xFF374151);
+            int sx = relX + 16 + col * 18;
+            int sy = relY + 191;
+            LotterySubModeRenderers.drawMcSlot(guiGraphics, sx, sy);
         }
     }
 
