@@ -79,7 +79,8 @@ public final class ClientPayloadHandlers {
 
     public static void handlePersonalSpaceScreen(PersonalSpaceScreenPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> ClientScreens.openPersonalSpace(
-                payload.gatePos(), payload.mode(), payload.ownerName(), payload.environmentId()));
+                payload.gatePos(), payload.mode(), payload.ownerName(),
+                payload.environmentId(), payload.spaceDimension()));
     }
 
     public static void handlePersonalSpaceResult(PersonalSpaceResultPayload payload, IPayloadContext context) {

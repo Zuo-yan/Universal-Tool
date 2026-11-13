@@ -90,6 +90,96 @@ public class PhotoManager {
         }
     }
 
+    public static String spacePhotoId(String dimensionPath) {
+        if (dimensionPath == null || dimensionPath.isEmpty()) {
+            return "";
+        }
+        String sanitized = dimensionPath.toLowerCase(java.util.Locale.ROOT)
+                .replace('/', '_')
+                .replaceAll("[^a-z0-9_.-]", "_");
+        return sanitizePhotoId("space_" + sanitized + ".png");
+    }
+
+    public static ResourceLocation getOrLoadSpaceSnapshot(String dimensionPath) {
+        String photoId = spacePhotoId(dimensionPath);
+        return photoId.isEmpty() ? null : getOrLoadTexture(photoId);
+    }
+
+    public static boolean captureSpaceSnapshot(String dimensionPath, int outWidth, int outHeight) {
+        String photoId = spacePhotoId(dimensionPath);
+        if (photoId.isEmpty()) return false;
+        Path savePath = resolveSafePhotoPath(photoId);
+        if (savePath == null) return false;
+        if (!capturePanoramicToFile(savePath, outWidth, outHeight)) return false;
+        ResourceLocation old = TEXTURE_CACHE.remove(photoId);
+        if (old != null) {
+            Minecraft.getInstance().getTextureManager().release(old);
+        }
+        return true;
+    }
+
+    /**
+     * Captures the center panoramic slice of the main framebuffer matching {@code outWidth:outHeight}
+     * and box-downsamples it directly to {@code outputPath}.
+     */
+    public static boolean capturePanoramicToFile(Path outputPath, int outWidth, int outHeight) {
+        Minecraft mc = Minecraft.getInstance();
+        RenderTarget target = mc.getMainRenderTarget();
+        if (target == null || target.width <= 0 || target.height <= 0 || outWidth <= 0 || outHeight <= 0) {
+            return false;
+        }
+        try (NativeImage full = new NativeImage(target.width, target.height, false)) {
+            RenderSystem.bindTexture(target.getColorTextureId());
+            full.downloadTexture(0, false);
+            full.flipY();
+
+            int srcWidth = full.getWidth();
+            int srcHeight = full.getHeight();
+            int cropW = srcWidth;
+            int cropH = Math.round(cropW * (float) outHeight / outWidth);
+            if (cropH > srcHeight) {
+                cropH = srcHeight;
+                cropW = Math.round(cropH * (float) outWidth / outHeight);
+            }
+            int cropX = Math.max(0, (srcWidth - cropW) / 2);
+            int cropY = Math.max(0, (srcHeight - cropH) / 2);
+
+            Files.createDirectories(outputPath.toAbsolutePath().normalize().getParent());
+            try (NativeImage out = new NativeImage(outWidth, outHeight, false)) {
+                for (int ty = 0; ty < outHeight; ty++) {
+                    int sy0 = cropY + (ty * cropH) / outHeight;
+                    int sy1 = Math.max(sy0 + 1, cropY + ((ty + 1) * cropH) / outHeight);
+                    sy1 = Math.min(srcHeight, sy1);
+                    for (int tx = 0; tx < outWidth; tx++) {
+                        int sx0 = cropX + (tx * cropW) / outWidth;
+                        int sx1 = Math.max(sx0 + 1, cropX + ((tx + 1) * cropW) / outWidth);
+                        sx1 = Math.min(srcWidth, sx1);
+                        long sumC0 = 0, sumC1 = 0, sumC2 = 0;
+                        int count = 0;
+                        for (int sy = sy0; sy < sy1; sy++) {
+                            for (int sx = sx0; sx < sx1; sx++) {
+                                int rgba = full.getPixelRGBA(sx, sy);
+                                sumC0 += rgba & 0xFF;
+                                sumC1 += (rgba >>> 8) & 0xFF;
+                                sumC2 += (rgba >>> 16) & 0xFF;
+                                count++;
+                            }
+                        }
+                        int c0 = (int) (sumC0 / count);
+                        int c1 = (int) (sumC1 / count);
+                        int c2 = (int) (sumC2 / count);
+                        out.setPixelRGBA(tx, ty, (0xFF << 24) | (c2 << 16) | (c1 << 8) | c0);
+                    }
+                }
+                out.writeToFile(outputPath);
+            }
+            return true;
+        } catch (Exception e) {
+            UniversalToolMod.LOGGER.warn("Failed to capture panoramic screenshot {}", outputPath, e);
+            return false;
+        }
+    }
+
     public static ResourceLocation getOrLoadTexture(String photoId) {
         String safeId = sanitizePhotoId(photoId);
         if (safeId.isEmpty()) return null;

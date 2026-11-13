@@ -11,10 +11,11 @@ import org.gwfx.universaltool.UniversalToolMod;
 /**
  * Opens the gate terminal on the client.
  *
- * <p>Carries the owner's display name and the landscape behind the gate so the VISIT page can show
- * the visitor where they are about to go. Both are empty for a gate whose base does not exist yet.
+ * <p>Carries the owner's display name, the landscape behind the gate, and the space dimension path
+ * so the VISIT / CHANGE_PASSWORD pages can show a live local snapshot or the realm preview.
  */
-public record PersonalSpaceScreenPayload(BlockPos gatePos, int mode, String ownerName, String environmentId)
+public record PersonalSpaceScreenPayload(BlockPos gatePos, int mode, String ownerName,
+                                         String environmentId, String spaceDimension)
         implements CustomPacketPayload {
     public static final Type<PersonalSpaceScreenPayload> TYPE = new Type<>(
             ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "personal_space_screen"));
@@ -23,10 +24,15 @@ public record PersonalSpaceScreenPayload(BlockPos gatePos, int mode, String owne
             ByteBufCodecs.VAR_INT, PersonalSpaceScreenPayload::mode,
             ByteBufCodecs.STRING_UTF8, PersonalSpaceScreenPayload::ownerName,
             ByteBufCodecs.STRING_UTF8, PersonalSpaceScreenPayload::environmentId,
+            ByteBufCodecs.STRING_UTF8, PersonalSpaceScreenPayload::spaceDimension,
             PersonalSpaceScreenPayload::new);
 
     public PersonalSpaceScreenPayload(BlockPos gatePos, int mode) {
-        this(gatePos, mode, "", "");
+        this(gatePos, mode, "", "", "");
+    }
+
+    public PersonalSpaceScreenPayload(BlockPos gatePos, int mode, String ownerName, String environmentId) {
+        this(gatePos, mode, ownerName, environmentId, "");
     }
 
     @Override

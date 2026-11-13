@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.0 - 2026-11-13
+- **Reference-Aligned Universal Tools & Klein Bottle (`64×64`)**:
+  - Redrew all 6 `{wooden,stone,iron,golden,diamond,netherite}_universal_tool.png` sprites at `64×64` following the upright symmetrical cross-halberd reference silhouette (top diamond-spade spadehead, left pickaxe head, right axe blade, central core gem, brown leather-wrapped grip, and bottom dagger pommel) and updated `models/item/*_universal_tool.json` display transforms for upright GUI framing.
+  - Redrew `klein_bottle.png` at `64×64` as a translucent crystal-glass looping Klein Bottle with dark collared junctions, cyan crystal rivets, and a crystal-inlaid base ring.
+- **Star Gate Real-World Previews & Live Base Snapshots**:
+  - Enlarged `PersonalSpaceScreen`'s brass-framed viewport (`64px` high) and rendered crisp real Minecraft in-game panoramic screenshots (`textures/gui/previews/env_*.png`) for all 8 `PrivateSpaceEnvironment` realms, auto-captured via `PrivateIslandVisualTest` (`runIslandVisual`).
+  - Added `PersonalSpaceSnapshotHandler` + `PhotoManager` base-snapshot persistence so visiting or managing an existing private dimension displays the player's own captured base scene first and cleanly falls back to the selected realm's real-world screenshot.
+
 ## 1.7.0 - 2026-11-13
 
 - **Arcane Brass & Illuminated Parchment Overhaul (Create / Ars Nouveau Aesthetic)**:

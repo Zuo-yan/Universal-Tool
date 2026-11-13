@@ -72,9 +72,11 @@ public final class PrivateSpaceManager {
         Optional<PersonalSpaceSavedData.SpaceRecord> space = data.getSpace(owner);
         if (owner.equals(player.getUUID())) {
             if (space.isEmpty()) {
-                openScreen(player, gate.getBlockPos(), ACTION_CREATE);
+                openScreen(player, gate.getBlockPos(), ACTION_CREATE, player.getName().getString(), "", "");
             } else if (sneaking) {
-                openScreen(player, gate.getBlockPos(), ACTION_CHANGE_PASSWORD);
+                PersonalSpaceSavedData.SpaceRecord record = space.get();
+                openScreen(player, gate.getBlockPos(), ACTION_CHANGE_PASSWORD,
+                        player.getName().getString(), record.environment().id(), record.dimension().getPath());
             } else {
                 enterSpace(player, space.get());
             }
@@ -85,11 +87,30 @@ public final class PrivateSpaceManager {
             player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.not_created"), true);
             return;
         }
-        openScreen(player, gate.getBlockPos(), ACTION_VISIT);
+        PersonalSpaceSavedData.SpaceRecord record = space.get();
+        openScreen(player, gate.getBlockPos(), ACTION_VISIT,
+                resolveOwnerName(player.server, owner), record.environment().id(), record.dimension().getPath());
     }
 
-    private static void openScreen(ServerPlayer player, BlockPos gatePos, int mode) {
-        PacketDistributor.sendToPlayer(player, new PersonalSpaceScreenPayload(gatePos, mode));
+    private static String resolveOwnerName(MinecraftServer server, UUID owner) {
+        ServerPlayer online = server.getPlayerList().getPlayer(owner);
+        if (online != null) {
+            return online.getName().getString();
+        }
+        var cache = server.getProfileCache();
+        if (cache != null) {
+            var profile = cache.get(owner);
+            if (profile.isPresent()) {
+                return profile.get().getName();
+            }
+        }
+        return "";
+    }
+
+    private static void openScreen(ServerPlayer player, BlockPos gatePos, int mode,
+                                   String ownerName, String environmentId, String spaceDimension) {
+        PacketDistributor.sendToPlayer(player,
+                new PersonalSpaceScreenPayload(gatePos, mode, ownerName, environmentId, spaceDimension));
     }
 
     public static void handleAction(ServerPlayer player, PersonalSpaceActionPayload payload) {
@@ -244,7 +265,7 @@ public final class PrivateSpaceManager {
         return new NoiseBasedChunkGenerator(new FixedBiomeSource(biome), settings);
     }
 
-    private static DimensionType copyDimensionType(DimensionType source) {
+    public static DimensionType copyDimensionType(DimensionType source) {
         return new DimensionType(source.fixedTime(), source.hasSkyLight(), source.hasCeiling(), source.ultraWarm(),
                 source.natural(), source.coordinateScale(), source.bedWorks(), source.respawnAnchorWorks(),
                 source.minY(), source.height(), source.logicalHeight(), source.infiniburn(), source.effectsLocation(),

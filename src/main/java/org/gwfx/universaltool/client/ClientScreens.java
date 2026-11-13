@@ -13,7 +13,12 @@ public final class ClientScreens {
         Minecraft.getInstance().setScreen(new SkillScreen());
     }
     public static void openPersonalSpace(BlockPos gatePos, int mode, String ownerName, String environmentId) {
-        Minecraft.getInstance().setScreen(new PersonalSpaceScreen(gatePos, mode, ownerName, environmentId));
+        openPersonalSpace(gatePos, mode, ownerName, environmentId, "");
+    }
+    public static void openPersonalSpace(BlockPos gatePos, int mode, String ownerName,
+                                         String environmentId, String spaceDimension) {
+        Minecraft.getInstance().setScreen(new PersonalSpaceScreen(
+                gatePos, mode, ownerName, environmentId, spaceDimension));
     }
 
     /**

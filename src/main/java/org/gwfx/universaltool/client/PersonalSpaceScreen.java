@@ -15,7 +15,6 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.network.PersonalSpaceActionPayload;
 import org.gwfx.universaltool.network.PersonalSpaceResultPayload;
 import org.gwfx.universaltool.space.PrivateSpaceEnvironment;
-import org.gwfx.universaltool.space.PrivateSpaceEnvironment.Prototype;
 import org.gwfx.universaltool.space.PrivateSpaceRules;
 
 /**
@@ -44,17 +43,17 @@ public class PersonalSpaceScreen extends Screen {
     /** Distance from the panel edge to the form controls. */
     private static final int MARGIN = 24;
     private static final int CONTENT_WIDTH = PANEL_WIDTH - MARGIN * 2;
-    private static final int FIELD_HEIGHT = 20;
+    private static final int FIELD_HEIGHT = 19;
     /**
      * An {@link EditBox} places its text at its own origin when borderless, so it is inset by these
      * amounts to sit inside the frame {@code drawInputFrame} paints around the same rectangle.
      */
-    private static final int FIELD_TEXT_INSET_Y = 6;
+    private static final int FIELD_TEXT_INSET_Y = 5;
     private static final int FIELD_TEXT_INSET_X = 6;
 
     /**
-     * The panel texture owns the band above row 51 and the separators at rows 50..51 and 200..201,
-     * so the form well is rows 56..200 and the two buttons sit below it at 210..230.
+     * The panel texture owns the band above row 51 and the separators at rows 49..51 and 199..201,
+     * so the form well is rows 52..198 and the two buttons sit below it at 210..230.
      */
     private static final int BUTTON_Y = 210;
     private static final int BUTTON_HEIGHT = 20;
@@ -63,41 +62,41 @@ public class PersonalSpaceScreen extends Screen {
     /** Gap between a label's row and the top edge of its input frame. */
     private static final int LABEL_TO_FIELD = 10;
 
-    private static final int CHIP_SIZE = 26;
+    private static final int CHIP_SIZE = 24;
     private static final int CHIP_GAP = 5;
-    private static final int EMBLEM_SIZE = 22;
+    private static final int EMBLEM_SIZE = 20;
     private static final int CHIP_INSET = (CHIP_SIZE - EMBLEM_SIZE) / 2;
 
-    private static final int SILHOUETTE_HEIGHT = 12;
-
-    /**
-     * The two password fields share one row, label above each. Stacking them instead would not fit:
-     * CREATE needs 9+26+9+12+9 (heading, chips, name, silhouette, description) before the fields,
-     * and two stacked labelled rows plus a status line overflow the 144px well.
-     */
     private static final int FIELD_GAP = 8;
     private static final int FIELD_WIDTH = (CONTENT_WIDTH - FIELD_GAP) / 2;
 
-    // CREATE: heading, chip row, name, silhouette, description, the field pair, status line.
-    private static final int CREATE_HEADING_Y = 57;
-    private static final int CREATE_CHIP_Y = 69;
-    private static final int CREATE_NAME_Y = 98;
-    private static final int CREATE_SILHOUETTE_Y = 110;
-    private static final int CREATE_DESCRIPTION_Y = 128;
-    private static final int CREATE_PASSWORD_LABEL_Y = 143;
-    private static final int CREATE_STATUS_Y = 182;
+    private static final int PREVIEW_TEX_WIDTH = 544;
+    private static final int PREVIEW_TEX_HEIGHT = 136;
+    private static final int SNAPSHOT_TEX_WIDTH = 272;
+    private static final int SNAPSHOT_TEX_HEIGHT = 68;
 
-    // VISIT: one full-width field, a hint, and a status line.
-    private static final int VISIT_PASSWORD_LABEL_Y = 100;
-    private static final int VISIT_HINT_Y = 145;
-    private static final int VISIT_STATUS_Y = 162;
+    // CREATE: heading, chip row, realm name, 272x42 real-world viewport, description, field pair, status.
+    private static final int CREATE_HEADING_Y = 54;
+    private static final int CREATE_CHIP_Y = 64;
+    private static final int CREATE_NAME_Y = 90;
+    private static final int CREATE_PREVIEW_Y = 102;
+    private static final int CREATE_PREVIEW_HEIGHT = 42;
+    private static final int CREATE_DESCRIPTION_Y = 148;
+    private static final int CREATE_PASSWORD_LABEL_Y = 159;
+    private static final int CREATE_STATUS_Y = 190;
 
-    // CHANGE_PASSWORD: the same field pair as CREATE, and a status line. Both of these modes have
-    // far less content than CREATE, so their blocks are dropped to the well's optical centre.
-    private static final int CHANGE_PASSWORD_LABEL_Y = 100;
-    private static final int CHANGE_STATUS_Y = 145;
+    // VISIT & CHANGE_PASSWORD: 272x64 real-world viewport, realm info caption, password field(s), status.
+    private static final int REALM_PREVIEW_Y = 58;
+    private static final int REALM_PREVIEW_HEIGHT = 64;
+    private static final int REALM_INFO_Y = 127;
+    private static final int VISIT_PASSWORD_LABEL_Y = 140;
+    private static final int VISIT_HINT_Y = 173;
+    private static final int VISIT_STATUS_Y = 186;
+    private static final int CHANGE_PASSWORD_LABEL_Y = 143;
+    private static final int CHANGE_STATUS_Y = 180;
 
     private static final String EMBLEM_PATH = "textures/gui/environment_%s.png";
+    private static final String PREVIEW_PATH = "textures/gui/previews/env_%s.png";
     private static final ResourceLocation PANEL_TEXTURE = ResourceLocation.fromNamespaceAndPath(
             "universal_tool", "textures/gui/personal_space_panel.png");
 
@@ -113,6 +112,9 @@ public class PersonalSpaceScreen extends Screen {
 
     private final BlockPos gatePos;
     private final int mode;
+    private final String ownerName;
+    private final PrivateSpaceEnvironment realmEnvironment;
+    private final String spaceDimension;
     private PrivateSpaceEnvironment selectedEnvironment = PrivateSpaceEnvironment.SUPERFLAT;
     private EditBox password;
     private EditBox confirmation;
@@ -125,15 +127,23 @@ public class PersonalSpaceScreen extends Screen {
     private boolean submitting;
     private int submitTimeout;
 
-    // Compatibility with the owner-aware screen payload; the existing layout stays unchanged.
-    public PersonalSpaceScreen(BlockPos gatePos, int mode, String ownerName, String environmentId) {
-        this(gatePos, mode);
+    public PersonalSpaceScreen(BlockPos gatePos, int mode) {
+        this(gatePos, mode, "", "", "");
     }
 
-    public PersonalSpaceScreen(BlockPos gatePos, int mode) {
+    public PersonalSpaceScreen(BlockPos gatePos, int mode, String ownerName, String environmentId) {
+        this(gatePos, mode, ownerName, environmentId, "");
+    }
+
+    public PersonalSpaceScreen(BlockPos gatePos, int mode, String ownerName,
+                               String environmentId, String spaceDimension) {
         super(titleFor(mode));
         this.gatePos = gatePos;
         this.mode = mode;
+        this.ownerName = ownerName == null ? "" : ownerName;
+        PrivateSpaceEnvironment parsed = PrivateSpaceEnvironment.byId(environmentId);
+        this.realmEnvironment = parsed != null ? parsed : PrivateSpaceEnvironment.SUPERFLAT;
+        this.spaceDimension = spaceDimension == null ? "" : spaceDimension;
     }
 
     private static Component titleFor(int mode) {
@@ -344,7 +354,8 @@ public class PersonalSpaceScreen extends Screen {
         // The chip row itself is drawn by EnvironmentChip, which is registered as a renderable widget.
         drawCentered(graphics, selectedEnvironment.displayName(),
                 x + PANEL_WIDTH / 2, y + CREATE_NAME_Y, COLOR_TITLE);
-        drawSilhouette(graphics, x + MARGIN, y + CREATE_SILHOUETTE_Y, CONTENT_WIDTH, SILHOUETTE_HEIGHT, selectedEnvironment);
+        drawPreviewViewport(graphics, x + MARGIN, y + CREATE_PREVIEW_Y, CONTENT_WIDTH, CREATE_PREVIEW_HEIGHT,
+                realmPreviewTexture(selectedEnvironment), PREVIEW_TEX_WIDTH, PREVIEW_TEX_HEIGHT, false);
         drawCentered(graphics,
                 Component.translatable("screen.universal_tool.personal_space.environment_" + selectedEnvironment.id()),
                 x + PANEL_WIDTH / 2, y + CREATE_DESCRIPTION_Y, COLOR_HINT);
@@ -352,6 +363,7 @@ public class PersonalSpaceScreen extends Screen {
     }
 
     private void renderVisit(GuiGraphics graphics, int x, int y) {
+        renderRealmHeaderViewport(graphics, x, y);
         label(graphics, "password_label", x + MARGIN, y + VISIT_PASSWORD_LABEL_Y);
         drawInputFrame(graphics, x + MARGIN, y + VISIT_PASSWORD_LABEL_Y + LABEL_TO_FIELD,
                 CONTENT_WIDTH, FIELD_HEIGHT, password.isFocused(), passwordInvalid);
@@ -360,7 +372,25 @@ public class PersonalSpaceScreen extends Screen {
     }
 
     private void renderChangePassword(GuiGraphics graphics, int x, int y) {
+        renderRealmHeaderViewport(graphics, x, y);
         drawFieldPair(graphics, x, y, CHANGE_PASSWORD_LABEL_Y);
+    }
+
+    private void renderRealmHeaderViewport(GuiGraphics graphics, int x, int y) {
+        ResourceLocation snapshot = spaceDimension.isEmpty() ? null : PhotoManager.getOrLoadSpaceSnapshot(spaceDimension);
+        boolean live = snapshot != null;
+        ResourceLocation texture = live ? snapshot : realmPreviewTexture(realmEnvironment);
+        int texW = live ? SNAPSHOT_TEX_WIDTH : PREVIEW_TEX_WIDTH;
+        int texH = live ? SNAPSHOT_TEX_HEIGHT : PREVIEW_TEX_HEIGHT;
+        drawPreviewViewport(graphics, x + MARGIN, y + REALM_PREVIEW_Y, CONTENT_WIDTH, REALM_PREVIEW_HEIGHT,
+                texture, texW, texH, live);
+
+        Component envLine = Component.translatable("screen.universal_tool.personal_space.environment",
+                realmEnvironment.displayName());
+        Component caption = ownerName.isEmpty()
+                ? envLine
+                : Component.literal(ownerName + " · ").append(envLine);
+        drawCentered(graphics, caption, x + PANEL_WIDTH / 2, y + REALM_INFO_Y, COLOR_TITLE);
     }
 
     /** The password/confirmation pair, which shares one row so both fit above the status line. */
@@ -412,128 +442,49 @@ public class PersonalSpaceScreen extends Screen {
         graphics.fill(x + 1, y + 1, x + width - 1, y + 2, 0xFF17100B);
     }
 
-    // ------------------------------------------------------------- silhouette
+    // --------------------------------------------------------- real-world viewport
 
-    /** A one-pixel-wide slice of the terrain profile, or {@code null} where there is no ground. */
-    private record Slice(float top, float bottom) {}
+    private static ResourceLocation realmPreviewTexture(PrivateSpaceEnvironment environment) {
+        return ResourceLocation.fromNamespaceAndPath("universal_tool", PREVIEW_PATH.formatted(environment.id()));
+    }
 
     /**
-     * A side view of the landscape, drawn from the same {@link Prototype} the generator uses so the
-     * preview cannot drift away from what the player actually gets. Purely decorative: it reads no
-     * world state and no seed.
+     * Renders a burnished-brass framed panoramic world viewport showing either a live local player
+     * snapshot or the authentic pre-captured realm preview.
      */
-    private void drawSilhouette(GuiGraphics graphics, int x, int y, int width, int height,
-                                PrivateSpaceEnvironment environment) {
-        // Burnished brass & walnut miniature landscape diorama frame.
+    private void drawPreviewViewport(GuiGraphics graphics, int x, int y, int width, int height,
+                                     ResourceLocation texture, int texWidth, int texHeight, boolean liveSnapshot) {
+        // Burnished brass & walnut miniature landscape frame.
         graphics.fill(x - 2, y - 2, x + width + 2, y + height + 2, 0xFF2A1C12);
         graphics.fill(x - 1, y - 1, x + width + 1, y + height + 1, 0xFF9E7330);
         graphics.fill(x - 1, y - 1, x + width + 1, y, 0xFFD6A84E);
         graphics.fill(x - 1, y - 1, x, y + height + 1, 0xFFD6A84E);
         graphics.fill(x, y + height, x + width + 1, y + height + 1, 0xFF5C4028);
         graphics.fill(x + width, y, x + width + 1, y + height + 1, 0xFF5C4028);
+        graphics.fill(x, y, x + width, y + height, 0xFF140E09);
 
-        Prototype prototype = environment.profile().prototype();
-        int skyTop = silhouetteSkyTop(prototype);
-        int skyHorizon = silhouetteSkyHorizon(prototype);
-        graphics.fill(x, y, x + width, y + height / 2, skyTop);
-        graphics.fill(x, y + height / 2, x + width, y + height, skyHorizon);
+        float srcH = texWidth * ((float) height / width);
+        float vOffset = Math.max(0.0F, (texHeight - srcH) * 0.5F);
+        int vHeight = Math.max(1, Math.min(texHeight, Math.round(srcH)));
+        graphics.blit(texture, x, y, width, height, 0.0F, vOffset, texWidth, vHeight, texWidth, texHeight);
 
-        int baseline = y + height - 1;
-        int bodyColor = silhouetteBodyColor(prototype);
-        int topColor = silhouetteTopColor(prototype);
-        for (int column = 0; column < width; column++) {
-            Slice slice = silhouetteSlice((float) column / (width - 1), prototype);
-            if (slice == null) continue;
-            int sliceTop = y + Math.round(slice.top() * (height - 1));
-            int sliceBottom = y + Math.round(slice.bottom() * (height - 1));
-            sliceTop = Math.max(y, Math.min(sliceTop, baseline));
-            sliceBottom = Math.max(sliceTop + 1, Math.min(sliceBottom, baseline));
-            graphics.fill(x + column, sliceTop, x + column + 1, sliceBottom, bodyColor);
-            graphics.fill(x + column, sliceTop, x + column + 1, Math.min(sliceTop + 2, sliceBottom), topColor);
+        // Subtle inner shadow at top & bottom edges for recessed depth.
+        graphics.fill(x, y, x + width, y + 2, 0x40000000);
+        graphics.fill(x, y + height - 2, x + width, y + height, 0x48000000);
+
+        // Compact dimension tag in bottom-right corner.
+        String tag = "512×512";
+        int tagW = font.width(tag);
+        int badgeX = x + width - tagW - 6;
+        int badgeY = y + height - 11;
+        graphics.fill(badgeX - 2, badgeY - 1, x + width - 2, y + height - 2, 0x991A110A);
+        graphics.drawString(font, tag, badgeX, badgeY, 0xFFF7ECDA, false);
+
+        if (mode != CREATE) {
+            int gemColor = liveSnapshot ? 0xFF6FE06B : 0xFFD6A84E;
+            graphics.fill(x + 3, y + 3, x + 9, y + 9, 0xAA1A110A);
+            graphics.fill(x + 4, y + 4, x + 8, y + 8, gemColor);
         }
-    }
-
-    private static int silhouetteSkyTop(Prototype prototype) {
-        return switch (prototype) {
-            case HIGHLAND -> 0xFF3E3A5E;
-            case PEAKS -> 0xFF151230;
-            case SANCTUM -> 0xFF0B1018;
-            case ROLLING -> 0xFF2B2242;
-            case CALDERA -> 0xFF261012;
-            case GLACIER -> 0xFF121E36;
-            case SKY -> 0xFF2D5E96;
-            default -> 0xFF1E3258;
-        };
-    }
-
-    private static int silhouetteSkyHorizon(Prototype prototype) {
-        return switch (prototype) {
-            case HIGHLAND -> 0xFF7D5A70;
-            case PEAKS -> 0xFF332354;
-            case SANCTUM -> 0xFF162530;
-            case ROLLING -> 0xFF4F3E64;
-            case CALDERA -> 0xFF5C2216;
-            case GLACIER -> 0xFF26496E;
-            case SKY -> 0xFF609EC9;
-            default -> 0xFF3D618C;
-        };
-    }
-
-    private static int silhouetteBodyColor(Prototype prototype) {
-        return switch (prototype) {
-            case HIGHLAND -> 0xFF7A5943; // Dirt / Cherry earth
-            case PEAKS -> 0xFF5E3B8A;    // Amethyst block
-            case SANCTUM -> 0xFF2B2B34;  // Deepslate
-            case ROLLING -> 0xFF756556;  // Mycelium earth
-            case CALDERA -> 0xFF241833;  // Obsidian
-            case GLACIER -> 0xFF6EA3E8;  // Packed / Blue Ice
-            case SKY -> 0xFF7F7F7F;      // Stone
-            default -> 0xFF866043;       // Dirt
-        };
-    }
-
-    private static int silhouetteTopColor(Prototype prototype) {
-        return switch (prototype) {
-            case HIGHLAND -> 0xFFF4A8C7; // Cherry blossom
-            case PEAKS -> 0xFFE0DDD5;    // Calcite
-            case SANCTUM -> 0xFF1CC9C4;  // Sculk
-            case ROLLING -> 0xFF8E7A8D;  // Mycelium
-            case CALDERA -> 0xFFEA6F1F;  // Magma / Lava
-            case GLACIER -> 0xFFF2FAFF;  // Snow
-            default -> 0xFF79C05A;       // Plains grass
-        };
-    }
-
-    private static Slice silhouetteSlice(float t, Prototype prototype) {
-        if (prototype == Prototype.SKY) {
-            // Celestial sky archipelago: a broad central sanctuary flanked by floating satellites.
-            float centre = 1 - Math.min(1, Math.abs(t - 0.5F) / 0.22F);
-            if (centre > 0) return new Slice(0.30F, 0.30F + 0.52F * centre);
-            float leftSatellite = 1 - Math.min(1, Math.abs(t - 0.15F) / 0.075F);
-            if (leftSatellite > 0) return new Slice(0.14F, 0.14F + 0.22F * leftSatellite);
-            float rightSatellite = 1 - Math.min(1, Math.abs(t - 0.85F) / 0.065F);
-            if (rightSatellite > 0) return new Slice(0.56F, 0.56F + 0.20F * rightSatellite);
-            return null;
-        }
-        return new Slice(switch (prototype) {
-            case FLAT -> 0.36F;
-            case HIGHLAND -> 0.64F - 0.36F * peak(t, 0.28F, 0.10F) - 0.28F * peak(t, 0.74F, 0.08F);
-            case PEAKS -> 0.62F - 0.46F * peak(t, 0.26F, 0.07F) - 0.52F * peak(t, 0.54F, 0.06F) - 0.40F * peak(t, 0.80F, 0.08F);
-            case SANCTUM -> 0.28F + 0.20F * (float) Math.floor((Math.abs(t - 0.5F) * 2.0F) * 3.0F) / 2.0F;
-            case ROLLING -> 0.38F + 0.14F * wave(t, 1.5F, 0.0F) - 0.18F * peak(t, 0.35F, 0.06F) - 0.15F * peak(t, 0.70F, 0.05F);
-            case CALDERA -> 0.55F - 0.38F * peak(t, 0.18F, 0.10F) - 0.38F * peak(t, 0.82F, 0.10F) + 0.10F * peak(t, 0.50F, 0.16F);
-            case GLACIER -> 0.60F - 0.48F * peak(t, 0.20F, 0.045F) - 0.42F * peak(t, 0.48F, 0.04F) - 0.50F * peak(t, 0.76F, 0.05F);
-            default -> 0.34F;
-        }, 1.0F);
-    }
-
-    private static float wave(float t, float frequency, float phase) {
-        return (float) Math.sin(t * Math.PI * 2 * frequency + phase);
-    }
-
-    private static float peak(float t, float centre, float spread) {
-        float distance = (t - centre) / spread;
-        return (float) Math.exp(-distance * distance);
     }
 
     @Override
