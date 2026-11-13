@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.9 - 2026-11-13
+- **Unified Heavy-Core Mechanical Base Form for All 6 Universal Tools**:
+  - Replaced all 6 Base Universal Tool textures (`wooden`, `stone`, `iron`, `golden`, `diamond`, `netherite_universal_tool.png` + `.mcmeta`) with a cohesive 32×32 8-frame animated Heavy-Core/Mace mechanical morph-handle silhouette featuring wrapped grip, pommel energy node, four beveled armor brackets, pulsing solid diamond core crystal, and diagonal shimmer sweep.
+  - Updated all 6 root item models (`*_universal_tool.json`) to `minecraft:item/handheld` while preserving all 5 vanilla tool overrides (`_pickaxe`, `_axe`, `_shovel`, `_hoe`, `_sword`).
+
 ## 1.9.8 - 2026-11-13
 - **Vanilla-Book Teleport Codex & Immersive Walk-In Spatial Wormhole**:
   - Restyled `teleport_codex.png` (+ `.mcmeta`) directly from Minecraft 1.21.1's vanilla `book.png` silhouette with astral midnight-indigo leather cover, gold clasps, glowing cyan emblem, and diagonal shimmer glint.
