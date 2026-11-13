@@ -188,32 +188,29 @@ public final class WormholeCorridorManager {
         BlockState air = Blocks.AIR.defaultBlockState();
 
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        // Wipe full legacy envelope (v1.9.12 built z=0..18, dx=-3..3, y=61..68) so nothing remains behind the exit
+        for (int z = -2; z <= 20; z++) {
+            for (int dx = -4; dx <= 4; dx++) {
+                int x = laneX + dx;
+                for (int y = 60; y <= 70; y++) {
+                    level.setBlock(pos.set(x, y, z), air, 2);
+                }
+            }
+        }
+
         for (int z = Z_START - 1; z <= Z_END + 1; z++) {
             boolean insideZ = (z >= Z_START && z <= Z_END);
-            for (int dx = -3; dx <= 3; dx++) {
+            for (int dx = -2; dx <= 2; dx++) {
                 int x = laneX + dx;
-                int adx = Math.abs(dx);
-                // Clear any leftover blocks beneath from prior layouts
-                level.setBlock(pos.set(x, FLOOR_Y - 2, z), air, 2);
-                level.setBlock(pos.set(x, FLOOR_Y - 1, z), air, 2);
-
-                if (adx == 3) {
-                    for (int y = FLOOR_Y; y <= CEIL_Y; y++) {
-                        level.setBlock(pos.set(x, y, z), air, 2);
-                    }
-                    continue;
-                }
-
-                boolean isSideWall = (adx == 2);
+                boolean isSideWall = (Math.abs(dx) == 2);
                 if (insideZ && !isSideWall) {
                     level.setBlock(pos.set(x, FLOOR_Y, z), barrier, 2);
-                } else {
-                    level.setBlock(pos.set(x, FLOOR_Y, z), air, 2);
                 }
-
                 for (int y = WALK_Y; y <= CEIL_Y; y++) {
                     boolean shell = !insideZ || isSideWall || y == CEIL_Y;
-                    level.setBlock(pos.set(x, y, z), shell ? barrier : air, 2);
+                    if (shell) {
+                        level.setBlock(pos.set(x, y, z), barrier, 2);
+                    }
                 }
             }
         }

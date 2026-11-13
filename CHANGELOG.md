@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.14 - 2026-11-13
+- **Corridor Legacy Block Cleanup Fix**:
+  - Expanded the air-clearing envelope in `WormholeCorridorManager.buildTransparentCorridor` (`z = -2..20, dx = -4..4, y = 60..70`) so any leftover `v1.9.12` deepslate/obsidian blocks behind the exit wormhole (`z = 16..18`) are completely removed.
+
 ## 1.9.13 - 2026-11-13
 - **Larger Panoramic Wormhole Portal & Purely Transparent Transit Corridor**:
   - Enlarged `WormholeRenderer` aperture (`rx=1.35, ry=1.45` at entrance; `rx=2.15, ry=1.85` at corridor exit) and widened screenshot UV sampling (`rAper=0.86`, `±0.45` UV span) so the full destination vista is clearly visible without heavy cropping.
