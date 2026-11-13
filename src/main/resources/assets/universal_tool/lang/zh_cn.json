@@ -32,6 +32,7 @@
   "message.universal_tool.on_cooldown": "§c传送法术冷却中...",
   "message.universal_tool.charging": "§b正在构筑空间通道 (请勿移动)...",
   "message.universal_tool.wormhole_opened": "§b空间虫洞已开启（目标：%s），请步入其中跃迁",
+  "message.universal_tool.wormhole.corridor_enter": "§b已步入星穹空间走廊，向前奔跑穿过出口虫洞即可抵达目的地！",
   "message.universal_tool.interrupted_moved": "§c移动导致空间紊乱，传送中断！",
   "message.universal_tool.interrupted_damage": "§c受到伤害，空间信标碎裂！",
   "message.universal_tool.dimension_not_found": "§c无法定位目标维度！",

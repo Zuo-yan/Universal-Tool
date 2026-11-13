@@ -1,5 +1,6 @@
-"""Builds a vanilla Minecraft 16x16 book-silhouette Teleport Codex texture (.png + .png.mcmeta)
-directly from minecraft_1.21.1_client.jar's book.png with astral indigo cover, gold trim, and shimmer.
+"""Builds a 32x32 8-frame animated mod-style Astral Tome Teleport Codex texture (.png + .png.mcmeta)
+matching the mod's 32x32 beveled obsidian/gold/cyan-core art style while preserving the classic
+Minecraft diagonal 3D bound-book silhouette and cream page block.
 """
 import json
 import math
@@ -14,7 +15,7 @@ TEX_PATH = ROOT / "src/main/resources/assets/universal_tool/textures/item/telepo
 MCMETA_PATH = ROOT / "src/main/resources/assets/universal_tool/textures/item/teleport_codex.png.mcmeta"
 PREVIEW_PATH = ROOT / "art/previews/teleport_codex_preview.png"
 
-SIZE = 16
+SIZE = 32
 FRAMES = 8
 
 
@@ -149,64 +150,176 @@ def write_png(path: Path, width: int, height: int, grid: list[list[tuple[int, in
     path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", idat) + chunk(b"IEND", b""))
 
 
-def restyle_vanilla_book(base: list[list[tuple[int, int, int, int]]], frame_idx: int) -> list[list[tuple[int, int, int, int]]]:
-    """Recolor vanilla book.png leather cover to astral indigo + gold clasp + cyan rune bookmark + shimmer."""
-    out = [row[:] for row in base]
-    sweep = -4.0 + (frame_idx / FRAMES) * 24.0
-    pulse = 0.5 + 0.5 * math.sin(frame_idx * (2.0 * math.pi / FRAMES))
+def _classify_vanilla_pixel(r: int, g: int, b: int, a: int) -> str:
+    if a == 0:
+        return "empty"
+    lum = 0.299 * r + 0.587 * g + 0.114 * b
+    if lum < 45:
+        return "outline"
+    if r > 175 and g > 155 and b > 115:
+        return "pages"
+    return "cover"
+
+
+def _upscale_mask_32(vanilla_book: list[list[tuple[int, int, int, int]]]) -> tuple[list[list[bool]], list[list[str]]]:
+    """Upscale vanilla 16x16 book silhouette to 32x32 and smooth staircase corners."""
+    solid = [[False] * SIZE for _ in range(SIZE)]
+    kind = [["empty"] * SIZE for _ in range(SIZE)]
 
     for y in range(SIZE):
         for x in range(SIZE):
-            r, g, b, a = base[y][x]
-            if a == 0:
-                continue
-            lum = 0.299 * r + 0.587 * g + 0.114 * b
-            # Keep dark outline and bright parchment pages intact
-            is_parchment = (r > 175 and g > 155 and b > 115)
-            is_outline = (lum < 45)
-            if is_outline:
-                out[y][x] = (14, 16, 32, a)
-                continue
-            if is_parchment:
-                continue
+            r, g, b, a = vanilla_book[y // 2][x // 2]
+            k = _classify_vanilla_pixel(r, g, b, a)
+            if k != "empty":
+                solid[y][x] = True
+                kind[y][x] = k
 
-            # Brown leather cover -> deep astral navy/indigo
-            if r > g and r > b:
-                t = max(0.0, min(1.0, (lum - 45.0) / 135.0))
-                nr = int(round(26 + t * 44))
-                ng = int(round(34 + t * 62))
-                nb = int(round(78 + t * 116))
+    # Smooth staircase corners by trimming isolated outer 1px corners and filling 3-neighbor concave pockets
+    smoothed = [row[:] for row in solid]
+    for y in range(1, SIZE - 1):
+        for x in range(1, SIZE - 1):
+            n4 = sum(1 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)) if solid[y + dy][x + dx])
+            if solid[y][x] and n4 <= 1:
+                smoothed[y][x] = False
+            elif not solid[y][x] and n4 >= 3:
+                smoothed[y][x] = True
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    if solid[y + dy][x + dx]:
+                        kind[y][x] = kind[y + dy][x + dx]
+                        break
+
+    # Mark 1px outer border of smoothed silhouette as outline, and interior outline pixels near cover as cover
+    final_kind = [["empty"] * SIZE for _ in range(SIZE)]
+    for y in range(SIZE):
+        for x in range(SIZE):
+            if not smoothed[y][x]:
+                continue
+            on_edge = (
+                x == 0 or y == 0 or x == SIZE - 1 or y == SIZE - 1
+                or any(not smoothed[y + dy][x + dx] for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+            )
+            if on_edge:
+                final_kind[y][x] = "outline"
             else:
-                nr, ng, nb = r, g, b
+                k = kind[y][x]
+                if k == "outline":
+                    # Distinguish dark spine/back-cover lip from front cover
+                    final_kind[y][x] = "spine_edge"
+                else:
+                    final_kind[y][x] = k
+    return smoothed, final_kind
 
-            # Diagonal shimmer sweep across the indigo cover
+
+def render_mod_codex(vanilla_book: list[list[tuple[int, int, int, int]]], frame_idx: int) -> list[list[tuple[int, int, int, int]]]:
+    """Render a 32x32 mod-style Astral Tome preserving the vanilla book silhouette and cream pages."""
+    solid, kind = _upscale_mask_32(vanilla_book)
+    out = [[(0, 0, 0, 0) for _ in range(SIZE)] for _ in range(SIZE)]
+
+    sweep = -6.0 + (frame_idx / FRAMES) * 44.0
+    pulse = 0.5 + 0.5 * math.sin(frame_idx * (2.0 * math.pi / FRAMES))
+
+    # Palette matching Universal Tool's 32x32 beveled obsidian-indigo + brushed gold + cyan-amethyst core
+    outline_col = (14, 14, 24, 255)
+    gold_hi = (252, 222, 108, 255)
+    gold_mid = (208, 152, 42, 255)
+    gold_dark = (132, 86, 22, 255)
+
+    # Find cover bounding center for bevel & gem placement
+    cover_coords = [(x, y) for y in range(SIZE) for x in range(SIZE) if kind[y][x] == "cover"]
+    cx = sum(x for x, _ in cover_coords) / max(1, len(cover_coords))
+    cy = sum(y for _, y in cover_coords) / max(1, len(cover_coords))
+
+    for y in range(SIZE):
+        for x in range(SIZE):
+            k = kind[y][x]
+            if k == "empty":
+                continue
+            if k == "outline":
+                out[y][x] = outline_col
+                continue
+            if k == "pages":
+                # Layered cream parchment with subtle 1px page-leaf striations
+                stripe = ((x + y) % 3 == 0)
+                near_top = (y > 0 and kind[y - 1][x] != "pages")
+                if near_top:
+                    out[y][x] = (158, 140, 112, 255)
+                elif stripe:
+                    out[y][x] = (206, 192, 162, 255)
+                else:
+                    out[y][x] = (238, 228, 202, 255)
+                continue
+
+            if k == "spine_edge":
+                # Recessed obsidian-slate binding crease / lower cover lip
+                out[y][x] = (34, 30, 56, 255)
+                continue
+
+            # Front cover: beveled dark astral obsidian-indigo with subtle top-left lighting
+            has_top_edge = (y > 0 and kind[y - 1][x] in ("outline", "spine_edge"))
+            has_left_edge = (x > 0 and kind[y][x - 1] in ("outline", "spine_edge"))
+            has_bottom_edge = (y + 1 < SIZE and kind[y + 1][x] in ("outline", "pages", "spine_edge"))
+            has_right_edge = (x + 1 < SIZE and kind[y][x + 1] in ("outline", "pages", "spine_edge"))
+
+            # Diagonal bevel gradient across the cover
+            grad = max(0.0, min(1.0, 1.0 - ((x - 4) + (y - 4)) / 36.0))
+            nr = int(round(36 + grad * 30))
+            ng = int(round(32 + grad * 32))
+            nb = int(round(72 + grad * 58))
+
+            if has_top_edge or has_left_edge:
+                nr, ng, nb = min(255, nr + 24), min(255, ng + 26), min(255, nb + 36)
+            elif has_bottom_edge or has_right_edge:
+                nr, ng, nb = max(16, nr - 16), max(16, ng - 16), max(28, nb - 22)
+
+            # Diagonal astral shimmer sweep across the cover
             dist = abs((x + (SIZE - 1 - y)) - sweep)
-            if dist < 2.5:
-                glint = (1.0 - dist / 2.5) * 0.38
-                nr = min(255, int(round(nr + 115 * glint)))
+            if dist < 4.0:
+                glint = (1.0 - dist / 4.0) * 0.34
+                nr = min(255, int(round(nr + 110 * glint)))
                 ng = min(255, int(round(ng + 185 * glint)))
                 nb = min(255, int(round(nb + 255 * glint)))
 
-            out[y][x] = (nr, ng, nb, a)
+            out[y][x] = (nr, ng, nb, 255)
 
-    # Subtle gold clasp & glowing cyan-aqua bookmark/star emblem on the cover center (vanilla book style!)
-    gold_hi = (248, 212, 88, 255)
-    gold_mid = (204, 146, 36, 255)
-    cyan_glow = (
-        int(round(65 + 145 * pulse)),
-        int(round(220 + 35 * pulse)),
-        255,
-        255,
-    )
-    # Gold clasp on top-right edge & spine studs
-    for gx, gy, col in (
-        (8, 3, gold_hi), (7, 4, gold_mid),
-        (10, 7, gold_hi), (11, 6, gold_mid),
-        (4, 10, gold_mid), (6, 12, gold_mid),
-        (7, 6, cyan_glow), (8, 6, cyan_glow), (7, 7, cyan_glow),
-    ):
-        if base[gy][gx][3] > 0:
-            out[gy][gx] = col
+    # Brushed gold corner brackets & spine ribs on cover/spine pixels
+    for y in range(SIZE):
+        for x in range(SIZE):
+            if kind[y][x] not in ("cover", "spine_edge"):
+                continue
+            near_edge = any(
+                0 <= y + dy < SIZE and 0 <= x + dx < SIZE and kind[y + dy][x + dx] in ("outline", "pages")
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+            )
+            # Corner clasps: top-left, top-right, bottom-left, bottom-right cover corners
+            if near_edge and (
+                (x <= 16 and y <= 8)
+                or (x >= 21 and y <= 14)
+                or (x <= 8 and y >= 15)
+                or (13 <= x <= 18 and y >= 21)
+            ):
+                out[y][x] = gold_hi if (x + y) % 2 == 0 else gold_mid
+
+    # Glowing octagonal/diamond cyan-amethyst core emblem at center of front cover
+    gx_c = int(round(cx))
+    gy_c = int(round(cy))
+    cyan_core = (int(round(170 + 80 * pulse)), 255, 255, 255)
+    cyan_mid = (int(round(45 + 95 * pulse)), int(round(215 + 35 * pulse)), 255, 255)
+    amethyst_ring = (int(round(138 + 40 * pulse)), 74, 214, 255)
+
+    for dy in range(-4, 5):
+        for dx in range(-4, 5):
+            px, py = gx_c + dx, gy_c + dy
+            if not (0 <= px < SIZE and 0 <= py < SIZE) or kind[py][px] != "cover":
+                continue
+            manhattan = abs(dx) + abs(dy)
+            if manhattan <= 1:
+                out[py][px] = cyan_core
+            elif manhattan == 2:
+                out[py][px] = cyan_mid
+            elif manhattan == 3:
+                out[py][px] = amethyst_ring if (abs(dx) == 0 or abs(dy) == 0) else gold_mid
+            elif manhattan == 4 and (abs(dx) <= 1 or abs(dy) <= 1):
+                out[py][px] = gold_dark
 
     return out
 
@@ -218,7 +331,7 @@ def main() -> None:
     sheet = [[(0, 0, 0, 0) for _ in range(SIZE)] for _ in range(SIZE * FRAMES)]
     preview_frames = []
     for f in range(FRAMES):
-        frame = restyle_vanilla_book(vanilla_book, f)
+        frame = render_mod_codex(vanilla_book, f)
         if f in (0, 2, 4, 6):
             preview_frames.append(frame)
         for y in range(SIZE):
@@ -227,8 +340,8 @@ def main() -> None:
     write_png(TEX_PATH, SIZE, SIZE * FRAMES, sheet)
     MCMETA_PATH.write_text(json.dumps({"animation": {"interpolate": True, "frametime": 2}}, indent=2) + "\n", encoding="utf-8")
 
-    # 6x scale preview of 4 animation frames
-    scale = 6
+    # 4x scale preview of 4 animation frames
+    scale = 4
     pad = 8
     pw = len(preview_frames) * (SIZE * scale + pad) + pad
     ph = SIZE * scale + pad * 2
@@ -244,7 +357,7 @@ def main() -> None:
                         for sx in range(scale):
                             preview[oy + y * scale + sy][ox + x * scale + sx] = col
     write_png(PREVIEW_PATH, pw, ph, preview)
-    print(f"Generated vanilla-book Teleport Codex texture + preview -> {PREVIEW_PATH}")
+    print(f"Generated 32x32 mod-style Teleport Codex texture + preview -> {PREVIEW_PATH}")
 
 
 if __name__ == "__main__":

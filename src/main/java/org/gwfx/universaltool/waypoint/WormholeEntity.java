@@ -1,36 +1,46 @@
 package org.gwfx.universaltool.waypoint;
 
+import java.util.List;
+import java.util.UUID;
+import javax.annotation.Nullable;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.Mth;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
-import org.jetbrains.annotations.Nullable;
-
-import java.util.List;
-import java.util.UUID;
 
 /**
- * 空间虫洞实体：由时空法典/传送卷轴在玩家前方打开，玩家走入其中即可折跃至目标锚点。
+ * Spatial wormhole aperture spawned ahead of the player for immersive teleportation.
+ * Renders a parallax destination vista inside a swirling cosmic perimeter ring.
+ * Stepping into an entrance wormhole opens the walkable starlit corridor; stepping into the exit completes the jump.
  */
 public class WormholeEntity extends Entity {
-    public static final int OPEN_ANIM_TICKS = 10;
-    public static final int MAX_LIFETIME_TICKS = 300; // 15 秒
     private static final EntityDataAccessor<Boolean> DATA_CLOSING =
             SynchedEntityData.defineId(WormholeEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<String> DATA_PHOTO_ID =
+            SynchedEntityData.defineId(WormholeEntity.class, EntityDataSerializers.STRING);
+    private static final EntityDataAccessor<String> DATA_DEST_DIM =
+            SynchedEntityData.defineId(WormholeEntity.class, EntityDataSerializers.STRING);
+    private static final EntityDataAccessor<Boolean> DATA_CORRIDOR_EXIT =
+            SynchedEntityData.defineId(WormholeEntity.class, EntityDataSerializers.BOOLEAN);
+
+    private static final int MAX_LIFETIME_TICKS = 240;
+    private static final int CLOSE_ANIM_TICKS = 10;
 
     @Nullable
-    private Waypoint target;
-    @Nullable
     private UUID ownerUuid;
+    @Nullable
+    private Waypoint target;
     private boolean fromScroll;
-    private int closingTicks = 0;
+    private int lifeTicks;
+    private int closeTicks;
 
     public WormholeEntity(EntityType<? extends WormholeEntity> type, Level level) {
         super(type, level);
@@ -38,11 +48,21 @@ public class WormholeEntity extends Entity {
     }
 
     public void configure(ServerPlayer owner, Waypoint target, float facingYaw, boolean fromScroll) {
-        this.ownerUuid = owner.getUUID();
+        setYRot(facingYaw);
+        configure(owner.getUUID(), target, fromScroll, false);
+    }
+
+    public void configure(UUID ownerUuid, Waypoint target, boolean fromScroll) {
+        configure(ownerUuid, target, fromScroll, false);
+    }
+
+    public void configure(UUID ownerUuid, Waypoint target, boolean fromScroll, boolean corridorExit) {
+        this.ownerUuid = ownerUuid;
         this.target = target;
         this.fromScroll = fromScroll;
-        this.setYRot(facingYaw);
-        this.yRotO = facingYaw;
+        this.entityData.set(DATA_PHOTO_ID, target.photoId() != null ? target.photoId() : "");
+        this.entityData.set(DATA_DEST_DIM, target.dimension().toString());
+        this.entityData.set(DATA_CORRIDOR_EXIT, corridorExit);
     }
 
     @Nullable
@@ -50,76 +70,112 @@ public class WormholeEntity extends Entity {
         return ownerUuid;
     }
 
-    public boolean isClosing() {
-        return entityData.get(DATA_CLOSING);
-    }
-
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         builder.define(DATA_CLOSING, false);
+        builder.define(DATA_PHOTO_ID, "");
+        builder.define(DATA_DEST_DIM, "minecraft:overworld");
+        builder.define(DATA_CORRIDOR_EXIT, false);
+    }
+
+    public boolean isClosing() {
+        return this.entityData.get(DATA_CLOSING);
+    }
+
+    public String getPhotoId() {
+        return this.entityData.get(DATA_PHOTO_ID);
+    }
+
+    public String getDestDimension() {
+        return this.entityData.get(DATA_DEST_DIM);
+    }
+
+    public boolean isCorridorExit() {
+        return this.entityData.get(DATA_CORRIDOR_EXIT);
+    }
+
+    public float getOpenProgress(float partialTick) {
+        if (isClosing()) {
+            return Math.max(0.0F, 1.0F - (closeTicks + partialTick) / CLOSE_ANIM_TICKS);
+        }
+        return Math.min(1.0F, (tickCount + partialTick) / 8.0F);
+    }
+
+    public void beginClosing() {
+        if (!isClosing()) {
+            this.entityData.set(DATA_CLOSING, true);
+            this.closeTicks = 0;
+        }
     }
 
     @Override
     public void tick() {
         super.tick();
-
-        if (level().isClientSide) {
-            spawnAmbientParticles();
-            return;
-        }
-
         if (isClosing()) {
-            closingTicks++;
-            if (closingTicks >= 8) {
+            closeTicks++;
+            if (level().isClientSide) {
+                spawnRimParticles();
+            } else if (closeTicks >= CLOSE_ANIM_TICKS) {
                 discard();
             }
             return;
         }
 
-        if (tickCount >= MAX_LIFETIME_TICKS || target == null) {
-            beginClosing();
+        lifeTicks++;
+        if (level().isClientSide) {
+            if (tickCount % 2 == 0) {
+                spawnRimParticles();
+            }
             return;
+        }
+
+        if (lifeTicks == 1 && level() instanceof ServerLevel serverLevel) {
+            serverLevel.playSound(null, getX(), getY() + 1.0D, getZ(),
+                    SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 0.7F, 1.35F);
         }
 
         if (tickCount >= 6) {
             List<ServerPlayer> players = level().getEntitiesOfClass(
                     ServerPlayer.class,
-                    getBoundingBox().inflate(0.22D)
+                    getBoundingBox().inflate(0.22D),
+                    p -> ownerUuid == null || p.getUUID().equals(ownerUuid)
             );
-            for (ServerPlayer entered : players) {
-                if (!entered.isSpectator()) {
-                    TeleportManager.executeTeleport(entered, target, fromScroll);
+            if (!players.isEmpty()) {
+                ServerPlayer entered = players.get(0);
+                if (isCorridorExit()) {
+                    WormholeCorridorManager.completeTransit(entered);
                     beginClosing();
-                    break;
+                    return;
+                } else if (target != null) {
+                    WormholeCorridorManager.enterCorridor(entered, target, fromScroll);
+                    beginClosing();
+                    return;
                 }
             }
         }
-    }
 
-    public void beginClosing() {
-        if (!isClosing()) {
-            entityData.set(DATA_CLOSING, true);
-            closingTicks = 0;
+        if (!isCorridorExit() && lifeTicks >= MAX_LIFETIME_TICKS) {
+            beginClosing();
         }
     }
 
-    private void spawnAmbientParticles() {
-        if (tickCount % 2 != 0) {
-            return;
+    private void spawnRimParticles() {
+        double angle = (tickCount * 0.45D) % (Math.PI * 2.0D);
+        double radYaw = Math.toRadians(getYRot());
+        double rightX = Math.cos(radYaw);
+        double rightZ = Math.sin(radYaw);
+        for (int i = 0; i < 2; i++) {
+            double a = angle + i * Math.PI;
+            double lx = Math.cos(a) * 0.72D;
+            double ly = 1.05D + Math.sin(a) * 1.05D;
+            level().addParticle(
+                    ParticleTypes.PORTAL,
+                    getX() + rightX * lx,
+                    getY() + ly,
+                    getZ() + rightZ * lx,
+                    0.0D, 0.02D, 0.0D
+            );
         }
-        float rad = getYRot() * Mth.DEG_TO_RAD;
-        double rightX = Math.cos(rad);
-        double rightZ = Math.sin(rad);
-        double angle = random.nextDouble() * Math.PI * 2.0D;
-        double r = 0.45D + random.nextDouble() * 0.25D;
-        double px = getX() + rightX * Math.cos(angle) * r;
-        double py = getY() + 1.12D + Math.sin(angle) * r * 1.45D;
-        double pz = getZ() + rightZ * Math.cos(angle) * r;
-        level().addParticle(
-                random.nextInt(3) == 0 ? ParticleTypes.END_ROD : ParticleTypes.REVERSE_PORTAL,
-                px, py, pz,
-                (getX() - px) * 0.05D, (getY() + 1.12D - py) * 0.05D, (getZ() - pz) * 0.05D
-        );
     }
 
     @Override
@@ -128,8 +184,11 @@ public class WormholeEntity extends Entity {
             ownerUuid = tag.getUUID("Owner");
         }
         fromScroll = tag.getBoolean("FromScroll");
-        if (tag.contains("Target")) {
-            target = Waypoint.CODEC.parse(NbtOps.INSTANCE, tag.get("Target")).result().orElse(null);
+        lifeTicks = tag.getInt("LifeTicks");
+        entityData.set(DATA_CORRIDOR_EXIT, tag.getBoolean("CorridorExit"));
+        entityData.set(DATA_PHOTO_ID, tag.getString("PhotoId"));
+        if (tag.contains("DestDim")) {
+            entityData.set(DATA_DEST_DIM, tag.getString("DestDim"));
         }
     }
 
@@ -139,19 +198,14 @@ public class WormholeEntity extends Entity {
             tag.putUUID("Owner", ownerUuid);
         }
         tag.putBoolean("FromScroll", fromScroll);
-        if (target != null) {
-            Waypoint.CODEC.encodeStart(NbtOps.INSTANCE, target).result()
-                    .ifPresent(encoded -> tag.put("Target", encoded));
-        }
+        tag.putInt("LifeTicks", lifeTicks);
+        tag.putBoolean("CorridorExit", isCorridorExit());
+        tag.putString("PhotoId", getPhotoId());
+        tag.putString("DestDim", getDestDimension());
     }
 
     @Override
     public boolean isPickable() {
         return false;
-    }
-
-    @Override
-    public boolean shouldRenderAtSqrDistance(double distance) {
-        return distance < 4096.0D;
     }
 }

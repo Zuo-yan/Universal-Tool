@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.10 - 2026-11-13
+- **32×32 Mod-Style Astral Tome Codex & Walkable Wormhole Corridor with Destination Vista**:
+  - Upgraded `teleport_codex.png` (+ `.mcmeta`) to crisp **32×32 8-frame mod pixel art** matching the mod's beveled astral-indigo, brushed gold clasp, cream striated page block, and glowing cyan-amethyst core gem aesthetic while keeping the recognizable Minecraft bound-book silhouette.
+  - Enhanced `WormholeRenderer` & `WormholeEntity` so wormholes display a **parallax destination vista** inside their oval aperture (`PhotoManager.getOrLoadTexture(photoId)` screenshot or dimension-themed horizon fallback) framed by a hollow swirling cosmic energy rim.
+  - Added `WormholeCorridorManager` (`universal_tool:wormhole_transit`): stepping into an entrance wormhole transports the player into a **walkable ~14-block starlit spatial runway** with glowing energy rings, Speed II boost, and an exit wormhole ahead showing the destination vista; running through completes the teleport cleanly.
+
 ## 1.9.9 - 2026-11-13
 - **Unified Heavy-Core Mechanical Base Form for All 6 Universal Tools**:
   - Replaced all 6 Base Universal Tool textures (`wooden`, `stone`, `iron`, `golden`, `diamond`, `netherite_universal_tool.png` + `.mcmeta`) with a cohesive 32×32 8-frame animated Heavy-Core/Mace mechanical morph-handle silhouette featuring wrapped grip, pommel energy node, four beveled armor brackets, pulsing solid diamond core crystal, and diagonal shimmer sweep.
