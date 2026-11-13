@@ -32,7 +32,7 @@ public class ModBlocks {
             () -> new PersonalSpaceGateBlock(BlockBehaviour.Properties.of()
                     .strength(4.0F, 10.0F)
                     .noOcclusion()
-                    .lightLevel(state -> 5)
+                    .lightLevel(state -> state.getValue(org.gwfx.universaltool.space.PersonalSpaceGateBlock.OPEN) ? 14 : 5)
                     .requiresCorrectToolForDrops()
                     .sound(SoundType.AMETHYST)));
 

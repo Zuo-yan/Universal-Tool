@@ -2,6 +2,7 @@ package org.gwfx.universaltool.space;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -9,6 +10,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -111,12 +114,76 @@ public final class PrivateSpaceManager {
                 reject(player, payload, "message.universal_tool.personal_space.load_failed");
                 return;
             }
-            enterRealm(player, payload, environment);
+            openPortalAtGate(player.serverLevel(), payload.gatePos(), payload.mode(), environment.id());
+            accept(player, payload);
+            player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.gate_opened"), true);
             return;
         }
 
         if (payload.mode() == PersonalSpaceActionPayload.ACTION_ENTER_PRIVATE_SPACE) {
-            enterPrivatePocket(player, payload);
+            openPortalAtGate(player.serverLevel(), payload.gatePos(), payload.mode(), "");
+            accept(player, payload);
+            player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.gate_opened"), true);
+        }
+    }
+
+    public static void openPortalAtGate(ServerLevel level, BlockPos gatePos, int mode, String environmentId) {
+        BlockState state = level.getBlockState(gatePos);
+        if (!state.is(ModBlocks.PERSONAL_SPACE_GATE.get())) {
+            return;
+        }
+        if (!state.getValue(PersonalSpaceGateBlock.OPEN)) {
+            level.setBlock(gatePos, state.setValue(PersonalSpaceGateBlock.OPEN, true), 3);
+        }
+        if (level.getBlockEntity(gatePos) instanceof PersonalSpaceGateBlockEntity gate) {
+            gate.openPortal(mode, environmentId, level.getGameTime());
+        }
+        level.playSound(null, gatePos, SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 0.85F, 1.35F);
+        level.sendParticles(ParticleTypes.END_ROD, gatePos.getX() + 0.5, gatePos.getY() + 0.55,
+                gatePos.getZ() + 0.5, 22, 0.25, 0.35, 0.25, 0.04);
+    }
+
+    public static void closePortalAtGate(ServerLevel level, BlockPos gatePos) {
+        BlockState state = level.getBlockState(gatePos);
+        if (!state.is(ModBlocks.PERSONAL_SPACE_GATE.get())) {
+            return;
+        }
+        if (state.getValue(PersonalSpaceGateBlock.OPEN)) {
+            level.setBlock(gatePos, state.setValue(PersonalSpaceGateBlock.OPEN, false), 3);
+        }
+        if (level.getBlockEntity(gatePos) instanceof PersonalSpaceGateBlockEntity gate) {
+            gate.closePortal();
+        }
+        level.playSound(null, gatePos, SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 0.75F, 1.15F);
+        level.sendParticles(ParticleTypes.PORTAL, gatePos.getX() + 0.5, gatePos.getY() + 0.55,
+                gatePos.getZ() + 0.5, 18, 0.22, 0.3, 0.22, 0.08);
+    }
+
+    public static void enterOpenedGate(ServerPlayer player, BlockPos gatePos) {
+        ServerLevel level = player.serverLevel();
+        BlockState state = level.getBlockState(gatePos);
+        if (!state.is(ModBlocks.PERSONAL_SPACE_GATE.get()) || !state.getValue(PersonalSpaceGateBlock.OPEN)) {
+            return;
+        }
+        if (!(level.getBlockEntity(gatePos) instanceof PersonalSpaceGateBlockEntity gate)) {
+            closePortalAtGate(level, gatePos);
+            return;
+        }
+        int mode = gate.getPortalMode();
+        String envId = gate.getPortalEnvironment();
+        closePortalAtGate(level, gatePos);
+
+        if (mode == PersonalSpaceActionPayload.ACTION_ENTER_REALM) {
+            PrivateSpaceEnvironment environment = PrivateSpaceEnvironment.byId(envId);
+            if (environment == null) {
+                player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.load_failed"), true);
+                return;
+            }
+            enterRealm(player, environment);
+            return;
+        }
+        if (mode == PersonalSpaceActionPayload.ACTION_ENTER_PRIVATE_SPACE) {
+            enterPrivatePocket(player);
         }
     }
 
@@ -128,7 +195,7 @@ public final class PrivateSpaceManager {
         PacketDistributor.sendToPlayer(player, new PersonalSpaceResultPayload(payload.gatePos(), payload.mode(), false, messageKey));
     }
 
-    private static void enterRealm(ServerPlayer player, PersonalSpaceActionPayload payload, PrivateSpaceEnvironment environment) {
+    private static void enterRealm(ServerPlayer player, PrivateSpaceEnvironment environment) {
         MinecraftServer server = player.server;
         PersonalSpaceSavedData data = PersonalSpaceSavedData.get(server);
         boolean fresh = data.getRealm(environment).isEmpty();
@@ -145,11 +212,10 @@ public final class PrivateSpaceManager {
 
         ServerLevel targetLevel = getOrLoadSpace(server, record, fresh);
         if (targetLevel == null) {
-            reject(player, payload, "message.universal_tool.personal_space.load_failed");
+            player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.load_failed"), true);
             return;
         }
 
-        accept(player, payload);
         PersonalDimensionRegistry.from(server).whenClientReady(player, targetLevel, () -> {
             if (!isRealmLevel(player.serverLevel())) {
                 // Keep the original Overworld (or pre-realm) return anchor across free realm switches.
@@ -165,7 +231,7 @@ public final class PrivateSpaceManager {
         });
     }
 
-    private static void enterPrivatePocket(ServerPlayer player, PersonalSpaceActionPayload payload) {
+    private static void enterPrivatePocket(ServerPlayer player) {
         MinecraftServer server = player.server;
         PersonalSpaceSavedData data = PersonalSpaceSavedData.get(server);
         UUID playerUuid = player.getUUID();
@@ -183,11 +249,10 @@ public final class PrivateSpaceManager {
 
         ServerLevel targetLevel = getOrLoadSpace(server, record, fresh);
         if (targetLevel == null) {
-            reject(player, payload, "message.universal_tool.personal_space.load_failed");
+            player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.load_failed"), true);
             return;
         }
 
-        accept(player, payload);
         PersonalDimensionRegistry.from(server).whenClientReady(player, targetLevel, () -> {
             if (!isStarryPocket(player.serverLevel())) {
                 data.setPrivateReturnPosition(playerUuid, positionOf(player));

@@ -58,6 +58,8 @@ public final class UniversalToolClientMod {
                 UniversalLotteryMachineRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.STARRY_VOID_BE.get(),
                 StarryVoidBlockEntityRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.PERSONAL_SPACE_GATE_BE.get(),
+                PersonalSpaceGateRenderer::new);
         event.registerEntityRenderer(ModEntities.LIGHTNING_SPEAR_PROJECTILE.get(),
                 LightningSpearRenderer::new);
     }

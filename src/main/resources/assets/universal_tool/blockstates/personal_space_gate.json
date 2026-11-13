@@ -1,18 +1,34 @@
 {
   "variants": {
-    "facing=north": {
+    "facing=north,open=false": {
       "model": "universal_tool:block/personal_space_gate",
       "y": 0
     },
-    "facing=east": {
+    "facing=north,open=true": {
+      "model": "universal_tool:block/personal_space_gate",
+      "y": 0
+    },
+    "facing=east,open=false": {
       "model": "universal_tool:block/personal_space_gate",
       "y": 90
     },
-    "facing=south": {
+    "facing=east,open=true": {
+      "model": "universal_tool:block/personal_space_gate",
+      "y": 90
+    },
+    "facing=south,open=false": {
       "model": "universal_tool:block/personal_space_gate",
       "y": 180
     },
-    "facing=west": {
+    "facing=south,open=true": {
+      "model": "universal_tool:block/personal_space_gate",
+      "y": 180
+    },
+    "facing=west,open=false": {
+      "model": "universal_tool:block/personal_space_gate",
+      "y": 270
+    },
+    "facing=west,open=true": {
       "model": "universal_tool:block/personal_space_gate",
       "y": 270
     }

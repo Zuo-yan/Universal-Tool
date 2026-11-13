@@ -234,7 +234,7 @@ public final class PrivateIslandVisualTest {
             } else if (++ticks > 20) {
                 capture("island_ui_" + values[sweepIndex].id() + ".png");
                 if (++sweepIndex >= values.length) {
-                    phase = 7;
+                    phase = 65;
                     ticks = 0;
                     client.setScreen(null);
                     client.options.hideGui = true;
@@ -243,21 +243,40 @@ public final class PrivateIslandVisualTest {
                     server.execute(() -> {
                         var player = server.getPlayerList().getPlayer(playerId);
                         if (player == null) return;
-                        ResourceLocation pocketId = ResourceLocation.fromNamespaceAndPath(
-                                UniversalToolMod.MODID, "visual_pocket_" + CAPTURE_RUN_ID);
-                        activePreviewDimId = pocketId;
-                        var biome = server.overworld().registryAccess().lookupOrThrow(Registries.BIOME)
-                                .getOrThrow(net.minecraft.world.level.biome.Biomes.THE_VOID);
-                        var pocketLevel = PersonalDimensionRegistry.from(server).createDynamicDimension(
-                                pocketId,
-                                new org.gwfx.universaltool.space.StarryPocketChunkGenerator(new FixedBiomeSource(biome)),
-                                PrivateSpaceManager.buildPrivatePocketDimensionType(server.overworld().dimensionType()));
-                        PrivateSpaceManager.configureLevel(pocketLevel, PrivateSpaceEnvironment.SUPERFLAT, true);
-                        PersonalDimensionRegistry.from(server).whenClientReady(player, pocketLevel, () ->
-                                player.teleportTo(pocketLevel, 0.5, 67.5, -8.5, -20.0F, 24.0F));
+                        var level = player.serverLevel();
+                        var spawn = level.getSharedSpawnPos();
+                        var gateA = spawn.offset(-1, 0, 3);
+                        var gateB = spawn.offset(1, 0, 3);
+                        PrivateSpaceManager.openPortalAtGate(level, gateA,
+                                org.gwfx.universaltool.network.PersonalSpaceActionPayload.ACTION_ENTER_PRIVATE_SPACE, "");
+                        PrivateSpaceManager.openPortalAtGate(level, gateB,
+                                org.gwfx.universaltool.network.PersonalSpaceActionPayload.ACTION_ENTER_REALM, "obsidian_forge");
+                        player.teleportTo(level, spawn.getX() + 0.5, spawn.getY() + 0.3, spawn.getZ() + 0.3, 0.0F, 8.0F);
                     });
                 } else sweepClicked = false;
             }
+        } else if (phase == 65 && ++ticks > 30) {
+            capture("opened_stargate_portal.png");
+            phase = 7;
+            ticks = 0;
+            var server = client.getSingleplayerServer();
+            var playerId = client.player.getUUID();
+            server.execute(() -> {
+                var player = server.getPlayerList().getPlayer(playerId);
+                if (player == null) return;
+                ResourceLocation pocketId = ResourceLocation.fromNamespaceAndPath(
+                        UniversalToolMod.MODID, "visual_pocket_" + CAPTURE_RUN_ID);
+                activePreviewDimId = pocketId;
+                var biome = server.overworld().registryAccess().lookupOrThrow(Registries.BIOME)
+                        .getOrThrow(net.minecraft.world.level.biome.Biomes.THE_VOID);
+                var pocketLevel = PersonalDimensionRegistry.from(server).createDynamicDimension(
+                        pocketId,
+                        new org.gwfx.universaltool.space.StarryPocketChunkGenerator(new FixedBiomeSource(biome)),
+                        PrivateSpaceManager.buildPrivatePocketDimensionType(server.overworld().dimensionType()));
+                PrivateSpaceManager.configureLevel(pocketLevel, PrivateSpaceEnvironment.SUPERFLAT, true);
+                PersonalDimensionRegistry.from(server).whenClientReady(player, pocketLevel, () ->
+                        player.teleportTo(pocketLevel, 0.5, 67.5, -8.5, -20.0F, 24.0F));
+            });
         } else if (phase == 7 && ++ticks > 120) {
             capture("private_pocket_world.png");
             UniversalToolMod.LOGGER.info("VISUAL_TEST all captures completed");

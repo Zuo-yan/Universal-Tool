@@ -297,6 +297,11 @@ public final class PrivateSpaceGameTests {
             player.setPos(entrance.getX()+0.5,entrance.getY(),entrance.getZ()+0.5);
             PrivateSpaceManager.handleAction(player,new org.gwfx.universaltool.network.PersonalSpaceActionPayload(
                     entrance,org.gwfx.universaltool.network.PersonalSpaceActionPayload.ACTION_ENTER_REALM,"superflat"));
+            helper.assertTrue(helper.getLevel().getBlockState(entrance).getValue(PersonalSpaceGateBlock.OPEN),
+                    "Gate action must open the portal before entry");
+            PrivateSpaceManager.enterOpenedGate(player, entrance);
+            helper.assertTrue(!helper.getLevel().getBlockState(entrance).getValue(PersonalSpaceGateBlock.OPEN),
+                    "Walking into open gate must close it back to normal");
             var level=player.serverLevel();var id=level.dimension().location();
             helper.assertTrue(level!=helper.getLevel(),"Actual realm payload must enter a new dimension");
             var data=PersonalSpaceSavedData.get(server);
@@ -456,9 +461,15 @@ public final class PrivateSpaceGameTests {
             alice.setPos(startA.getX() + 0.5, startA.getY(), startA.getZ() + 0.5);
             bob.setPos(startB.getX() + 0.5, startB.getY(), startB.getZ() + 0.5);
 
-            // 2. Freely switch between shared exploration realms without lock-in
+            // 2. Open Star Gate -> walk in -> freely switch between shared exploration realms -> gate auto-closes
             PrivateSpaceManager.handleAction(alice, new org.gwfx.universaltool.network.PersonalSpaceActionPayload(
                     gatePos, org.gwfx.universaltool.network.PersonalSpaceActionPayload.ACTION_ENTER_REALM, "superflat"));
+            helper.assertTrue(helper.getLevel().getBlockState(gatePos).getValue(PersonalSpaceGateBlock.OPEN)
+                            && alice.serverLevel() == helper.getLevel(),
+                    "Activating gate must open portal and wait for player to step inside");
+            PrivateSpaceManager.enterOpenedGate(alice, gatePos);
+            helper.assertTrue(!helper.getLevel().getBlockState(gatePos).getValue(PersonalSpaceGateBlock.OPEN),
+                    "Entering opened gate must close it back to normal");
             ServerLevel flatRealm = alice.serverLevel();
             helper.assertTrue(flatRealm.dimension().location().getPath().equals("realm/superflat"),
                     "Alice must enter shared Superflat realm");
@@ -469,6 +480,11 @@ public final class PrivateSpaceGameTests {
             alice.setPos(realmGate.getX() + 0.5, realmGate.getY(), realmGate.getZ() + 0.5);
             PrivateSpaceManager.handleAction(alice, new org.gwfx.universaltool.network.PersonalSpaceActionPayload(
                     realmGate, org.gwfx.universaltool.network.PersonalSpaceActionPayload.ACTION_ENTER_REALM, "cherry_grove"));
+            helper.assertTrue(flatRealm.getBlockState(realmGate).getValue(PersonalSpaceGateBlock.OPEN),
+                    "Realm gate must open on selection");
+            PrivateSpaceManager.enterOpenedGate(alice, realmGate);
+            helper.assertTrue(!flatRealm.getBlockState(realmGate).getValue(PersonalSpaceGateBlock.OPEN),
+                    "Realm gate must close after player enters");
             ServerLevel cherryRealm = alice.serverLevel();
             helper.assertTrue(cherryRealm.dimension().location().getPath().equals("realm/cherry_grove"),
                     "Alice must freely switch to Cherry Grove realm without lock-in");
@@ -485,15 +501,21 @@ public final class PrivateSpaceGameTests {
                             + ", head=" + helper.getLevel().getBlockState(startA.above())
                             + ", savedReturn=" + PersonalSpaceSavedData.get(server).getReturnPosition(alice.getUUID()));
 
-            // 3. Secondary menu -> UUID-keyed password-free 25x25x25 Private Starry Space
+            // 3. Direct cosmic bar -> open gate -> step in -> UUID-keyed password-free 25x25 Private Starry Space
             alice.setPos(gatePos.getX() + 0.5, gatePos.getY(), gatePos.getZ() + 1.0);
             PrivateSpaceManager.handleAction(alice, new org.gwfx.universaltool.network.PersonalSpaceActionPayload(
                     gatePos, org.gwfx.universaltool.network.PersonalSpaceActionPayload.ACTION_ENTER_PRIVATE_SPACE, ""));
+            PrivateSpaceManager.enterOpenedGate(alice, gatePos);
+            helper.assertTrue(!helper.getLevel().getBlockState(gatePos).getValue(PersonalSpaceGateBlock.OPEN),
+                    "Star Gate must close after Alice steps into Private Starry Space");
             ServerLevel pocketA = alice.serverLevel();
 
             bob.setPos(gatePos.getX() + 0.5, gatePos.getY(), gatePos.getZ() - 1.0);
             PrivateSpaceManager.handleAction(bob, new org.gwfx.universaltool.network.PersonalSpaceActionPayload(
                     gatePos, org.gwfx.universaltool.network.PersonalSpaceActionPayload.ACTION_ENTER_PRIVATE_SPACE, ""));
+            PrivateSpaceManager.enterOpenedGate(bob, gatePos);
+            helper.assertTrue(!helper.getLevel().getBlockState(gatePos).getValue(PersonalSpaceGateBlock.OPEN),
+                    "Star Gate must close after Bob steps into Private Starry Space");
             ServerLevel pocketB = bob.serverLevel();
 
             helper.assertTrue(PrivateSpaceManager.isStarryPocket(pocketA) && PrivateSpaceManager.isStarryPocket(pocketB),

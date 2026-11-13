@@ -50,8 +50,8 @@ public class PersonalSpaceScreen extends Screen {
     private static final int REALM_PREVIEW_Y = 104;
     private static final int REALM_PREVIEW_HEIGHT = 48;
     private static final int REALM_TRAITS_Y = 156;
-    private static final int PRIVATE_ENTRY_BAR_Y = 169;
-    private static final int PRIVATE_ENTRY_BAR_HEIGHT = 24;
+    private static final int PRIVATE_ENTRY_BAR_Y = 171;
+    private static final int PRIVATE_ENTRY_BAR_HEIGHT = 20;
     private static final int REALM_STATUS_Y = 195;
 
     private static final String EMBLEM_PATH = "textures/gui/environment_%s.png";
@@ -118,7 +118,7 @@ public class PersonalSpaceScreen extends Screen {
         enterPrivateButton = addRenderableWidget(new PanelButton(
                 x + MARGIN, y + PRIVATE_ENTRY_BAR_Y, CONTENT_WIDTH, PRIVATE_ENTRY_BAR_HEIGHT,
                 Component.translatable("screen.universal_tool.personal_space.open_private_menu"),
-                Component.translatable("screen.universal_tool.personal_space.open_private_desc"),
+                null,
                 button -> submitAction(PersonalSpaceActionPayload.ACTION_ENTER_PRIVATE_SPACE),
                 ButtonStyle.COSMIC
         ));
@@ -451,10 +451,17 @@ public class PersonalSpaceScreen extends Screen {
                 return;
             }
 
-            int textColor = !active ? 0xFF9C8B7A
-                    : (hover ? 0xFFFFF8D6 : (style == ButtonStyle.PRIMARY ? 0xFFFFF5D6 : 0xFFF2E5CF));
-            graphics.drawCenteredString(Minecraft.getInstance().font, getMessage(), x + width / 2,
-                    y + (height - 8) / 2, textColor);
+            int textColor;
+            if (!active) {
+                textColor = 0xFF9C8B7A;
+            } else if (style == ButtonStyle.COSMIC) {
+                textColor = hover ? 0xFFE6FFFC : 0xFFB8FAF2;
+            } else if (hover) {
+                textColor = 0xFFFFF8D6;
+            } else {
+                textColor = style == ButtonStyle.PRIMARY ? 0xFFFFF5D6 : 0xFFF2E5CF;
+            }
+            drawFittedCentered(graphics, getMessage(), x + width / 2, y + (height - 8) / 2, width - 12, textColor);
         }
     }
 }

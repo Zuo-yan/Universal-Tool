@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.2 - 2026-11-13
+- **Single-Line Personal Space Cosmic Bar**:
+  - Streamlined the cosmic entry bar on `PersonalSpaceScreen` to a single clean line (`✦ 进入个人空间 · 按玩家区分 · 潜行右键星空地板返回`), removing the `25×25` and mob-spawning text.
+- **Sci-Fi Dynamic Star Gate Portal & Step-In Auto-Close**:
+  - Selecting a destination on `PersonalSpaceScreen` now activates the `PersonalSpaceGateBlock` (`OPEN = true`, light level `14`) with a sci-fi `PersonalSpaceGateRenderer` displaying iris-expanding counter-rotating holographic energy rings, a swirling nebula event-horizon vortex, a pulsing quantum core flare, and swirling `END_ROD` particles.
+  - Opened gates remove their center doorway collision (`PersonalGateGeometry.openCollisionShape`) so players can walk straight into the portal; stepping inside teleports the player to the configured realm or UUID-bound personal starry space and immediately closes the gate back to normal (`OPEN = false`).
+
 ## 1.9.1 - 2026-11-13
 - **Cloud-Free Dense Starry Sky for Personal Starry Space (`StarryPocketDimensionEffects`)**:
   - Replaced default Overworld sky/clouds in `universal_tool:private_pocket/<uuid>` with custom `universal_tool:starry_pocket` `DimensionSpecialEffects`.
