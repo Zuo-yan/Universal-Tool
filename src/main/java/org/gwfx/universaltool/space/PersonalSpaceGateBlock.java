@@ -4,7 +4,6 @@ import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
@@ -18,6 +17,7 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.RenderShape;
@@ -30,62 +30,39 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.gwfx.universaltool.init.ModBlockEntities;
+import org.jetbrains.annotations.Nullable;
 
-import javax.annotation.Nullable;
-
+/**
+ * 个人空间星门（两格高尖拱传送门）：默认闭合为刻符苔石拱门；选中界域或私人空间后开启螺旋传送门，玩家走入后传送并自动闭合。
+ */
 public class PersonalSpaceGateBlock extends BaseEntityBlock {
+    public static final MapCodec<PersonalSpaceGateBlock> CODEC = simpleCodec(PersonalSpaceGateBlock::new);
     public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
     public static final BooleanProperty OPEN = BlockStateProperties.OPEN;
-    public static final MapCodec<PersonalSpaceGateBlock> CODEC = simpleCodec(PersonalSpaceGateBlock::new);
+    public static final EnumProperty<DoubleBlockHalf> HALF = BlockStateProperties.DOUBLE_BLOCK_HALF;
 
     public PersonalSpaceGateBlock(Properties properties) {
         super(properties);
         registerDefaultState(stateDefinition.any()
                 .setValue(FACING, Direction.NORTH)
-                .setValue(OPEN, false));
-    }
-
-    @Override
-    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING, OPEN);
-    }
-
-    @Override
-    public BlockState getStateForPlacement(BlockPlaceContext context) {
-        return defaultBlockState()
-                .setValue(FACING, context.getHorizontalDirection().getOpposite())
-                .setValue(OPEN, false);
-    }
-
-    @Override
-    protected BlockState rotate(BlockState state, Rotation rotation) {
-        return state.setValue(FACING, rotation.rotate(state.getValue(FACING)));
-    }
-
-    @Override
-    protected BlockState mirror(BlockState state, Mirror mirror) {
-        return rotate(state, mirror.getRotation(state.getValue(FACING)));
-    }
-
-    @Override
-    protected VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        return PersonalGateGeometry.shape(state.getValue(FACING));
-    }
-
-    @Override
-    protected VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        return state.getValue(OPEN)
-                ? PersonalGateGeometry.openCollisionShape(state.getValue(FACING))
-                : PersonalGateGeometry.shape(state.getValue(FACING));
+                .setValue(OPEN, false)
+                .setValue(HALF, DoubleBlockHalf.LOWER));
     }
 
     @Override
     protected MapCodec<? extends BaseEntityBlock> codec() {
         return CODEC;
+    }
+
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(FACING, OPEN, HALF);
     }
 
     @Override
@@ -95,60 +72,140 @@ public class PersonalSpaceGateBlock extends BaseEntityBlock {
 
     @Nullable
     @Override
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
+        BlockPos pos = context.getClickedPos();
+        Level level = context.getLevel();
+        if (pos.getY() >= level.getMaxBuildHeight() - 1 || !level.getBlockState(pos.above()).canBeReplaced(context)) {
+            return null;
+        }
+        return defaultBlockState()
+                .setValue(FACING, context.getHorizontalDirection().getOpposite())
+                .setValue(OPEN, false)
+                .setValue(HALF, DoubleBlockHalf.LOWER);
+    }
+
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
+        if (state.getValue(HALF) == DoubleBlockHalf.LOWER) {
+            BlockPos above = pos.above();
+            if (level.getBlockState(above).canBeReplaced()) {
+                level.setBlock(above, state.setValue(HALF, DoubleBlockHalf.UPPER), Block.UPDATE_ALL);
+            }
+            if (!level.isClientSide && placer instanceof Player player
+                    && level.getBlockEntity(pos) instanceof PersonalSpaceGateBlockEntity gateEntity) {
+                gateEntity.setOwner(player);
+            }
+        }
+    }
+
+    @Override
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        if (!level.isClientSide && player.isCreative() && state.getValue(HALF) == DoubleBlockHalf.UPPER) {
+            BlockPos below = pos.below();
+            BlockState belowState = level.getBlockState(below);
+            if (belowState.is(this) && belowState.getValue(HALF) == DoubleBlockHalf.LOWER) {
+                level.setBlock(below, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL | Block.UPDATE_SUPPRESS_DROPS);
+            }
+        }
+        return super.playerWillDestroy(level, pos, state, player);
+    }
+
+    @Override
+    protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
+        if (!state.is(newState.getBlock())) {
+            DoubleBlockHalf half = state.getValue(HALF);
+            BlockPos partnerPos = half == DoubleBlockHalf.LOWER ? pos.above() : pos.below();
+            BlockState partnerState = level.getBlockState(partnerPos);
+            if (partnerState.is(this) && partnerState.getValue(HALF) != half) {
+                level.setBlock(partnerPos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL | Block.UPDATE_SUPPRESS_DROPS);
+            }
+            super.onRemove(state, level, pos, newState, movedByPiston);
+        }
+    }
+
+    @Override
+    public BlockState rotate(BlockState state, Rotation rotation) {
+        return state.setValue(FACING, rotation.rotate(state.getValue(FACING)));
+    }
+
+    @Override
+    public BlockState mirror(BlockState state, Mirror mirror) {
+        return state.rotate(mirror.getRotation(state.getValue(FACING)));
+    }
+
+    @Override
+    public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        return PersonalGateGeometry.shape(state.getValue(FACING), state.getValue(HALF));
+    }
+
+    @Override
+    public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        if (state.getValue(OPEN)) {
+            return PersonalGateGeometry.openCollisionShape(state.getValue(FACING), state.getValue(HALF));
+        }
+        return PersonalGateGeometry.shape(state.getValue(FACING), state.getValue(HALF));
+    }
+
+    @Nullable
+    @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        return new PersonalSpaceGateBlockEntity(pos, state);
+        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? new PersonalSpaceGateBlockEntity(pos, state) : null;
     }
 
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        return level.isClientSide ? null
-                : createTickerHelper(type, ModBlockEntities.PERSONAL_SPACE_GATE_BE.get(), PersonalSpaceGateBlockEntity::serverTick);
-    }
-
-    @Override
-    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
-        if (placer instanceof Player player && level.getBlockEntity(pos) instanceof PersonalSpaceGateBlockEntity gate) {
-            gate.bindTo(player.getUUID());
+        if (level.isClientSide || state.getValue(HALF) != DoubleBlockHalf.LOWER) {
+            return null;
         }
-        super.setPlacedBy(level, pos, state, placer, stack);
+        return createTickerHelper(type, ModBlockEntities.PERSONAL_SPACE_GATE_BE.get(), PersonalSpaceGateBlockEntity::serverTick);
     }
 
     @Override
-    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hitResult) {
-        if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
-            if (state.getValue(OPEN) && player.isShiftKeyDown() && level instanceof ServerLevel serverLevel) {
-                PrivateSpaceManager.closePortalAtGate(serverLevel, pos);
-                serverPlayer.displayClientMessage(Component.translatable("message.universal_tool.personal_space.gate_closed"), true);
-            } else {
-                PrivateSpaceManager.onGateUsed(serverPlayer, pos);
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        BlockPos basePos = resolveBasePos(pos, state);
+        BlockState baseState = level.getBlockState(basePos);
+        if (!baseState.is(this)) {
+            return InteractionResult.PASS;
+        }
+        if (level.isClientSide) {
+            return InteractionResult.SUCCESS;
+        }
+        if (player instanceof ServerPlayer serverPlayer) {
+            if (baseState.getValue(OPEN) && serverPlayer.isShiftKeyDown() && level instanceof ServerLevel serverLevel) {
+                PrivateSpaceManager.closePortalAtGate(serverLevel, basePos);
+                return InteractionResult.CONSUME;
             }
+            PrivateSpaceManager.onGateUsed(serverPlayer, basePos);
         }
-        return InteractionResult.sidedSuccess(level.isClientSide);
+        return InteractionResult.CONSUME;
     }
 
     @Override
     protected void entityInside(BlockState state, Level level, BlockPos pos, Entity entity) {
-        if (!level.isClientSide && state.getValue(OPEN) && entity instanceof ServerPlayer serverPlayer && !serverPlayer.isSpectator()) {
-            PrivateSpaceManager.enterOpenedGate(serverPlayer, pos);
+        if (!level.isClientSide && state.getValue(OPEN) && entity instanceof ServerPlayer serverPlayer) {
+            PrivateSpaceManager.enterOpenedGate(serverPlayer, resolveBasePos(pos, state));
         }
     }
 
     @Override
     public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random) {
-        if (!state.getValue(OPEN)) {
+        if (state.getValue(HALF) != DoubleBlockHalf.LOWER || !state.getValue(OPEN) || random.nextInt(2) != 0) {
             return;
         }
-        double cx = pos.getX() + 0.5;
-        double cy = pos.getY() + 0.54;
-        double cz = pos.getZ() + 0.5;
-        for (int i = 0; i < 2; i++) {
-            double angle = random.nextDouble() * Math.PI * 2.0;
-            double radius = 0.24 + random.nextDouble() * 0.12;
-            double px = cx + Math.cos(angle) * radius;
-            double py = cy + Math.sin(angle) * radius * 0.9;
-            level.addParticle(ParticleTypes.END_ROD, px, py, cz + (random.nextDouble() - 0.5) * 0.18,
-                    (cx - px) * 0.08, (cy - py) * 0.08, (random.nextDouble() - 0.5) * 0.02);
-        }
+        double angle = random.nextDouble() * Math.PI * 2.0D;
+        double radius = 0.18D + random.nextDouble() * 0.28D;
+        double cx = pos.getX() + 0.5D + Math.cos(angle) * radius * 0.72D;
+        double cy = pos.getY() + 1.28D + Math.sin(angle) * radius * 1.48D;
+        double cz = pos.getZ() + 0.5D + (random.nextDouble() - 0.5D) * 0.18D;
+        level.addParticle(
+                random.nextInt(3) == 0 ? ParticleTypes.END_ROD : ParticleTypes.REVERSE_PORTAL,
+                cx, cy, cz,
+                -Math.sin(angle) * 0.025D, Math.cos(angle) * 0.035D, 0.0D
+        );
+    }
+
+    public static BlockPos resolveBasePos(BlockPos pos, BlockState state) {
+        return state.hasProperty(HALF) && state.getValue(HALF) == DoubleBlockHalf.UPPER ? pos.below() : pos;
     }
 }

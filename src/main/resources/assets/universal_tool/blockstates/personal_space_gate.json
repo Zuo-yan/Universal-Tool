@@ -1,36 +1,20 @@
 {
   "variants": {
-    "facing=north,open=false": {
-      "model": "universal_tool:block/personal_space_gate",
-      "y": 0
-    },
-    "facing=north,open=true": {
-      "model": "universal_tool:block/personal_space_gate",
-      "y": 0
-    },
-    "facing=east,open=false": {
-      "model": "universal_tool:block/personal_space_gate",
-      "y": 90
-    },
-    "facing=east,open=true": {
-      "model": "universal_tool:block/personal_space_gate",
-      "y": 90
-    },
-    "facing=south,open=false": {
-      "model": "universal_tool:block/personal_space_gate",
-      "y": 180
-    },
-    "facing=south,open=true": {
-      "model": "universal_tool:block/personal_space_gate",
-      "y": 180
-    },
-    "facing=west,open=false": {
-      "model": "universal_tool:block/personal_space_gate",
-      "y": 270
-    },
-    "facing=west,open=true": {
-      "model": "universal_tool:block/personal_space_gate",
-      "y": 270
-    }
+    "facing=north,half=lower,open=false": { "model": "universal_tool:block/personal_space_gate_lower" },
+    "facing=north,half=lower,open=true":  { "model": "universal_tool:block/personal_space_gate_lower" },
+    "facing=north,half=upper,open=false": { "model": "universal_tool:block/personal_space_gate_upper" },
+    "facing=north,half=upper,open=true":  { "model": "universal_tool:block/personal_space_gate_upper" },
+    "facing=east,half=lower,open=false":  { "model": "universal_tool:block/personal_space_gate_lower", "y": 90 },
+    "facing=east,half=lower,open=true":   { "model": "universal_tool:block/personal_space_gate_lower", "y": 90 },
+    "facing=east,half=upper,open=false":  { "model": "universal_tool:block/personal_space_gate_upper", "y": 90 },
+    "facing=east,half=upper,open=true":   { "model": "universal_tool:block/personal_space_gate_upper", "y": 90 },
+    "facing=south,half=lower,open=false": { "model": "universal_tool:block/personal_space_gate_lower", "y": 180 },
+    "facing=south,half=lower,open=true":  { "model": "universal_tool:block/personal_space_gate_lower", "y": 180 },
+    "facing=south,half=upper,open=false": { "model": "universal_tool:block/personal_space_gate_upper", "y": 180 },
+    "facing=south,half=upper,open=true":  { "model": "universal_tool:block/personal_space_gate_upper", "y": 180 },
+    "facing=west,half=lower,open=false":  { "model": "universal_tool:block/personal_space_gate_lower", "y": 270 },
+    "facing=west,half=lower,open=true":   { "model": "universal_tool:block/personal_space_gate_lower", "y": 270 },
+    "facing=west,half=upper,open=false":  { "model": "universal_tool:block/personal_space_gate_upper", "y": 270 },
+    "facing=west,half=upper,open=true":   { "model": "universal_tool:block/personal_space_gate_upper", "y": 270 }
   }
 }

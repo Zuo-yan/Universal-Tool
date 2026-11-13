@@ -6,114 +6,132 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import org.gwfx.universaltool.init.ModBlockEntities;
+import org.jetbrains.annotations.Nullable;
 
-import javax.annotation.Nullable;
+import java.util.List;
 import java.util.UUID;
 
+/**
+ * 个人空间星门方块实体：记录放置者与当前开启的目标界域状态，并检测走入两格高星门通道的玩家触发传送与自动闭合。
+ */
 public class PersonalSpaceGateBlockEntity extends BlockEntity {
-    private static final String OWNER_TAG = "OwnerUUID";
-    private static final String PORTAL_MODE_TAG = "PortalMode";
-    private static final String PORTAL_ENV_TAG = "PortalEnv";
-    private static final String OPENED_TIME_TAG = "OpenedGameTime";
+    public static final int MODE_CLOSED = 0;
+    public static final int MODE_REALM = 1;
+    public static final int MODE_PERSONAL = 2;
 
     @Nullable
-    private UUID owner;
-    private int portalMode = -1;
-    private String portalEnvironment = "";
-    private long openedGameTime;
+    private UUID ownerUuid;
+    private String ownerName = "";
+    private int portalMode = MODE_CLOSED;
+    private String targetEnvironmentId = "";
+    private int entryCooldownTicks = 0;
 
     public PersonalSpaceGateBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.PERSONAL_SPACE_GATE_BE.get(), pos, state);
     }
 
+    public void bindTo(@Nullable UUID ownerUuid) {
+        this.ownerUuid = ownerUuid;
+        setChanged();
+    }
+
+    public void setOwner(Player player) {
+        this.ownerUuid = player.getUUID();
+        this.ownerName = player.getName().getString();
+        setChanged();
+    }
+
     @Nullable
-    public UUID getOwner() {
-        return owner;
+    public UUID getOwnerUuid() {
+        return ownerUuid;
+    }
+
+    public String getOwnerName() {
+        return ownerName;
     }
 
     public int getPortalMode() {
         return portalMode;
     }
 
+    public String getTargetEnvironmentId() {
+        return targetEnvironmentId;
+    }
+
     public String getPortalEnvironment() {
-        return portalEnvironment;
+        return targetEnvironmentId;
     }
 
-    public long getOpenedGameTime() {
-        return openedGameTime;
+    public void openPortal(int mode, String environmentId, long gameTime) {
+        openPortal(mode, environmentId);
     }
 
-    public void bindTo(UUID owner) {
-        if (!owner.equals(this.owner)) {
-            this.owner = owner;
-            markUpdated();
-        }
-    }
-
-    public void openPortal(int mode, String environment, long gameTime) {
+    public void openPortal(int mode, String environmentId) {
         this.portalMode = mode;
-        this.portalEnvironment = environment == null ? "" : environment;
-        this.openedGameTime = gameTime;
-        markUpdated();
+        this.targetEnvironmentId = environmentId == null ? "" : environmentId;
+        this.entryCooldownTicks = 8;
+        setChanged();
+        syncToClient();
     }
 
     public void closePortal() {
-        this.portalMode = -1;
-        this.portalEnvironment = "";
-        this.openedGameTime = 0L;
-        markUpdated();
-    }
-
-    private void markUpdated() {
+        this.portalMode = MODE_CLOSED;
+        this.targetEnvironmentId = "";
+        this.entryCooldownTicks = 0;
         setChanged();
-        if (level != null && !level.isClientSide) {
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-        }
+        syncToClient();
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, PersonalSpaceGateBlockEntity gate) {
-        if (!(level instanceof ServerLevel serverLevel) || !state.getValue(PersonalSpaceGateBlock.OPEN)) {
+        if (!state.getValue(PersonalSpaceGateBlock.OPEN)) {
+            return;
+        }
+        if (gate.entryCooldownTicks > 0) {
+            gate.entryCooldownTicks--;
             return;
         }
         AABB portalTrigger = new AABB(
-                pos.getX() + 0.10, pos.getY(), pos.getZ() + 0.10,
-                pos.getX() + 0.90, pos.getY() + 1.45, pos.getZ() + 0.90
+                pos.getX() + 0.05D, pos.getY(), pos.getZ() + 0.05D,
+                pos.getX() + 0.95D, pos.getY() + 2.30D, pos.getZ() + 0.95D
         );
-        for (ServerPlayer player : serverLevel.players()) {
-            if (!player.isSpectator() && player.getBoundingBox().intersects(portalTrigger)) {
-                PrivateSpaceManager.enterOpenedGate(player, pos);
-                return;
-            }
+        List<ServerPlayer> players = level.getEntitiesOfClass(ServerPlayer.class, portalTrigger);
+        if (!players.isEmpty()) {
+            PrivateSpaceManager.enterOpenedGate(players.get(0), pos);
+        }
+    }
+
+    private void syncToClient() {
+        if (level != null && !level.isClientSide) {
+            BlockState state = getBlockState();
+            level.sendBlockUpdated(worldPosition, state, state, 3);
         }
     }
 
     @Override
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
-        if (owner != null) {
-            tag.putUUID(OWNER_TAG, owner);
+        if (ownerUuid != null) {
+            tag.putUUID("OwnerUuid", ownerUuid);
         }
-        tag.putInt(PORTAL_MODE_TAG, portalMode);
-        if (!portalEnvironment.isEmpty()) {
-            tag.putString(PORTAL_ENV_TAG, portalEnvironment);
-        }
-        tag.putLong(OPENED_TIME_TAG, openedGameTime);
+        tag.putString("OwnerName", ownerName);
+        tag.putInt("PortalMode", portalMode);
+        tag.putString("TargetEnv", targetEnvironmentId);
     }
 
     @Override
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
-        owner = tag.hasUUID(OWNER_TAG) ? tag.getUUID(OWNER_TAG) : null;
-        portalMode = tag.contains(PORTAL_MODE_TAG) ? tag.getInt(PORTAL_MODE_TAG) : -1;
-        portalEnvironment = tag.getString(PORTAL_ENV_TAG);
-        openedGameTime = tag.getLong(OPENED_TIME_TAG);
+        ownerUuid = tag.hasUUID("OwnerUuid") ? tag.getUUID("OwnerUuid") : null;
+        ownerName = tag.getString("OwnerName");
+        portalMode = tag.getInt("PortalMode");
+        targetEnvironmentId = tag.getString("TargetEnv");
     }
 
     @Override

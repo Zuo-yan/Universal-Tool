@@ -132,15 +132,14 @@ public final class PrivateSpaceManager {
         if (!state.is(ModBlocks.PERSONAL_SPACE_GATE.get())) {
             return;
         }
-        if (!state.getValue(PersonalSpaceGateBlock.OPEN)) {
-            level.setBlock(gatePos, state.setValue(PersonalSpaceGateBlock.OPEN, true), 3);
-        }
-        if (level.getBlockEntity(gatePos) instanceof PersonalSpaceGateBlockEntity gate) {
+        BlockPos basePos = PersonalSpaceGateBlock.resolveBasePos(gatePos, state);
+        setGateOpenState(level, basePos, true);
+        if (level.getBlockEntity(basePos) instanceof PersonalSpaceGateBlockEntity gate) {
             gate.openPortal(mode, environmentId, level.getGameTime());
         }
-        level.playSound(null, gatePos, SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 0.85F, 1.35F);
-        level.sendParticles(ParticleTypes.END_ROD, gatePos.getX() + 0.5, gatePos.getY() + 0.55,
-                gatePos.getZ() + 0.5, 22, 0.25, 0.35, 0.25, 0.04);
+        level.playSound(null, basePos, SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 0.85F, 1.35F);
+        level.sendParticles(ParticleTypes.END_ROD, basePos.getX() + 0.5, basePos.getY() + 1.28,
+                basePos.getZ() + 0.5, 28, 0.35, 0.72, 0.35, 0.04);
     }
 
     public static void closePortalAtGate(ServerLevel level, BlockPos gatePos) {
@@ -148,30 +147,48 @@ public final class PrivateSpaceManager {
         if (!state.is(ModBlocks.PERSONAL_SPACE_GATE.get())) {
             return;
         }
-        if (state.getValue(PersonalSpaceGateBlock.OPEN)) {
-            level.setBlock(gatePos, state.setValue(PersonalSpaceGateBlock.OPEN, false), 3);
-        }
-        if (level.getBlockEntity(gatePos) instanceof PersonalSpaceGateBlockEntity gate) {
+        BlockPos basePos = PersonalSpaceGateBlock.resolveBasePos(gatePos, state);
+        setGateOpenState(level, basePos, false);
+        if (level.getBlockEntity(basePos) instanceof PersonalSpaceGateBlockEntity gate) {
             gate.closePortal();
         }
-        level.playSound(null, gatePos, SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 0.75F, 1.15F);
-        level.sendParticles(ParticleTypes.PORTAL, gatePos.getX() + 0.5, gatePos.getY() + 0.55,
-                gatePos.getZ() + 0.5, 18, 0.22, 0.3, 0.22, 0.08);
+        level.playSound(null, basePos, SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 0.75F, 1.15F);
+        level.sendParticles(ParticleTypes.PORTAL, basePos.getX() + 0.5, basePos.getY() + 1.28,
+                basePos.getZ() + 0.5, 22, 0.32, 0.65, 0.32, 0.08);
+    }
+
+    private static void setGateOpenState(ServerLevel level, BlockPos basePos, boolean open) {
+        BlockState baseState = level.getBlockState(basePos);
+        if (baseState.is(ModBlocks.PERSONAL_SPACE_GATE.get()) && baseState.getValue(PersonalSpaceGateBlock.OPEN) != open) {
+            level.setBlock(basePos, baseState.setValue(PersonalSpaceGateBlock.OPEN, open), 3);
+        }
+        BlockPos upperPos = basePos.above();
+        BlockState upperState = level.getBlockState(upperPos);
+        if (upperState.is(ModBlocks.PERSONAL_SPACE_GATE.get())
+                && upperState.getValue(PersonalSpaceGateBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER
+                && upperState.getValue(PersonalSpaceGateBlock.OPEN) != open) {
+            level.setBlock(upperPos, upperState.setValue(PersonalSpaceGateBlock.OPEN, open), 3);
+        }
     }
 
     public static void enterOpenedGate(ServerPlayer player, BlockPos gatePos) {
         ServerLevel level = player.serverLevel();
         BlockState state = level.getBlockState(gatePos);
-        if (!state.is(ModBlocks.PERSONAL_SPACE_GATE.get()) || !state.getValue(PersonalSpaceGateBlock.OPEN)) {
+        if (!state.is(ModBlocks.PERSONAL_SPACE_GATE.get())) {
             return;
         }
-        if (!(level.getBlockEntity(gatePos) instanceof PersonalSpaceGateBlockEntity gate)) {
-            closePortalAtGate(level, gatePos);
+        BlockPos basePos = PersonalSpaceGateBlock.resolveBasePos(gatePos, state);
+        BlockState baseState = level.getBlockState(basePos);
+        if (!baseState.is(ModBlocks.PERSONAL_SPACE_GATE.get()) || !baseState.getValue(PersonalSpaceGateBlock.OPEN)) {
+            return;
+        }
+        if (!(level.getBlockEntity(basePos) instanceof PersonalSpaceGateBlockEntity gate)) {
+            closePortalAtGate(level, basePos);
             return;
         }
         int mode = gate.getPortalMode();
         String envId = gate.getPortalEnvironment();
-        closePortalAtGate(level, gatePos);
+        closePortalAtGate(level, basePos);
 
         if (mode == PersonalSpaceActionPayload.ACTION_ENTER_REALM) {
             PrivateSpaceEnvironment environment = PrivateSpaceEnvironment.byId(envId);

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.3 - 2026-11-13
+- **Two-Block Pointed-Oval Rune Stone Stargate & Swirling Cyan Vortex**:
+  - Upgraded `PersonalSpaceGateBlock` (`HALF = DOUBLE_BLOCK_HALF`, `LOWER`/`UPPER`) and `PersonalGateGeometry` into a 2-block-tall (`~2.5` blocks visual height) pointed-oval carved & mossy stone arch with 4 glowing cyan rune cross-nodes and inner cyan energy veins (`stargate_arch.png`, `personal_space_gate_lower.json`, `personal_space_gate_upper.json`).
+  - Left the arch doorway hollow in closed state (`OPEN = false`), and updated `PersonalSpaceGateRenderer` to fill the tall oval arch (`y = 0.25..2.38`) with a vibrant electric-cyan & azure swirling pixel-art spiral vortex (`stargate_portal_vortex.png`) + outer energy rim glow when `OPEN = true`.
+  - Synced `OPEN` state across both `LOWER` and `UPPER` halves (`PrivateSpaceManager`), expanded `PersonalSpaceGateBlockEntity` walk-in detection (`y..y+2.30`), and delegated `UPPER` clicks/entries cleanly to `LOWER`.
+
 ## 1.9.2 - 2026-11-13
 - **Single-Line Personal Space Cosmic Bar**:
   - Streamlined the cosmic entry bar on `PersonalSpaceScreen` to a single clean line (`✦ 进入个人空间 · 按玩家区分 · 潜行右键星空地板返回`), removing the `25×25` and mob-spawning text.

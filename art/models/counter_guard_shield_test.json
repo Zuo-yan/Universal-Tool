@@ -1,0 +1,23 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "0": "universal_tool:item/counter_guard_shield",
+    "particle": "universal_tool:item/counter_guard_shield"
+  },
+  "elements": [
+    {
+      "from": [-8, -8, 7],
+      "to": [8, 8, 9],
+      "faces": {
+        "north": {
+          "uv": [0, 0, 8, 8],
+          "texture": "#0"
+        },
+        "south": {
+          "uv": [0, 0, 8, 8],
+          "texture": "#0"
+        }
+      }
+    }
+  ]
+}
