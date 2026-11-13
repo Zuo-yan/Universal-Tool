@@ -10,5 +10,8 @@ import org.gwfx.universaltool.space.FiniteIslandChunkGenerator;
 public final class ModWorldGeneration {
     public static final DeferredRegister<MapCodec<? extends ChunkGenerator>> GENERATORS =
             DeferredRegister.create(Registries.CHUNK_GENERATOR, UniversalToolMod.MODID);
-    static { GENERATORS.register("finite_island", () -> FiniteIslandChunkGenerator.CODEC); }
+    static {
+        GENERATORS.register("finite_island", () -> FiniteIslandChunkGenerator.CODEC);
+        GENERATORS.register("starry_pocket", () -> org.gwfx.universaltool.space.StarryPocketChunkGenerator.CODEC);
+    }
 }

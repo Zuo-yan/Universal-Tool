@@ -68,11 +68,7 @@ public class PersonalSpaceGateBlock extends BaseEntityBlock {
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hitResult) {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
-            if (PrivateSpaceManager.isPersonalSpace(serverPlayer.server, level.dimension())) {
-                PrivateSpaceManager.returnPlayer(serverPlayer);
-            } else if (level.getBlockEntity(pos) instanceof PersonalSpaceGateBlockEntity gate) {
-                PrivateSpaceManager.onGateUsed(serverPlayer, gate, player.isShiftKeyDown());
-            }
+            PrivateSpaceManager.onGateUsed(serverPlayer, pos);
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }

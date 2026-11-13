@@ -216,7 +216,8 @@ public final class PrivateIslandVisualTest {
             phase = 5;
             ticks = 0;
             client.options.hideGui = false;
-            client.setScreen(new PersonalSpaceScreen(BlockPos.ZERO, PersonalSpaceScreen.CREATE));
+            client.setScreen(new PersonalSpaceScreen(BlockPos.ZERO, PersonalSpaceScreen.PAGE_REALMS,
+                    client.player.getName().getString(), "superflat", ""));
         } else if (phase == 5 && ++ticks > 50) {
             capture("island_creation_ui.png");
             sweepIndex = 0;
@@ -235,28 +236,30 @@ public final class PrivateIslandVisualTest {
                 if (++sweepIndex >= values.length) {
                     phase = 7;
                     ticks = 0;
-                    client.setScreen(new PersonalSpaceScreen(BlockPos.ZERO, PersonalSpaceScreen.VISIT));
+                    client.setScreen(null);
+                    client.options.hideGui = true;
+                    var server = client.getSingleplayerServer();
+                    var playerId = client.player.getUUID();
+                    server.execute(() -> {
+                        var player = server.getPlayerList().getPlayer(playerId);
+                        if (player == null) return;
+                        ResourceLocation pocketId = ResourceLocation.fromNamespaceAndPath(
+                                UniversalToolMod.MODID, "visual_pocket_" + CAPTURE_RUN_ID);
+                        activePreviewDimId = pocketId;
+                        var biome = server.overworld().registryAccess().lookupOrThrow(Registries.BIOME)
+                                .getOrThrow(net.minecraft.world.level.biome.Biomes.THE_VOID);
+                        var pocketLevel = PersonalDimensionRegistry.from(server).createDynamicDimension(
+                                pocketId,
+                                new org.gwfx.universaltool.space.StarryPocketChunkGenerator(new FixedBiomeSource(biome)),
+                                PrivateSpaceManager.buildPrivatePocketDimensionType(server.overworld().dimensionType()));
+                        PrivateSpaceManager.configureLevel(pocketLevel, PrivateSpaceEnvironment.SUPERFLAT, true);
+                        PersonalDimensionRegistry.from(server).whenClientReady(player, pocketLevel, () ->
+                                player.teleportTo(pocketLevel, 0.5, 67.5, -8.5, -20.0F, 24.0F));
+                    });
                 } else sweepClicked = false;
             }
-        } else if (phase == 7 && ++ticks > 50) {
-            capture("island_ui_visit.png");
-            ticks = 0;
-            phase = 8;
-            client.setScreen(new PersonalSpaceScreen(BlockPos.ZERO, PersonalSpaceScreen.CHANGE_PASSWORD));
-        } else if (phase == 8 && ++ticks > 50) {
-            capture("island_ui_change_password.png");
-            ticks = 0;
-            phase = 9;
-            client.setScreen(new PersonalSpaceScreen(BlockPos.ZERO, PersonalSpaceScreen.CREATE));
-        } else if (phase == 9 && ++ticks > 50) {
-            // A rejected submission must report inline and leave the screen open.
-            var screen = client.screen;
-            clickButton("PanelButton", 0, "confirm with an empty password");
-            if (client.screen != screen) throw new IllegalStateException("Validation failure must not close the screen");
-            ticks = 0;
-            phase = 10;
-        } else if (phase == 10 && ++ticks > 20) {
-            capture("island_ui_validation_error.png");
+        } else if (phase == 7 && ++ticks > 120) {
+            capture("private_pocket_world.png");
             UniversalToolMod.LOGGER.info("VISUAL_TEST all captures completed");
             client.stop();
             phase = 11;
@@ -348,14 +351,88 @@ public final class PrivateIslandVisualTest {
         if (capturePhase != 2 || client.getSingleplayerServer() == null || client.player == null) return;
 
         PrivateSpaceEnvironment[] envs = PrivateSpaceEnvironment.values();
-        if (captureIndex >= envs.length) {
+        boolean capturingPrivatePocket = captureIndex == envs.length;
+        if (captureIndex > envs.length) {
             client.stop();
             capturePhase = 99;
             return;
         }
 
-        PrivateSpaceEnvironment env = envs[captureIndex];
         var server = client.getSingleplayerServer();
+        if (capturingPrivatePocket) {
+            if (captureState == 0) {
+                captureState = 1;
+                captureTicks = 0;
+                captureReady = false;
+                ResourceLocation dimId = ResourceLocation.fromNamespaceAndPath(
+                        UniversalToolMod.MODID, "visual_preview_private_pocket_" + CAPTURE_RUN_ID);
+                activePreviewDimId = dimId;
+                var playerId = client.player.getUUID();
+                server.execute(() -> {
+                    var player = server.getPlayerList().getPlayer(playerId);
+                    if (player == null) return;
+                    Holder<Biome> biome = server.overworld().registryAccess().lookupOrThrow(Registries.BIOME)
+                            .getOrThrow(Biomes.THE_VOID);
+                    var level = PersonalDimensionRegistry.from(server).createDynamicDimension(
+                            dimId,
+                            new org.gwfx.universaltool.space.StarryPocketChunkGenerator(new FixedBiomeSource(biome)),
+                            PrivateSpaceManager.buildPrivatePocketDimensionType(server.overworld().dimensionType()));
+                    PrivateSpaceManager.configureLevel(level, PrivateSpaceEnvironment.SUPERFLAT, true);
+                    camX = 0.5;
+                    camY = 67.5;
+                    camZ = -8.5;
+                    camYaw = -28.0F;
+                    camPitch = 14.0F;
+                    targetLookX = 0;
+                    targetLookY = 64;
+                    targetLookZ = 0;
+                    player.setGameMode(GameType.CREATIVE);
+                    player.getAbilities().flying = true;
+                    player.onUpdateAbilities();
+                    PersonalDimensionRegistry.from(server).whenClientReady(player, level, () -> {
+                        player.teleportTo(level, camX, camY, camZ, camYaw, camPitch);
+                        captureReady = true;
+                    });
+                });
+                return;
+            }
+            client.mouseHandler.releaseMouse();
+            client.setScreen(null);
+            if (!captureReady || client.level == null || !client.level.dimension().location().equals(activePreviewDimId)) {
+                return;
+            }
+            client.player.setDeltaMovement(0, 0, 0);
+            client.player.setPos(camX, camY, camZ);
+            client.player.setYRot(camYaw);
+            client.player.yRotO = camYaw;
+            client.player.setXRot(camPitch);
+            client.player.xRotO = camPitch;
+            captureTicks++;
+            if (captureTicks == 30) {
+                client.levelRenderer.allChanged();
+            }
+            if (captureTicks >= 100) {
+                Path outputPath = resolvePreviewOutputPath(client, "private_pocket");
+                boolean saved = PhotoManager.capturePanoramicToFile(outputPath, 544, 136);
+                UniversalToolMod.LOGGER.info("CAPTURE_REALMS saved private_pocket -> {} (ok={})", outputPath, saved);
+                ResourceLocation dimToUnload = activePreviewDimId;
+                var playerId = client.player.getUUID();
+                server.execute(() -> {
+                    var player = server.getPlayerList().getPlayer(playerId);
+                    if (player != null) {
+                        var safe = server.overworld().getSharedSpawnPos();
+                        player.teleportTo(server.overworld(), safe.getX() + 0.5, safe.getY() + 1.0, safe.getZ() + 0.5, 0, 0);
+                    }
+                    PersonalDimensionRegistry.from(server).unloadDynamicDimension(dimToUnload);
+                });
+                captureIndex++;
+                client.stop();
+                capturePhase = 99;
+            }
+            return;
+        }
+
+        PrivateSpaceEnvironment env = envs[captureIndex];
 
         if (captureState == 0) {
             captureState = 1;
@@ -376,7 +453,7 @@ public final class PrivateIslandVisualTest {
                 var generator = new FiniteIslandChunkGenerator(new FixedBiomeSource(biome), env, seed, 512);
                 var registry = PersonalDimensionRegistry.from(server);
                 var level = registry.createDynamicDimension(dimId, generator,
-                        PrivateSpaceManager.copyDimensionType(server.overworld().dimensionType()));
+                        PrivateSpaceManager.buildDimensionType(server.overworld().dimensionType(), env));
                 if (level == null) {
                     throw new IllegalStateException("Failed to create preview dimension " + dimId);
                 }
@@ -468,7 +545,7 @@ public final class PrivateIslandVisualTest {
         }
         boolean targetLoaded = client.level.isLoaded(new BlockPos(targetLookX, targetLookY, targetLookZ));
         if (captureTicks >= 110 && (targetLoaded || captureTicks >= 180)) {
-            Path outputPath = resolvePreviewOutputPath(client, env);
+            Path outputPath = resolvePreviewOutputPath(client, env.id());
             boolean saved = PhotoManager.capturePanoramicToFile(outputPath, 544, 136);
             UniversalToolMod.LOGGER.info("CAPTURE_REALMS saved {} -> {} (ok={})", env.id(), outputPath, saved);
             if (!saved) {
@@ -487,27 +564,21 @@ public final class PrivateIslandVisualTest {
             });
 
             captureIndex++;
-            if (captureIndex >= envs.length) {
-                UniversalToolMod.LOGGER.info("CAPTURE_REALMS completed all {} realm previews", envs.length);
-                client.stop();
-                capturePhase = 99;
-            } else {
-                captureState = 0;
-                captureTicks = 0;
-            }
+            captureState = 0;
+            captureTicks = 0;
         }
     }
 
-    private static Path resolvePreviewOutputPath(Minecraft client, PrivateSpaceEnvironment env) {
+    private static Path resolvePreviewOutputPath(Minecraft client, String id) {
         Path cur = client.gameDirectory.toPath().toAbsolutePath().normalize();
         for (int i = 0; i < 6 && cur != null; i++) {
             Path assetsDir = cur.resolve("src/main/resources/assets/universal_tool");
             if (Files.isDirectory(assetsDir)) {
-                return assetsDir.resolve("textures/gui/previews/env_" + env.id() + ".png");
+                return assetsDir.resolve("textures/gui/previews/env_" + id + ".png");
             }
             cur = cur.getParent();
         }
-        return client.gameDirectory.toPath().resolve("previews/env_" + env.id() + ".png");
+        return client.gameDirectory.toPath().resolve("previews/env_" + id + ".png");
     }
 
     /** Picks a deterministic seed whose procedural landmarks sit nicely inside the foreground view. */

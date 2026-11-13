@@ -10,6 +10,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
@@ -18,169 +20,102 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.level.dimension.LevelStem;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.WorldDimensions;
 import net.minecraft.world.level.levelgen.presets.WorldPreset;
 import net.minecraft.world.level.levelgen.presets.WorldPresets;
-import net.minecraft.world.level.dimension.DimensionType;
-import net.minecraft.world.level.dimension.LevelStem;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.init.ModBlocks;
 import org.gwfx.universaltool.network.PersonalSpaceActionPayload;
 import org.gwfx.universaltool.network.PersonalSpaceResultPayload;
 import org.gwfx.universaltool.network.PersonalSpaceScreenPayload;
+import org.gwfx.universaltool.space.PersonalSpaceSavedData.SpaceRecord;
 import org.gwfx.universaltool.space.PrivateSpaceEnvironment.SpawnArea;
 import org.gwfx.universaltool.space.PrivateSpaceEnvironment.Surface;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
+import java.util.Set;
 import java.util.UUID;
 
+/**
+ * Coordinates the dual-mode Star Gate network:
+ * <ul>
+ *   <li>8 shared, freely switchable exploration realms ({@code universal_tool:realm/<env>})</li>
+ *   <li>Password-free, UUID-keyed 25x25x25 Private Starry Spaces ({@code universal_tool:private_pocket/<uuid>})</li>
+ * </ul>
+ */
 @EventBusSubscriber(modid = UniversalToolMod.MODID)
 public final class PrivateSpaceManager {
     private static final int WORLD_SIZE = 512;
     private static final int LAND_SEARCH_RADIUS = 48;
-    private static final int ACTION_CREATE = 0;
-    private static final int ACTION_VISIT = 1;
-    private static final int ACTION_CHANGE_PASSWORD = 2;
-    private static final java.util.Map<UUID, ResourceKey<Level>> DEATH_DIMENSIONS = new java.util.HashMap<>();
-    private static final java.util.Set<UUID> RESPAWN_RETURN_PENDING = new java.util.HashSet<>();
+    private static final int PAGE_REALMS = 0;
+    private static final Map<UUID, ResourceKey<Level>> DEATH_DIMENSIONS = new HashMap<>();
+    private static final Set<UUID> RESPAWN_RETURN_PENDING = new HashSet<>();
 
     private PrivateSpaceManager() {}
 
-    public static void onGateUsed(ServerPlayer player, PersonalSpaceGateBlockEntity gate, boolean sneaking) {
-        UUID owner = gate.getOwner();
-        if (owner == null) {
-            player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.unbound_gate"), true);
-            return;
-        }
-
-        PersonalSpaceSavedData data = PersonalSpaceSavedData.get(player.server);
-        Optional<PersonalSpaceSavedData.SpaceRecord> space = data.getSpace(owner);
-        if (owner.equals(player.getUUID())) {
-            if (space.isEmpty()) {
-                openScreen(player, gate.getBlockPos(), ACTION_CREATE, player.getName().getString(), "", "");
-            } else if (sneaking) {
-                PersonalSpaceSavedData.SpaceRecord record = space.get();
-                openScreen(player, gate.getBlockPos(), ACTION_CHANGE_PASSWORD,
-                        player.getName().getString(), record.environment().id(), record.dimension().getPath());
-            } else {
-                enterSpace(player, space.get());
-            }
-            return;
-        }
-
-        if (space.isEmpty()) {
-            player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.not_created"), true);
-            return;
-        }
-        PersonalSpaceSavedData.SpaceRecord record = space.get();
-        openScreen(player, gate.getBlockPos(), ACTION_VISIT,
-                resolveOwnerName(player.server, owner), record.environment().id(), record.dimension().getPath());
+    public static String privatePocketPath(UUID playerUuid) {
+        return "private_pocket/" + playerUuid.toString().replace("-", "");
     }
 
-    private static String resolveOwnerName(MinecraftServer server, UUID owner) {
-        ServerPlayer online = server.getPlayerList().getPlayer(owner);
-        if (online != null) {
-            return online.getName().getString();
-        }
-        var cache = server.getProfileCache();
-        if (cache != null) {
-            var profile = cache.get(owner);
-            if (profile.isPresent()) {
-                return profile.get().getName();
-            }
-        }
-        return "";
+    public static String realmPath(PrivateSpaceEnvironment environment) {
+        return "realm/" + environment.id();
     }
 
-    private static void openScreen(ServerPlayer player, BlockPos gatePos, int mode,
-                                   String ownerName, String environmentId, String spaceDimension) {
+    /** Opens the Star Gate terminal for whichever player right-clicked it (no lock-in, no passwords). */
+    public static void onGateUsed(ServerPlayer player, BlockPos gatePos) {
+        String currentEnv = resolveEnvironment(player.serverLevel())
+                .map(PrivateSpaceEnvironment::id)
+                .orElse(PrivateSpaceEnvironment.SUPERFLAT.id());
+        openScreen(player, gatePos, PAGE_REALMS,
+                player.getName().getString(), currentEnv, privatePocketPath(player.getUUID()));
+    }
+
+    private static void openScreen(ServerPlayer player, BlockPos gatePos, int page,
+                                   String playerName, String environmentId, String privateDimension) {
         PacketDistributor.sendToPlayer(player,
-                new PersonalSpaceScreenPayload(gatePos, mode, ownerName, environmentId, spaceDimension));
+                new PersonalSpaceScreenPayload(gatePos, page, playerName, environmentId, privateDimension));
     }
 
     public static void handleAction(ServerPlayer player, PersonalSpaceActionPayload payload) {
         if (player.distanceToSqr(payload.gatePos().getX() + 0.5, payload.gatePos().getY() + 0.5,
                 payload.gatePos().getZ() + 0.5) > 64.0
-                || !(player.serverLevel().getBlockEntity(payload.gatePos()) instanceof PersonalSpaceGateBlockEntity gate)
-                || gate.getOwner() == null) {
-            // The player has walked away or the gate is gone: no answer is owed, and the client's own
-            // timeout restores the button.
+                || !player.serverLevel().getBlockState(payload.gatePos()).is(ModBlocks.PERSONAL_SPACE_GATE.get())) {
             return;
         }
 
-        UUID gateOwner = gate.getOwner();
-        PersonalSpaceSavedData data = PersonalSpaceSavedData.get(player.server);
-        Optional<PersonalSpaceSavedData.SpaceRecord> existing = data.getSpace(gateOwner);
-
-        if (payload.mode() == ACTION_CREATE) {
-            if (!gateOwner.equals(player.getUUID()) || existing.isPresent()) return;
+        if (payload.mode() == PersonalSpaceActionPayload.ACTION_ENTER_REALM) {
             PrivateSpaceEnvironment environment = PrivateSpaceEnvironment.byId(payload.environment());
-            if (environment == null) return;
-            String rejection = validateNewPassword(payload.password(), payload.confirmation());
-            if (rejection != null) {
-                reject(player, payload, rejection);
+            if (environment == null) {
+                reject(player, payload, "message.universal_tool.personal_space.load_failed");
                 return;
             }
-            createSpace(player, payload, environment, payload.password());
+            enterRealm(player, payload, environment);
             return;
         }
 
-        if (payload.mode() == ACTION_CHANGE_PASSWORD) {
-            if (!gateOwner.equals(player.getUUID()) || existing.isEmpty()) return;
-            String rejection = validateNewPassword(payload.password(), payload.confirmation());
-            if (rejection != null) {
-                reject(player, payload, rejection);
-                return;
-            }
-            PasswordHasher.HashedPassword hashed = PasswordHasher.hash(payload.password());
-            data.changePassword(gateOwner, hashed.salt(), hashed.hash());
-            accept(player, payload);
-            player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.password_changed"), true);
-            return;
+        if (payload.mode() == PersonalSpaceActionPayload.ACTION_ENTER_PRIVATE_SPACE) {
+            enterPrivatePocket(player, payload);
         }
-
-        if (payload.mode() == ACTION_VISIT && !gateOwner.equals(player.getUUID()) && existing.isPresent()) {
-            if (payload.password().length() > PrivateSpaceRules.MAX_PASSWORD_LENGTH) {
-                reject(player, payload, "message.universal_tool.personal_space.password_length");
-                return;
-            }
-            PersonalSpaceSavedData.SpaceRecord space = existing.get();
-            if (!PasswordHasher.verify(payload.password(), space.passwordSalt(), space.passwordHash())) {
-                reject(player, payload, "message.universal_tool.personal_space.wrong_password");
-                return;
-            }
-            accept(player, payload);
-            enterSpace(player, space);
-        }
-    }
-
-    /**
-     * @return the translation key to show, or {@code null} when the password is acceptable
-     */
-    private static String validateNewPassword(String password, String confirmation) {
-        if (password.length() < PrivateSpaceRules.MIN_PASSWORD_LENGTH
-                || password.length() > PrivateSpaceRules.MAX_PASSWORD_LENGTH) {
-            return "message.universal_tool.personal_space.password_length";
-        }
-        if (!MessageDigest.isEqual(password.getBytes(StandardCharsets.UTF_8), confirmation.getBytes(StandardCharsets.UTF_8))) {
-            return "message.universal_tool.personal_space.password_mismatch";
-        }
-        return null;
     }
 
     private static void accept(ServerPlayer player, PersonalSpaceActionPayload payload) {
@@ -191,63 +126,88 @@ public final class PrivateSpaceManager {
         PacketDistributor.sendToPlayer(player, new PersonalSpaceResultPayload(payload.gatePos(), payload.mode(), false, messageKey));
     }
 
-    private static void createSpace(ServerPlayer player, PersonalSpaceActionPayload payload,
-                                    PrivateSpaceEnvironment environment, String password) {
+    private static void enterRealm(ServerPlayer player, PersonalSpaceActionPayload payload, PrivateSpaceEnvironment environment) {
         MinecraftServer server = player.server;
         PersonalSpaceSavedData data = PersonalSpaceSavedData.get(server);
-        ResourceLocation dimensionId = ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
-                "personal_space/" + player.getUUID().toString().replace("-", ""));
-        PersonalDimensionRegistry registry = PersonalDimensionRegistry.from(server);
-        if (!registry.canCreateDimension(dimensionId)) {
-            reject(player, payload, "message.universal_tool.personal_space.dimension_exists");
+        boolean fresh = data.getRealm(environment).isEmpty();
+        SpaceRecord record = data.getRealm(environment).orElseGet(() -> {
+            long terrainSeed = server.overworld().getSeed() ^ environment.id().hashCode();
+            SpaceRecord created = new SpaceRecord(
+                    PersonalSpaceSavedData.SHARED_REALM_OWNER,
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, realmPath(environment)),
+                    environment, "", "", FiniteIslandChunkGenerator.VERSION, WORLD_SIZE, terrainSeed
+            );
+            data.putRealm(created);
+            return created;
+        });
+
+        ServerLevel targetLevel = getOrLoadSpace(server, record, fresh);
+        if (targetLevel == null) {
+            reject(player, payload, "message.universal_tool.personal_space.load_failed");
             return;
         }
 
-        ServerLevel overworld = server.overworld();
-        long startedAt = System.nanoTime();
-        long terrainSeed = overworld.getSeed() ^ player.getUUID().getMostSignificantBits() ^ player.getUUID().getLeastSignificantBits();
-        PasswordHasher.HashedPassword hashed = PasswordHasher.hash(password);
-        PersonalSpaceSavedData.SpaceRecord record = new PersonalSpaceSavedData.SpaceRecord(player.getUUID(),
-                dimensionId, environment, hashed.salt(), hashed.hash(), FiniteIslandChunkGenerator.VERSION, WORLD_SIZE, terrainSeed);
-        ChunkGenerator generator;
-        try {
-            generator = createGenerator(overworld, record);
-        } catch (RuntimeException exception) {
-            UniversalToolMod.LOGGER.error("Failed to create personal-space generator for {}", environment.id(), exception);
-            reject(player, payload, "message.universal_tool.personal_space.create_failed");
-            return;
-        }
-
-        ServerLevel privateLevel;
-        try {
-            privateLevel = registry.createDynamicDimension(dimensionId, generator,
-                    copyDimensionType(overworld.dimensionType()));
-        } catch (RuntimeException exception) {
-            UniversalToolMod.LOGGER.error("Failed to create personal space dimension {}", dimensionId, exception);
-            reject(player, payload, "message.universal_tool.personal_space.create_failed");
-            return;
-        }
-        if (privateLevel == null) {
-            UniversalToolMod.LOGGER.error("Internal dimension registry rejected personal space {} (dimension type or ID is already registered)",
-                    dimensionId);
-            reject(player, payload, "message.universal_tool.personal_space.create_failed");
-            return;
-        }
-
-        configureLevel(privateLevel, environment, true);
-        UniversalToolMod.LOGGER.info("Created {} personal island {} in {} ms", environment.id(), dimensionId,
-                (System.nanoTime() - startedAt) / 1_000_000L);
-        data.addSpace(record);
         accept(player, payload);
-        enterLoadedSpace(player, record, privateLevel);
-        player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.created"), true);
+        PersonalDimensionRegistry.from(server).whenClientReady(player, targetLevel, () -> {
+            if (!isRealmLevel(player.serverLevel())) {
+                // Keep the original Overworld (or pre-realm) return anchor across free realm switches.
+                data.setReturnPosition(player.getUUID(), positionOf(player));
+            }
+            BlockPos spawn = targetLevel.getSharedSpawnPos();
+            player.teleportTo(targetLevel, spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5,
+                    player.getYRot(), player.getXRot());
+            data.setResumePosition(player.getUUID(), positionOf(player));
+            if (fresh) {
+                player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.created"), true);
+            }
+        });
     }
 
-    static ChunkGenerator createGenerator(ServerLevel overworld, PersonalSpaceSavedData.SpaceRecord record) {
-        PrivateSpaceEnvironment environment = record.environment();
-        if (!record.isFiniteIsland() && !PersonalSpaceSavedData.SpaceRecord.LEGACY_VERSION.equals(record.generationVersion()))
-            throw new IllegalStateException("Unsupported private terrain version: " + record.generationVersion());
+    private static void enterPrivatePocket(ServerPlayer player, PersonalSpaceActionPayload payload) {
+        MinecraftServer server = player.server;
+        PersonalSpaceSavedData data = PersonalSpaceSavedData.get(server);
+        UUID playerUuid = player.getUUID();
+        boolean fresh = data.getPrivatePocket(playerUuid).isEmpty();
+        SpaceRecord record = data.getPrivatePocket(playerUuid).orElseGet(() -> {
+            long seed = server.overworld().getSeed() ^ playerUuid.getMostSignificantBits();
+            SpaceRecord created = new SpaceRecord(
+                    playerUuid,
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, privatePocketPath(playerUuid)),
+                    PrivateSpaceEnvironment.SUPERFLAT, "", "", StarryPocketChunkGenerator.VERSION, 25, seed
+            );
+            data.putPrivatePocket(created);
+            return created;
+        });
+
+        ServerLevel targetLevel = getOrLoadSpace(server, record, fresh);
+        if (targetLevel == null) {
+            reject(player, payload, "message.universal_tool.personal_space.load_failed");
+            return;
+        }
+
+        accept(player, payload);
+        PersonalDimensionRegistry.from(server).whenClientReady(player, targetLevel, () -> {
+            if (!isStarryPocket(player.serverLevel())) {
+                data.setPrivateReturnPosition(playerUuid, positionOf(player));
+            }
+            player.teleportTo(targetLevel, 0.5, StarryPocketChunkGenerator.INTERIOR_MIN_Y, 0.5,
+                    player.getYRot(), player.getXRot());
+            data.setResumePosition(playerUuid, positionOf(player));
+            player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.entered_private"), true);
+        });
+    }
+
+    static ChunkGenerator createGenerator(ServerLevel overworld, SpaceRecord record) {
         var registries = overworld.registryAccess();
+        if (record.isStarryPocket()) {
+            Holder<Biome> cosmicBiome = registries.lookupOrThrow(Registries.BIOME).getOrThrow(Biomes.THE_VOID);
+            return new StarryPocketChunkGenerator(new FixedBiomeSource(cosmicBiome));
+        }
+
+        PrivateSpaceEnvironment environment = record.environment();
+        if (!record.isFiniteIsland() && !SpaceRecord.LEGACY_VERSION.equals(record.generationVersion())) {
+            throw new IllegalStateException("Unsupported private terrain version: " + record.generationVersion());
+        }
         if (!record.isFiniteIsland() && environment == PrivateSpaceEnvironment.SUPERFLAT) {
             WorldPreset flatPreset = registries.lookupOrThrow(Registries.WORLD_PRESET)
                     .getOrThrow(WorldPresets.FLAT).value();
@@ -258,18 +218,74 @@ public final class PrivateSpaceManager {
         ResourceLocation biomeId = environment.profile().biome().location();
         Holder<Biome> biome = registries.lookupOrThrow(Registries.BIOME)
                 .getOrThrow(ResourceKey.create(Registries.BIOME, biomeId));
-        if (record.isFiniteIsland()) return new FiniteIslandChunkGenerator(new FixedBiomeSource(biome), environment,
-                record.terrainSeed(), record.terrainSize());
+        if (record.isFiniteIsland()) {
+            return new FiniteIslandChunkGenerator(new FixedBiomeSource(biome), environment,
+                    record.terrainSeed(), record.terrainSize());
+        }
         Holder<NoiseGeneratorSettings> settings = registries.lookupOrThrow(Registries.NOISE_SETTINGS)
                 .getOrThrow(NoiseGeneratorSettings.OVERWORLD);
         return new NoiseBasedChunkGenerator(new FixedBiomeSource(biome), settings);
     }
 
     public static DimensionType copyDimensionType(DimensionType source) {
-        return new DimensionType(source.fixedTime(), source.hasSkyLight(), source.hasCeiling(), source.ultraWarm(),
-                source.natural(), source.coordinateScale(), source.bedWorks(), source.respawnAnchorWorks(),
-                source.minY(), source.height(), source.logicalHeight(), source.infiniburn(), source.effectsLocation(),
-                source.ambientLight(), source.monsterSettings());
+        return buildDimensionType(source, PrivateSpaceEnvironment.SUPERFLAT);
+    }
+
+    /** Builds a realm-tuned DimensionType (fixed clock, safe beds/water, optional piglin safety). */
+    public static DimensionType buildDimensionType(DimensionType source, PrivateSpaceEnvironment environment) {
+        PrivateSpaceWorldTraits traits = environment.traits();
+        DimensionType.MonsterSettings srcMonsters = source.monsterSettings();
+        DimensionType.MonsterSettings monsters = new DimensionType.MonsterSettings(
+                traits.piglinSafe(),
+                srcMonsters.hasRaids(),
+                srcMonsters.monsterSpawnLightTest(),
+                srcMonsters.monsterSpawnBlockLightLimit()
+        );
+        return new DimensionType(
+                traits.time().fixedTime(),
+                source.hasSkyLight(),
+                false,
+                false,
+                true,
+                source.coordinateScale(),
+                true,
+                true,
+                source.minY(),
+                source.height(),
+                source.logicalHeight(),
+                source.infiniburn(),
+                source.effectsLocation(),
+                Math.max(source.ambientLight(), traits.ambientLight()),
+                monsters
+        );
+    }
+
+    /** Builds the eternal starry sanctuary DimensionType (safe beds, soft ambient light, no hazards). */
+    public static DimensionType buildPrivatePocketDimensionType(DimensionType source) {
+        DimensionType.MonsterSettings srcMonsters = source.monsterSettings();
+        DimensionType.MonsterSettings monsters = new DimensionType.MonsterSettings(
+                true,
+                false,
+                srcMonsters.monsterSpawnLightTest(),
+                0
+        );
+        return new DimensionType(
+                OptionalLong.of(18000L),
+                true,
+                false,
+                false,
+                true,
+                1.0,
+                true,
+                true,
+                source.minY(),
+                source.height(),
+                source.logicalHeight(),
+                source.infiniburn(),
+                source.effectsLocation(),
+                Math.max(source.ambientLight(), 0.35F),
+                monsters
+        );
     }
 
     public static void configureLevel(ServerLevel level, PrivateSpaceEnvironment environment, boolean fresh) {
@@ -277,24 +293,119 @@ public final class PrivateSpaceManager {
         level.getWorldBorder().setSize(59_999_968);
         level.getWorldBorder().setWarningBlocks(0);
 
+        if (isStarryPocket(level)) {
+            if (level.getLevelData() instanceof PersonalDimensionLevelData personalData) {
+                personalData.setWeatherRule(PrivateSpaceWorldTraits.WeatherRule.ALWAYS_CLEAR);
+            }
+            applyWeatherState(level, PrivateSpaceWorldTraits.WeatherRule.ALWAYS_CLEAR);
+            BlockPos spawn = new BlockPos(0, StarryPocketChunkGenerator.INTERIOR_MIN_Y, 0);
+            if (!spawn.equals(level.getSharedSpawnPos())) {
+                level.setDefaultSpawnPos(spawn, 0.0F);
+            }
+            ensureStarryChamberShell(level, fresh);
+            return;
+        }
+
+        if (level.getLevelData() instanceof PersonalDimensionLevelData personalData) {
+            personalData.setWeatherRule(environment.traits().weather());
+        }
+        applyWeatherState(level, environment.traits().weather());
+
         BlockPos spawn = level.getSharedSpawnPos();
-        if (fresh) {
+        boolean needsSpawnInit = fresh || (!isSafeSpawn(level, spawn)
+                && !level.getBlockState(spawn.offset(-3, 0, 0)).is(ModBlocks.PERSONAL_SPACE_RETURN.get()));
+        if (needsSpawnInit) {
             spawn = prepareSpawnArea(level, environment);
         }
 
-        if (fresh || !spawn.equals(level.getSharedSpawnPos())) level.setDefaultSpawnPos(spawn, 0.0F);
+        if (needsSpawnInit || !spawn.equals(level.getSharedSpawnPos())) {
+            level.setDefaultSpawnPos(spawn, 0.0F);
+        }
         ensureReturnGate(level);
     }
 
+    /** Ensures the 25x25 StarryVoidBlock floor and transparent Barrier boundary box exist. */
+    static void ensureStarryChamberShell(ServerLevel level, boolean force) {
+        BlockPos probeFloor = new BlockPos(0, StarryPocketChunkGenerator.FLOOR_Y, 0);
+        BlockPos probeWall = new BlockPos(StarryPocketChunkGenerator.SHELL_HALF, StarryPocketChunkGenerator.INTERIOR_MIN_Y, 0);
+        if (!force && level.getBlockState(probeFloor).is(ModBlocks.STARRY_VOID_BLOCK.get())
+                && level.getBlockEntity(probeFloor) instanceof StarryVoidBlockEntity
+                && level.getBlockState(probeWall).is(Blocks.BARRIER)) {
+            return;
+        }
+        BlockState floorState = ModBlocks.STARRY_VOID_BLOCK.get().defaultBlockState();
+        BlockState barrierState = Blocks.BARRIER.defaultBlockState();
+        int innerHalf = StarryPocketChunkGenerator.INNER_HALF;
+        int shellHalf = StarryPocketChunkGenerator.SHELL_HALF;
+        int floorY = StarryPocketChunkGenerator.FLOOR_Y;
+        int ceilingY = StarryPocketChunkGenerator.CEILING_Y;
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+        for (int x = -shellHalf; x <= shellHalf; x++) {
+            for (int z = -shellHalf; z <= shellHalf; z++) {
+                boolean onPerimeter = x == -shellHalf || x == shellHalf || z == -shellHalf || z == shellHalf;
+                for (int y = floorY; y <= ceilingY; y++) {
+                    cursor.set(x, y, z);
+                    if (y == floorY && Math.abs(x) <= innerHalf && Math.abs(z) <= innerHalf) {
+                        if (!level.getBlockState(cursor).is(ModBlocks.STARRY_VOID_BLOCK.get())) {
+                            level.setBlock(cursor, floorState, 2);
+                        }
+                        if (!(level.getBlockEntity(cursor) instanceof StarryVoidBlockEntity)) {
+                            level.setBlockEntity(new StarryVoidBlockEntity(cursor.immutable(), floorState));
+                        }
+                    } else if (onPerimeter || y == ceilingY) {
+                        if (!level.getBlockState(cursor).is(Blocks.BARRIER)) {
+                            level.setBlock(cursor, barrierState, 2);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    static void applyWeatherState(ServerLevel level, PrivateSpaceWorldTraits.WeatherRule rule) {
+        if (rule == PrivateSpaceWorldTraits.WeatherRule.ALWAYS_CLEAR) {
+            level.setRainLevel(0.0F);
+            level.setThunderLevel(0.0F);
+        } else if (rule == PrivateSpaceWorldTraits.WeatherRule.SNOW_FLURRY) {
+            level.setRainLevel(0.65F);
+            level.setThunderLevel(0.0F);
+        }
+    }
+
     static void ensureReturnGate(ServerLevel level) {
+        if (isStarryPocket(level)) {
+            return;
+        }
         BlockPos pos = level.getSharedSpawnPos().offset(-3, 0, 0);
-        if (!level.getBlockState(pos).is(ModBlocks.PERSONAL_SPACE_RETURN.get()))
+        if (!level.getBlockState(pos).is(ModBlocks.PERSONAL_SPACE_RETURN.get())) {
             level.setBlock(pos, ModBlocks.PERSONAL_SPACE_RETURN.get().defaultBlockState(), 3);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onStarryVoidShiftClick(PlayerInteractEvent.RightClickBlock event) {
+        if (event.getHand() != InteractionHand.MAIN_HAND || !event.getEntity().isShiftKeyDown()) {
+            return;
+        }
+        if (!event.getLevel().getBlockState(event.getPos()).is(ModBlocks.STARRY_VOID_BLOCK.get())) {
+            return;
+        }
+        event.setCanceled(true);
+        event.setCancellationResult(InteractionResult.sidedSuccess(event.getLevel().isClientSide()));
+        if (!event.getLevel().isClientSide() && event.getEntity() instanceof ServerPlayer serverPlayer) {
+            returnPlayer(serverPlayer);
+        }
     }
 
     @SubscribeEvent
     public static void protectReturnGate(BlockEvent.BreakEvent event) {
-        if (!event.getState().is(ModBlocks.PERSONAL_SPACE_RETURN.get())) return;
+        BlockState state = event.getState();
+        if (!state.is(ModBlocks.PERSONAL_SPACE_RETURN.get()) && !state.is(ModBlocks.STARRY_VOID_BLOCK.get())) {
+            return;
+        }
+        if (state.is(ModBlocks.STARRY_VOID_BLOCK.get()) && event.getPlayer().isCreative()) {
+            return;
+        }
         event.setCanceled(true);
         event.getPlayer().displayClientMessage(Component.translatable(
                 "message.universal_tool.personal_space.return_gate_protected"), true);
@@ -302,8 +413,10 @@ public final class PrivateSpaceManager {
 
     @SubscribeEvent
     public static void protectReturnGateFromExplosion(ExplosionEvent.Detonate event) {
-        event.getAffectedBlocks().removeIf(pos -> event.getLevel().getBlockState(pos)
-                .is(ModBlocks.PERSONAL_SPACE_RETURN.get()));
+        event.getAffectedBlocks().removeIf(pos -> {
+            BlockState state = event.getLevel().getBlockState(pos);
+            return state.is(ModBlocks.PERSONAL_SPACE_RETURN.get()) || state.is(ModBlocks.STARRY_VOID_BLOCK.get());
+        });
     }
 
     private static BlockPos prepareSpawnArea(ServerLevel level, PrivateSpaceEnvironment environment) {
@@ -336,9 +449,10 @@ public final class PrivateSpaceManager {
                 level.setBlock(new BlockPos(x, localY - 1, z), surface.top().defaultBlockState(), 3);
                 for (int y = localY; y <= localY + 10; y++) {
                     BlockPos clear = new BlockPos(x, y, z);
-                    if (!level.getBlockState(clear).isAir()) level.setBlock(clear, Blocks.AIR.defaultBlockState(), 3);
+                    if (!level.getBlockState(clear).isAir()) {
+                        level.setBlock(clear, Blocks.AIR.defaultBlockState(), 3);
+                    }
                 }
-                // Snow is re-applied after the clearing pass so the landing pad reads as frozen ground.
                 if (surface.snowLayer() && !level.getBlockState(new BlockPos(x, localY, z)).is(Blocks.SNOW)) {
                     level.setBlock(new BlockPos(x, localY, z), Blocks.SNOW.defaultBlockState(), 3);
                 }
@@ -402,12 +516,33 @@ public final class PrivateSpaceManager {
 
     @SubscribeEvent
     public static void rescueFromVoid(PlayerTickEvent.Post event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)
-                || player.getY() >= player.serverLevel().getMinBuildHeight() - 16
-                || !isPersonalSpace(player.server, player.serverLevel().dimension())) return;
-        BlockPos spawn = player.serverLevel().getSharedSpawnPos();
-        BlockPos safe = findSafePosition(player.serverLevel(), spawn.getX(), spawn.getY(), spawn.getZ());
-        player.teleportTo(player.serverLevel(), safe.getX() + 0.5, safe.getY(), safe.getZ() + 0.5,
+        if (!(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+        ServerLevel level = player.serverLevel();
+        if (isStarryPocket(level)) {
+            boolean outOfChamber = player.getY() < StarryPocketChunkGenerator.FLOOR_Y
+                    || player.getY() > StarryPocketChunkGenerator.CEILING_Y + 2
+                    || Math.abs(player.getX()) > StarryPocketChunkGenerator.SHELL_HALF + 2.0
+                    || Math.abs(player.getZ()) > StarryPocketChunkGenerator.SHELL_HALF + 2.0;
+            if (!outOfChamber) {
+                return;
+            }
+            player.teleportTo(level, 0.5, StarryPocketChunkGenerator.INTERIOR_MIN_Y, 0.5,
+                    player.getYRot(), player.getXRot());
+            player.resetFallDistance();
+            player.setDeltaMovement(0, 0, 0);
+            PersonalSpaceSavedData.get(player.server).setResumePosition(player.getUUID(), positionOf(player));
+            return;
+        }
+
+        if (player.getY() >= level.getMinBuildHeight() - 16
+                || !isPersonalSpace(player.server, level.dimension())) {
+            return;
+        }
+        BlockPos spawn = level.getSharedSpawnPos();
+        BlockPos safe = findSafePosition(level, spawn.getX(), spawn.getY(), spawn.getZ());
+        player.teleportTo(level, safe.getX() + 0.5, safe.getY(), safe.getZ() + 0.5,
                 player.getYRot(), player.getXRot());
         player.resetFallDistance();
         player.setDeltaMovement(0, 0, 0);
@@ -434,16 +569,21 @@ public final class PrivateSpaceManager {
         if (deathDimension == null) return;
 
         PersonalSpaceSavedData data = PersonalSpaceSavedData.get(player.server);
-        PersonalSpaceSavedData.SpaceRecord ownSpace = data.getSpace(player.getUUID()).orElse(null);
+        SpaceRecord ownSpace = data.getSpace(player.getUUID()).orElse(null);
         ServerLevel destination;
         PersonalSpaceSavedData.Position position;
         if (ownSpace != null && ownSpace.dimension().equals(deathDimension.location())) {
-            destination = getOrLoadSpace(player.server, ownSpace);
+            destination = getOrLoadSpace(player.server, ownSpace, false);
             if (destination == null) destination = player.server.overworld();
             configureLevel(destination, ownSpace.environment(), false);
-            BlockPos spawn = destination.getSharedSpawnPos();
-            position = new PersonalSpaceSavedData.Position(destination.dimension(), spawn.getX() + 0.5,
-                    spawn.getY(), spawn.getZ() + 0.5, 0, 0);
+            if (ownSpace.isStarryPocket()) {
+                position = new PersonalSpaceSavedData.Position(destination.dimension(),
+                        0.5, StarryPocketChunkGenerator.INTERIOR_MIN_Y, 0.5, 0, 0);
+            } else {
+                BlockPos spawn = destination.getSharedSpawnPos();
+                position = new PersonalSpaceSavedData.Position(destination.dimension(),
+                        spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5, 0, 0);
+            }
         } else {
             position = data.getReturnPosition(player.getUUID()).orElse(null);
             if (position == null) {
@@ -468,58 +608,59 @@ public final class PrivateSpaceManager {
             BlockPos safe = findSafePosition(target, targetPosition.x(), targetPosition.y(), targetPosition.z());
             player.teleportTo(target, safe.getX() + 0.5, safe.getY(), safe.getZ() + 0.5,
                     targetPosition.yaw(), targetPosition.pitch());
-            if (target == player.server.overworld()) data.clearReturnPosition(player.getUUID());
-            data.setResumePosition(player.getUUID(), positionOf(player));
+            if (!isPersonalSpace(player.server, target.dimension())) {
+                data.clearReturnPosition(player.getUUID());
+            } else {
+                data.setResumePosition(player.getUUID(), positionOf(player));
+            }
             RESPAWN_RETURN_PENDING.remove(player.getUUID());
         };
-        if (isPersonalSpace(player.server, target.dimension()))
+        if (isPersonalSpace(player.server, target.dimension())) {
             PersonalDimensionRegistry.from(player.server).whenClientReady(player, target, finishRespawn);
-        else finishRespawn.run();
-    }
-
-    private static void enterSpace(ServerPlayer player, PersonalSpaceSavedData.SpaceRecord record) {
-        ServerLevel level = getOrLoadSpace(player.server, record);
-        if (level == null) {
-            player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.load_failed"), true);
-            return;
+        } else {
+            finishRespawn.run();
         }
-        configureLevel(level, record.environment(), false);
-        enterLoadedSpace(player, record, level);
     }
 
-    private static void enterLoadedSpace(ServerPlayer player, PersonalSpaceSavedData.SpaceRecord record, ServerLevel level) {
-        PersonalDimensionRegistry.from(player.server).whenClientReady(player, level, () -> {
-            PersonalSpaceSavedData data = PersonalSpaceSavedData.get(player.server);
-            if (!player.level().dimension().location().equals(record.dimension())) {
-                data.setReturnPosition(player.getUUID(), positionOf(player));
-            }
-            BlockPos spawn = level.getSharedSpawnPos();
-            player.teleportTo(level, spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5,
-                    player.getYRot(), player.getXRot());
-            data.setResumePosition(player.getUUID(), positionOf(player));
-        });
+    public static ServerLevel getOrLoadSpace(MinecraftServer server, SpaceRecord record) {
+        return getOrLoadSpace(server, record, false);
     }
 
-    public static ServerLevel getOrLoadSpace(MinecraftServer server, PersonalSpaceSavedData.SpaceRecord record) {
+    private static ServerLevel getOrLoadSpace(MinecraftServer server, SpaceRecord record, boolean fresh) {
         ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, record.dimension());
         ServerLevel level = server.getLevel(key);
         if (level != null) {
             PersonalDimensionRegistry.from(server).adoptExistingDimension(level);
+            configureLevel(level, record.environment(), fresh);
             return level;
         }
         try {
             PersonalDimensionRegistry registry = PersonalDimensionRegistry.from(server);
-            return registry.loadDynamicDimension(record.dimension(), createGenerator(server.overworld(), record),
-                    copyDimensionType(server.overworld().dimensionType()));
+            DimensionType dimType = record.isStarryPocket()
+                    ? buildPrivatePocketDimensionType(server.overworld().dimensionType())
+                    : buildDimensionType(server.overworld().dimensionType(), record.environment());
+            ServerLevel loaded = fresh && registry.canCreateDimension(record.dimension())
+                    ? registry.createDynamicDimension(record.dimension(), createGenerator(server.overworld(), record), dimType)
+                    : registry.loadDynamicDimension(record.dimension(), createGenerator(server.overworld(), record), dimType);
+            if (loaded != null) {
+                configureLevel(loaded, record.environment(), fresh);
+            }
+            return loaded;
         } catch (RuntimeException exception) {
-            UniversalToolMod.LOGGER.error("Failed to load personal space {}", record.dimension(), exception);
+            UniversalToolMod.LOGGER.error("Failed to load space {}", record.dimension(), exception);
             return null;
         }
     }
 
     public static void returnPlayer(ServerPlayer player) {
         PersonalSpaceSavedData data = PersonalSpaceSavedData.get(player.server);
-        PersonalSpaceSavedData.Position destination = data.getReturnPosition(player.getUUID()).orElse(null);
+        boolean fromPocket = isStarryPocket(player.serverLevel());
+        PersonalSpaceSavedData.Position destination = fromPocket
+                ? data.getPrivateReturnPosition(player.getUUID())
+                        .or(() -> data.getReturnPosition(player.getUUID()))
+                        .orElse(null)
+                : data.getReturnPosition(player.getUUID()).orElse(null);
+
         if (destination == null) {
             ServerLevel overworld = player.server.overworld();
             BlockPos spawn = overworld.getSharedSpawnPos();
@@ -539,14 +680,26 @@ public final class PrivateSpaceManager {
         PersonalSpaceSavedData.Position returnPosition = destination;
         Runnable teleport = () -> {
             BlockPos safe = findSafePosition(target, returnPosition.x(), returnPosition.y(), returnPosition.z());
-            data.clearReturnPosition(player.getUUID());
+            if (fromPocket) {
+                data.clearPrivateReturnPosition(player.getUUID());
+            } else {
+                data.clearReturnPosition(player.getUUID());
+            }
+            if (!isPersonalSpace(player.server, target.dimension())) {
+                data.clearResumePosition(player.getUUID());
+            }
             player.teleportTo(target, safe.getX() + 0.5, safe.getY(), safe.getZ() + 0.5,
                     returnPosition.yaw(), returnPosition.pitch());
+            if (isPersonalSpace(player.server, target.dimension())) {
+                data.setResumePosition(player.getUUID(), positionOf(player));
+            }
             player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.returned"), true);
         };
-        if (isPersonalSpace(player.server, target.dimension()))
+        if (isPersonalSpace(player.server, target.dimension())) {
             PersonalDimensionRegistry.from(player.server).whenClientReady(player, target, teleport);
-        else teleport.run();
+        } else {
+            teleport.run();
+        }
     }
 
     private static ServerLevel getOrLoadDestination(MinecraftServer server, ResourceKey<Level> dimension) {
@@ -555,7 +708,7 @@ public final class PrivateSpaceManager {
             return level;
         }
         PersonalSpaceSavedData data = PersonalSpaceSavedData.get(server);
-        for (PersonalSpaceSavedData.SpaceRecord record : data.allSpaces()) {
+        for (SpaceRecord record : data.allSpaces()) {
             if (record.dimension().equals(dimension.location())) {
                 return getOrLoadSpace(server, record);
             }
@@ -594,7 +747,9 @@ public final class PrivateSpaceManager {
         var server = event.getServer();
         for (var record : PersonalSpaceSavedData.get(server).allSpaces()) {
             var level = server.getLevel(ResourceKey.create(Registries.DIMENSION, record.dimension()));
-            if (level != null) PersonalDimensionRegistry.from(server).adoptExistingDimension(level);
+            if (level != null) {
+                PersonalDimensionRegistry.from(server).adoptExistingDimension(level);
+            }
         }
     }
 
@@ -606,7 +761,7 @@ public final class PrivateSpaceManager {
             ServerLevel level = getOrLoadDestination(player.server, position.dimension());
             if (level != null) {
                 PersonalSpaceSavedData.Position resume = position;
-                Optional<PersonalSpaceSavedData.SpaceRecord> space = data.allSpaces().stream()
+                Optional<SpaceRecord> space = data.allSpaces().stream()
                         .filter(record -> record.dimension().equals(position.dimension().location())).findFirst();
                 if (space.isPresent()) {
                     configureLevel(level, space.get().environment(), false);
@@ -623,7 +778,9 @@ public final class PrivateSpaceManager {
                     PersonalDimensionRegistry.from(player.server).whenClientReady(player, level, () ->
                             player.teleportTo(level, restoredPosition.x(), restoredPosition.y(), restoredPosition.z(),
                                     restoredPosition.yaw(), restoredPosition.pitch()));
-                } else player.teleportTo(level, resume.x(), resume.y(), resume.z(), resume.yaw(), resume.pitch());
+                } else {
+                    player.teleportTo(level, resume.x(), resume.y(), resume.z(), resume.yaw(), resume.pitch());
+                }
             }
         });
     }
@@ -632,14 +789,19 @@ public final class PrivateSpaceManager {
     public static void onPlayerChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         PersonalSpaceSavedData data = PersonalSpaceSavedData.get(player.server);
+        boolean fromPocket = isStarryPocketDimension(event.getFrom());
+        boolean toPocket = isStarryPocketDimension(event.getTo());
         boolean fromSpace = isPersonalSpace(player.server, event.getFrom());
         boolean toSpace = isPersonalSpace(player.server, event.getTo());
-        if (fromSpace && !toSpace && !RESPAWN_RETURN_PENDING.contains(player.getUUID())
-                && !DEATH_DIMENSIONS.containsKey(player.getUUID())) {
+        boolean leavingUnexpectedly = !RESPAWN_RETURN_PENDING.contains(player.getUUID())
+                && !DEATH_DIMENSIONS.containsKey(player.getUUID());
+        if (fromPocket && !toPocket && leavingUnexpectedly) {
+            data.clearPrivateReturnPosition(player.getUUID());
+        }
+        if (fromSpace && !toSpace && leavingUnexpectedly) {
             data.clearReturnPosition(player.getUUID());
         }
-        if (fromSpace && !event.getFrom().equals(event.getTo())
-                && !DEATH_DIMENSIONS.containsKey(player.getUUID())) {
+        if (fromSpace && !event.getFrom().equals(event.getTo()) && !DEATH_DIMENSIONS.containsKey(player.getUUID())) {
             ResourceKey<Level> oldDimension = event.getFrom();
             player.server.execute(() -> unloadIfEmpty(player.server, oldDimension));
         }
@@ -650,14 +812,16 @@ public final class PrivateSpaceManager {
         var server = event.getServer();
         var registry = PersonalDimensionRegistry.from(server);
         registry.tickPendingTeleports();
-        // Logout events can precede removal from PlayerList. Recheck emptiness after that removal.
         if (server.getTickCount() % 20 == 0) {
             for (var record : PersonalSpaceSavedData.get(server).allSpaces()) {
                 ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, record.dimension());
                 ServerLevel loaded = server.getLevel(key);
-                if (loaded != null) ensureReturnGate(loaded);
-                if (!registry.hasPendingTeleport(record.dimension()))
+                if (loaded != null && !record.isStarryPocket()) {
+                    ensureReturnGate(loaded);
+                }
+                if (!registry.hasPendingTeleport(record.dimension())) {
                     unloadIfEmpty(server, key);
+                }
             }
         }
     }
@@ -678,6 +842,38 @@ public final class PrivateSpaceManager {
     static boolean isPersonalSpace(MinecraftServer server, ResourceKey<Level> dimension) {
         return PersonalSpaceSavedData.get(server).allSpaces().stream()
                 .anyMatch(record -> record.dimension().equals(dimension.location()));
+    }
+
+    public static boolean isStarryPocket(ServerLevel level) {
+        return level.getChunkSource().getGenerator() instanceof StarryPocketChunkGenerator
+                || isStarryPocketDimension(level.dimension());
+    }
+
+    private static boolean isStarryPocketDimension(ResourceKey<Level> dimension) {
+        ResourceLocation loc = dimension.location();
+        return UniversalToolMod.MODID.equals(loc.getNamespace())
+                && loc.getPath().startsWith("private_pocket/");
+    }
+
+    private static boolean isRealmLevel(ServerLevel level) {
+        ResourceLocation loc = level.dimension().location();
+        return level.getChunkSource().getGenerator() instanceof FiniteIslandChunkGenerator
+                || (UniversalToolMod.MODID.equals(loc.getNamespace()) && loc.getPath().startsWith("realm/"));
+    }
+
+    /** Resolves a loaded exploration realm's landscape, including isolated test/preview dimensions. */
+    public static Optional<PrivateSpaceEnvironment> resolveEnvironment(ServerLevel level) {
+        if (isStarryPocket(level)) {
+            return Optional.empty();
+        }
+        if (level.getChunkSource().getGenerator() instanceof FiniteIslandChunkGenerator islandGenerator) {
+            return Optional.of(islandGenerator.environment());
+        }
+        ResourceLocation dimId = level.dimension().location();
+        return PersonalSpaceSavedData.get(level.getServer()).allSpaces().stream()
+                .filter(record -> record.dimension().equals(dimId) && !record.isStarryPocket())
+                .map(SpaceRecord::environment)
+                .findFirst();
     }
 
     private static void unloadIfEmpty(MinecraftServer server, ResourceKey<Level> dimension) {

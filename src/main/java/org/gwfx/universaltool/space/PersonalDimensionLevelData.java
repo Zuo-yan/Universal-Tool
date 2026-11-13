@@ -7,18 +7,57 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.storage.*;
 
-/** Keeps the private spawn independent while sharing the server's clock and game rules. */
+/** Keeps the private spawn and realm weather rule independent while sharing the server's clock and game rules. */
 final class PersonalDimensionLevelData extends DerivedLevelData {
     private SpawnData spawn;
+    private PrivateSpaceWorldTraits.WeatherRule weatherRule = PrivateSpaceWorldTraits.WeatherRule.NORMAL;
+
     PersonalDimensionLevelData(WorldData world, ServerLevelData wrapped) {
         super(world, wrapped);
         spawn = new SpawnData(wrapped.getSpawnPos(), wrapped.getSpawnAngle());
     }
+
     void attach(ServerLevel level) {
         SpawnData fallback = spawn;
         spawn = level.getDataStorage().computeIfAbsent(new SavedData.Factory<>(() -> fallback, SpawnData::load),
                 "universal_tool_private_spawn");
     }
+
+    void setWeatherRule(PrivateSpaceWorldTraits.WeatherRule rule) {
+        this.weatherRule = rule == null ? PrivateSpaceWorldTraits.WeatherRule.NORMAL : rule;
+    }
+
+    @Override
+    public boolean isRaining() {
+        return switch (weatherRule) {
+            case ALWAYS_CLEAR -> false;
+            case SNOW_FLURRY -> true;
+            case NORMAL -> super.isRaining();
+        };
+    }
+
+    @Override
+    public boolean isThundering() {
+        return switch (weatherRule) {
+            case ALWAYS_CLEAR, SNOW_FLURRY -> false;
+            case NORMAL -> super.isThundering();
+        };
+    }
+
+    @Override
+    public void setRaining(boolean raining) {
+        if (weatherRule == PrivateSpaceWorldTraits.WeatherRule.NORMAL) {
+            super.setRaining(raining);
+        }
+    }
+
+    @Override
+    public void setThundering(boolean thundering) {
+        if (weatherRule == PrivateSpaceWorldTraits.WeatherRule.NORMAL) {
+            super.setThundering(thundering);
+        }
+    }
+
     @Override public BlockPos getSpawnPos() { return spawn.position; }
     @Override public float getSpawnAngle() { return spawn.angle; }
     @Override public void setSpawn(BlockPos position, float angle) {

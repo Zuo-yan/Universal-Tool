@@ -61,7 +61,10 @@ public final class PersonalSpaceSnapshotHandler {
     public static void onReturnGateUsed(PlayerInteractEvent.RightClickBlock event) {
         if (!event.getLevel().isClientSide()) return;
         if (Boolean.getBoolean("universal_tool.islandVisual")) return;
-        if (!event.getLevel().getBlockState(event.getPos()).is(ModBlocks.PERSONAL_SPACE_RETURN.get())) return;
+        var state = event.getLevel().getBlockState(event.getPos());
+        boolean isRealmReturn = state.is(ModBlocks.PERSONAL_SPACE_RETURN.get());
+        boolean isStarryReturn = state.is(ModBlocks.STARRY_VOID_BLOCK.get()) && event.getEntity().isShiftKeyDown();
+        if (!isRealmReturn && !isStarryReturn) return;
 
         Minecraft client = Minecraft.getInstance();
         if (client.level == null || client.screen != null || !RenderSystem.isOnRenderThread()) return;
@@ -73,7 +76,9 @@ public final class PersonalSpaceSnapshotHandler {
 
     private static boolean isPersonalSpace(ResourceLocation dimension) {
         return UniversalToolMod.MODID.equals(dimension.getNamespace())
-                && dimension.getPath().startsWith("personal_space");
+                && (dimension.getPath().startsWith("personal_space")
+                        || dimension.getPath().startsWith("realm/")
+                        || dimension.getPath().startsWith("private_pocket/"));
     }
 
     private static void reset() {

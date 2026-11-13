@@ -9,10 +9,10 @@ import net.minecraft.resources.ResourceLocation;
 import org.gwfx.universaltool.UniversalToolMod;
 
 /**
- * Opens the gate terminal on the client.
+ * Opens the dual-mode Star Gate terminal on the client.
  *
- * <p>Carries the owner's display name, the landscape behind the gate, and the space dimension path
- * so the VISIT / CHANGE_PASSWORD pages can show a live local snapshot or the realm preview.
+ * <p>Page {@code 0} lets the player freely choose any of the 8 shared exploration realms;
+ * page {@code 1} is the secondary menu for entering the clicking player's own 25x25x25 Private Starry Space.
  */
 public record PersonalSpaceScreenPayload(BlockPos gatePos, int mode, String ownerName,
                                          String environmentId, String spaceDimension)

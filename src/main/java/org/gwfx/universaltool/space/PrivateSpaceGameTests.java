@@ -167,12 +167,14 @@ public final class PrivateSpaceGameTests {
         data.addSpace(new PersonalSpaceSavedData.SpaceRecord(owner,legacy.dimension(),legacy.environment(),"salt","hash",
                 FiniteIslandChunkGenerator.VERSION,512,123456L));
         var origin=new PersonalSpaceSavedData.Position(Level.OVERWORLD,10,70,20,30,0);
-        data.setReturnPosition(owner,origin);data.setResumePosition(owner,origin);data.changePassword(owner,"newSalt","newHash");
+        var privateOrigin=new PersonalSpaceSavedData.Position(Level.OVERWORLD,-40,68,12,90,5);
+        data.setReturnPosition(owner,origin);data.setResumePosition(owner,origin);data.setPrivateReturnPosition(owner,privateOrigin);
         var restored=PersonalSpaceSavedData.load(data.save(new CompoundTag(),registry),registry);
         var record=restored.getSpace(owner).orElseThrow();
-        helper.assertTrue(record.terrainSeed()==123456L && record.terrainSize()==512 && record.isFiniteIsland(),"Password changes must preserve terrain metadata");
-        helper.assertTrue(record.passwordHash().equals("newHash") && restored.getReturnPosition(owner).orElseThrow().equals(origin)
-                && restored.getResumePosition(owner).orElseThrow().equals(origin),"Mapping, password and positions must round trip");
+        helper.assertTrue(record.terrainSeed()==123456L && record.terrainSize()==512 && record.isFiniteIsland(),"SavedData round trip must preserve terrain metadata");
+        helper.assertTrue(restored.getReturnPosition(owner).orElseThrow().equals(origin)
+                && restored.getPrivateReturnPosition(owner).orElseThrow().equals(privateOrigin)
+                && restored.getResumePosition(owner).orElseThrow().equals(origin),"Return, private-return, and resume positions must round trip");
         helper.succeed();
     }
 
@@ -227,9 +229,16 @@ public final class PrivateSpaceGameTests {
         PrivateSpaceManager.recordPrivateDeath(new LivingDeathEvent(player,player.damageSources().genericKill()));
         player.teleportTo(overworld,sourceTarget.x(),sourceTarget.y(),sourceTarget.z(),sourceTarget.yaw(),sourceTarget.pitch());
         PrivateSpaceManager.respawnFromPrivateSpace(new PlayerEvent.PlayerRespawnEvent(player,false));
-        helper.assertTrue(player.serverLevel()==home && player.blockPosition().equals(home.getSharedSpawnPos()),
-                "The owner must respawn at their own base spawn; actual="+player.serverLevel().dimension()+"/"+
-                        player.blockPosition()+", expected="+home.getSharedSpawnPos());
+        ServerLevel currentHome = server.getLevel(home.dimension());
+        helper.assertTrue(currentHome != null
+                        && player.serverLevel() == currentHome
+                        && player.blockPosition().equals(currentHome.getSharedSpawnPos()),
+                "The owner must respawn at their own base spawn; sameDim="
+                        +(currentHome != null && player.serverLevel() == currentHome)+
+                        ", eqPos="+(currentHome != null && player.blockPosition().equals(currentHome.getSharedSpawnPos()))+
+                        ", actual="+player.serverLevel().dimension()+"/"+player.blockPosition()+
+                        ", actualClass="+player.blockPosition().getClass().getName()+
+                        ", expected="+(currentHome == null ? "null" : currentHome.getSharedSpawnPos()));
         helper.assertTrue(data.getReturnPosition(ownerId).isPresent(),"Owner death must preserve their entry position");
 
         var visitor=mockPlayer(server,home,new com.mojang.authlib.GameProfile(visitorId,"return-visitor-test"));
@@ -287,17 +296,19 @@ public final class PrivateSpaceGameTests {
             ((PersonalSpaceGateBlockEntity)helper.getLevel().getBlockEntity(entrance)).bindTo(player.getUUID());
             player.setPos(entrance.getX()+0.5,entrance.getY(),entrance.getZ()+0.5);
             PrivateSpaceManager.handleAction(player,new org.gwfx.universaltool.network.PersonalSpaceActionPayload(
-                    entrance,0,"superflat","testpass","testpass"));
+                    entrance,org.gwfx.universaltool.network.PersonalSpaceActionPayload.ACTION_ENTER_REALM,"superflat"));
             var level=player.serverLevel();var id=level.dimension().location();
-            helper.assertTrue(level!=helper.getLevel(),"Actual creation payload must enter a new dimension");
+            helper.assertTrue(level!=helper.getLevel(),"Actual realm payload must enter a new dimension");
             var data=PersonalSpaceSavedData.get(server);
-            helper.assertTrue(data.getSpace(player.getUUID()).orElseThrow().isFiniteIsland(),"Actual creation must persist the finite generator version");
+            helper.assertTrue(data.getRealm(PrivateSpaceEnvironment.SUPERFLAT).orElseThrow().isFiniteIsland(),
+                    "Shared realm must persist the finite generator version");
             player.teleportTo(level,400,100,0,0,0);
             PrivateSpaceManager.rescueFromVoid(new PlayerTickEvent.Post(player));
             helper.assertTrue(player.getX()==400,"Flying beyond footprint must not be clamped");
             player.teleportTo(level,400,-90,0,0,0);player.fallDistance=100;
             PrivateSpaceManager.rescueFromVoid(new PlayerTickEvent.Post(player));
-            helper.assertTrue(Math.abs(player.getX())<1 && player.getY()==level.getSharedSpawnPos().getY(),"Void must return player to safe spawn");
+            helper.assertTrue(Math.abs(player.getX())<1 && player.getY()==level.getSharedSpawnPos().getY(),
+                    "Void must return player to safe spawn; pos="+player.position()+", spawn="+level.getSharedSpawnPos());
             helper.assertTrue(player.fallDistance==0 && player.getInventory().getItem(0).getCount()==7,"Rescue must preserve inventory and clear fall damage");
             PrivateSpaceManager.returnPlayer(player);
             helper.assertTrue(player.serverLevel()==helper.getLevel() && data.getReturnPosition(player.getUUID()).isEmpty(),
@@ -307,5 +318,269 @@ public final class PrivateSpaceGameTests {
             helper.assertTrue(player.getY()==-90,"Void rescue must not affect normal worlds");
             player.discard();registry.unloadDynamicDimension(id);helper.succeed();
         });
+    }
+
+    @GameTest(templateNamespace="universal_tool", template="empty", timeoutTicks=400)
+    public static void worldTraitsAndOres(GameTestHelper helper) {
+        var server = helper.getLevel().getServer();
+        var overworld = server.overworld();
+        var registry = PersonalDimensionRegistry.from(server);
+
+        // Verify DimensionType traits for eternal day, eternal night, safe beds, and piglin safety
+        DimensionType flatType = PrivateSpaceManager.buildDimensionType(overworld.dimensionType(), PrivateSpaceEnvironment.SUPERFLAT);
+        helper.assertTrue(flatType.fixedTime().equals(OptionalLong.of(6000L)), "Superflat must lock to eternal noon (6000)");
+        helper.assertTrue(flatType.bedWorks() && !flatType.ultraWarm(), "Superflat must allow beds and water");
+
+        DimensionType forgeType = PrivateSpaceManager.buildDimensionType(overworld.dimensionType(), PrivateSpaceEnvironment.OBSIDIAN_FORGE);
+        helper.assertTrue(forgeType.fixedTime().equals(OptionalLong.of(18000L)), "Obsidian Forge must lock to eternal night (18000)");
+        helper.assertTrue(forgeType.bedWorks() && !forgeType.ultraWarm() && forgeType.monsterSettings().piglinSafe(),
+                "Obsidian Forge must keep beds/water safe while keeping Piglins safe from zombification");
+
+        // Create Superflat, Amethyst Starfall, Mushroom Wonderland, and Obsidian Forge levels to test ores, weather, & spawns
+        var flatId = ResourceLocation.fromNamespaceAndPath("universal_tool", "test_traits/superflat");
+        var amethystId = ResourceLocation.fromNamespaceAndPath("universal_tool", "test_traits/amethyst");
+        var mushroomId = ResourceLocation.fromNamespaceAndPath("universal_tool", "test_traits/mushroom");
+        var forgeId = ResourceLocation.fromNamespaceAndPath("universal_tool", "test_traits/forge");
+
+        var flatGen = generator(overworld, PrivateSpaceEnvironment.SUPERFLAT);
+        var amethystGen = generator(overworld, PrivateSpaceEnvironment.AMETHYST_STARFALL);
+        var mushroomGen = generator(overworld, PrivateSpaceEnvironment.MUSHROOM_WONDERLAND);
+        var forgeGen = generator(overworld, PrivateSpaceEnvironment.OBSIDIAN_FORGE);
+
+        var flatLevel = registry.createDynamicDimension(flatId, flatGen, flatType);
+        var amethystLevel = registry.createDynamicDimension(amethystId, amethystGen,
+                PrivateSpaceManager.buildDimensionType(overworld.dimensionType(), PrivateSpaceEnvironment.AMETHYST_STARFALL));
+        var mushroomLevel = registry.createDynamicDimension(mushroomId, mushroomGen,
+                PrivateSpaceManager.buildDimensionType(overworld.dimensionType(), PrivateSpaceEnvironment.MUSHROOM_WONDERLAND));
+        var forgeLevel = registry.createDynamicDimension(forgeId, forgeGen, forgeType);
+
+        PrivateSpaceManager.configureLevel(flatLevel, PrivateSpaceEnvironment.SUPERFLAT, true);
+        PrivateSpaceManager.configureLevel(amethystLevel, PrivateSpaceEnvironment.AMETHYST_STARFALL, true);
+        PrivateSpaceManager.configureLevel(mushroomLevel, PrivateSpaceEnvironment.MUSHROOM_WONDERLAND, true);
+        PrivateSpaceManager.configureLevel(forgeLevel, PrivateSpaceEnvironment.OBSIDIAN_FORGE, true);
+
+        helper.assertTrue(!flatLevel.isRaining() && !flatLevel.isThundering(),
+                "ALWAYS_CLEAR personal realms must report clear weather");
+
+        // Natural spawn vs spawner checks
+        BlockPos flatSurface = flatLevel.getSharedSpawnPos().offset(24, 0, 24);
+        flatLevel.getChunk(flatSurface);
+        var natSlime = new net.neoforged.neoforge.event.entity.living.MobSpawnEvent.SpawnPlacementCheck(
+                net.minecraft.world.entity.EntityType.SLIME, flatLevel,
+                net.minecraft.world.entity.MobSpawnType.NATURAL, flatSurface, flatLevel.random, true);
+        PrivateSpaceWorldTraitHandler.onSpawnPlacementCheck(natSlime);
+        helper.assertTrue(!natSlime.getPlacementCheckResult(), "Superflat must block natural Slime spawns");
+
+        var spawnerSlime = new net.neoforged.neoforge.event.entity.living.MobSpawnEvent.SpawnPlacementCheck(
+                net.minecraft.world.entity.EntityType.SLIME, flatLevel,
+                net.minecraft.world.entity.MobSpawnType.SPAWNER, flatSurface, flatLevel.random, true);
+        PrivateSpaceWorldTraitHandler.onSpawnPlacementCheck(spawnerSlime);
+        helper.assertTrue(spawnerSlime.getPlacementCheckResult(), "Superflat must NOT interfere with mob spawners");
+
+        BlockPos mushPos = new BlockPos(36, mushroomGen.surfaceY(36, 36) + 1, 36);
+        mushroomLevel.getChunk(mushPos);
+        var natMooshroom = new net.neoforged.neoforge.event.entity.living.MobSpawnEvent.SpawnPlacementCheck(
+                net.minecraft.world.entity.EntityType.MOOSHROOM, mushroomLevel,
+                net.minecraft.world.entity.MobSpawnType.NATURAL, mushPos, mushroomLevel.random, false);
+        PrivateSpaceWorldTraitHandler.onSpawnPlacementCheck(natMooshroom);
+        helper.assertTrue(natMooshroom.getPlacementCheckResult(), "Mushroom Wonderland must allow natural Mooshroom spawns");
+
+        var natZombie = new net.neoforged.neoforge.event.entity.living.MobSpawnEvent.SpawnPlacementCheck(
+                net.minecraft.world.entity.EntityType.ZOMBIE, mushroomLevel,
+                net.minecraft.world.entity.MobSpawnType.NATURAL, mushPos, mushroomLevel.random, true);
+        PrivateSpaceWorldTraitHandler.onSpawnPlacementCheck(natZombie);
+        helper.assertTrue(!natZombie.getPlacementCheckResult(), "Mushroom Wonderland must reject natural Zombie spawns");
+
+        var spawnerZombie = new net.neoforged.neoforge.event.entity.living.MobSpawnEvent.SpawnPlacementCheck(
+                net.minecraft.world.entity.EntityType.ZOMBIE, mushroomLevel,
+                net.minecraft.world.entity.MobSpawnType.SPAWNER, mushPos, mushroomLevel.random, true);
+        PrivateSpaceWorldTraitHandler.onSpawnPlacementCheck(spawnerZombie);
+        helper.assertTrue(spawnerZombie.getPlacementCheckResult(), "Mushroom Wonderland must leave Spawner Zombies unaffected");
+
+        helper.assertTrue(PrivateSpaceEnvironment.OBSIDIAN_FORGE.traits().spawns().hostileRateMultiplier() == 2.0,
+                "Obsidian Forge must declare 2.0x hostile spawn rate multiplier");
+
+        // Underground ore verification across 4x4 interior chunks
+        int amethystOreCount = countMatchingBlocks(amethystLevel, amethystGen, Set.of(
+                Blocks.COAL_ORE, Blocks.DEEPSLATE_COAL_ORE, Blocks.COPPER_ORE, Blocks.DEEPSLATE_COPPER_ORE,
+                Blocks.IRON_ORE, Blocks.DEEPSLATE_IRON_ORE, Blocks.GOLD_ORE, Blocks.DEEPSLATE_GOLD_ORE,
+                Blocks.REDSTONE_ORE, Blocks.DEEPSLATE_REDSTONE_ORE, Blocks.LAPIS_ORE, Blocks.DEEPSLATE_LAPIS_ORE,
+                Blocks.EMERALD_ORE, Blocks.DEEPSLATE_EMERALD_ORE, Blocks.DIAMOND_ORE, Blocks.DEEPSLATE_DIAMOND_ORE));
+        int forgeOreCount = countMatchingBlocks(forgeLevel, forgeGen, Set.of(
+                Blocks.NETHER_QUARTZ_ORE, Blocks.NETHER_GOLD_ORE, Blocks.ANCIENT_DEBRIS));
+        int flatOreCount = countMatchingBlocks(flatLevel, flatGen, Set.of(
+                Blocks.COAL_ORE, Blocks.IRON_ORE, Blocks.DIAMOND_ORE, Blocks.DEEPSLATE_DIAMOND_ORE));
+
+        helper.assertTrue(amethystOreCount > 40, "Amethyst Starfall 2.5x ore generation must populate dense Overworld ores; found=" + amethystOreCount);
+        helper.assertTrue(forgeOreCount > 15, "Obsidian Forge must populate Nether ores underground; found=" + forgeOreCount);
+        helper.assertTrue(flatOreCount == 0, "Superflat must contain zero underground ores; found=" + flatOreCount);
+
+        registry.unloadDynamicDimension(flatId);
+        registry.unloadDynamicDimension(amethystId);
+        registry.unloadDynamicDimension(mushroomId);
+        registry.unloadDynamicDimension(forgeId);
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace="universal_tool", template="empty", timeoutTicks=300)
+    public static void realmSwitchingAndPrivateStarryPocket(GameTestHelper helper) {
+        var server = helper.getLevel().getServer();
+        var registry = PersonalDimensionRegistry.from(server);
+        var overworld = server.overworld();
+
+        // 1. Starry Void Block must NOT have an item or appear in any Creative tab
+        var starryBlock = org.gwfx.universaltool.init.ModBlocks.STARRY_VOID_BLOCK.get();
+        helper.assertTrue(starryBlock.asItem() == Items.AIR
+                        && !net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(
+                                net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(starryBlock)),
+                "StarryVoidBlock must have no BlockItem and must be excluded from creative tabs");
+        boolean foundInCreative = org.gwfx.universaltool.init.ModCreativeTabs.UNIVERSAL_TOOL_TAB.get().getDisplayItems()
+                .stream().anyMatch(stack -> stack.is(starryBlock.asItem()));
+        helper.assertTrue(!foundInCreative, "StarryVoidBlock must never appear in CreativeModeTab");
+
+        helper.runAfterDelay(2, () -> {
+            var alice = mockPlayer(server, helper.getLevel(), new com.mojang.authlib.GameProfile(UUID.randomUUID(), "alice-star"));
+            var bob = mockPlayer(server, helper.getLevel(), new com.mojang.authlib.GameProfile(UUID.randomUUID(), "bob-star"));
+
+            BlockPos gatePos = helper.absolutePos(new BlockPos(1, 1, 1));
+            BlockPos startA = helper.absolutePos(new BlockPos(2, 1, 1));
+            BlockPos startB = helper.absolutePos(new BlockPos(0, 1, 2));
+            for (BlockPos floor : List.of(gatePos.below(), startA.below(), startB.below())) {
+                if (helper.getLevel().getBlockState(floor).isAir()) {
+                    helper.getLevel().setBlockAndUpdate(floor, Blocks.STONE.defaultBlockState());
+                }
+            }
+            helper.getLevel().setBlockAndUpdate(gatePos,
+                    org.gwfx.universaltool.init.ModBlocks.PERSONAL_SPACE_GATE.get().defaultBlockState());
+
+            alice.setPos(startA.getX() + 0.5, startA.getY(), startA.getZ() + 0.5);
+            bob.setPos(startB.getX() + 0.5, startB.getY(), startB.getZ() + 0.5);
+
+            // 2. Freely switch between shared exploration realms without lock-in
+            PrivateSpaceManager.handleAction(alice, new org.gwfx.universaltool.network.PersonalSpaceActionPayload(
+                    gatePos, org.gwfx.universaltool.network.PersonalSpaceActionPayload.ACTION_ENTER_REALM, "superflat"));
+            ServerLevel flatRealm = alice.serverLevel();
+            helper.assertTrue(flatRealm.dimension().location().getPath().equals("realm/superflat"),
+                    "Alice must enter shared Superflat realm");
+
+            BlockPos realmGate = flatRealm.getSharedSpawnPos().offset(2, 0, 0);
+            flatRealm.setBlockAndUpdate(realmGate,
+                    org.gwfx.universaltool.init.ModBlocks.PERSONAL_SPACE_GATE.get().defaultBlockState());
+            alice.setPos(realmGate.getX() + 0.5, realmGate.getY(), realmGate.getZ() + 0.5);
+            PrivateSpaceManager.handleAction(alice, new org.gwfx.universaltool.network.PersonalSpaceActionPayload(
+                    realmGate, org.gwfx.universaltool.network.PersonalSpaceActionPayload.ACTION_ENTER_REALM, "cherry_grove"));
+            ServerLevel cherryRealm = alice.serverLevel();
+            helper.assertTrue(cherryRealm.dimension().location().getPath().equals("realm/cherry_grove"),
+                    "Alice must freely switch to Cherry Grove realm without lock-in");
+
+            // Returning from realm restores original Overworld coordinates (preserved across realm switches)
+            PrivateSpaceManager.returnPlayer(alice);
+            helper.assertTrue(alice.serverLevel() == helper.getLevel()
+                            && alice.distanceToSqr(startA.getX() + 0.5, startA.getY(), startA.getZ() + 0.5) < 9.0,
+                    "Returning after free realm switching must restore pre-realm Overworld position; level="
+                            + alice.serverLevel().dimension() + ", pos=" + alice.position()
+                            + ", expected=" + startA
+                            + ", floor=" + helper.getLevel().getBlockState(startA.below())
+                            + ", feet=" + helper.getLevel().getBlockState(startA)
+                            + ", head=" + helper.getLevel().getBlockState(startA.above())
+                            + ", savedReturn=" + PersonalSpaceSavedData.get(server).getReturnPosition(alice.getUUID()));
+
+            // 3. Secondary menu -> UUID-keyed password-free 25x25x25 Private Starry Space
+            alice.setPos(gatePos.getX() + 0.5, gatePos.getY(), gatePos.getZ() + 1.0);
+            PrivateSpaceManager.handleAction(alice, new org.gwfx.universaltool.network.PersonalSpaceActionPayload(
+                    gatePos, org.gwfx.universaltool.network.PersonalSpaceActionPayload.ACTION_ENTER_PRIVATE_SPACE, ""));
+            ServerLevel pocketA = alice.serverLevel();
+
+            bob.setPos(gatePos.getX() + 0.5, gatePos.getY(), gatePos.getZ() - 1.0);
+            PrivateSpaceManager.handleAction(bob, new org.gwfx.universaltool.network.PersonalSpaceActionPayload(
+                    gatePos, org.gwfx.universaltool.network.PersonalSpaceActionPayload.ACTION_ENTER_PRIVATE_SPACE, ""));
+            ServerLevel pocketB = bob.serverLevel();
+
+            helper.assertTrue(PrivateSpaceManager.isStarryPocket(pocketA) && PrivateSpaceManager.isStarryPocket(pocketB),
+                    "Both players must enter StarryPocket dimensions");
+            helper.assertTrue(pocketA != pocketB && !pocketA.dimension().equals(pocketB.dimension()),
+                    "Private Starry Space must isolate dimensions by player UUID");
+
+            // Inspect 25x25x25 starry shell + interior air + BlockEntity presence
+            helper.assertTrue(pocketA.getBlockState(new BlockPos(0, StarryPocketChunkGenerator.FLOOR_Y, 0)).is(starryBlock)
+                            && pocketA.getBlockEntity(new BlockPos(0, StarryPocketChunkGenerator.FLOOR_Y, 0)) instanceof StarryVoidBlockEntity
+                            && pocketA.getBlockState(new BlockPos(12, StarryPocketChunkGenerator.FLOOR_Y, -12)).is(starryBlock),
+                    "25x25 floor y=63 must be StarryVoidBlock with StarryVoidBlockEntity");
+            helper.assertTrue(pocketA.getBlockState(new BlockPos(0, StarryPocketChunkGenerator.CEILING_Y, 0)).is(Blocks.BARRIER)
+                            && pocketA.getBlockState(new BlockPos(StarryPocketChunkGenerator.SHELL_HALF, 70, 0)).is(Blocks.BARRIER)
+                            && pocketA.getBlockState(new BlockPos(-StarryPocketChunkGenerator.SHELL_HALF, 70, 0)).is(Blocks.BARRIER)
+                            && pocketA.getBlockState(new BlockPos(0, 70, StarryPocketChunkGenerator.SHELL_HALF)).is(Blocks.BARRIER)
+                            && pocketA.getBlockState(new BlockPos(0, 70, -StarryPocketChunkGenerator.SHELL_HALF)).is(Blocks.BARRIER),
+                    "Perimeter walls and ceiling cap must be invisible BARRIER blocks");
+            helper.assertTrue(pocketA.getBlockState(new BlockPos(0, StarryPocketChunkGenerator.INTERIOR_MIN_Y, 0)).isAir()
+                            && pocketA.getBlockState(new BlockPos(12, 88, -12)).isAir(),
+                    "25x25x25 interior (-12..+12, y=64..88) must be clear air");
+
+            // Survival protection & zero natural mobs
+            alice.setGameMode(GameType.SURVIVAL);
+            var breakAttempt = new BlockEvent.BreakEvent(pocketA, new BlockPos(0, StarryPocketChunkGenerator.FLOOR_Y, 0),
+                    starryBlock.defaultBlockState(), alice);
+            PrivateSpaceManager.protectReturnGate(breakAttempt);
+            helper.assertTrue(breakAttempt.isCanceled(), "StarryVoidBlock shell must be unbreakable in survival");
+
+            var mobCheck = new net.neoforged.neoforge.event.entity.living.MobSpawnEvent.SpawnPlacementCheck(
+                    net.minecraft.world.entity.EntityType.ZOMBIE, pocketA,
+                    net.minecraft.world.entity.MobSpawnType.NATURAL, new BlockPos(0, 64, 0),
+                    pocketA.random, true);
+            PrivateSpaceWorldTraitHandler.onSpawnPlacementCheck(mobCheck);
+            helper.assertTrue(mobCheck.getResult() == net.neoforged.neoforge.event.entity.living.MobSpawnEvent.SpawnPlacementCheck.Result.FAIL,
+                    "Private Starry Space must block natural mob spawns");
+
+            // 4. Shift + Right-Click StarryVoidBlock (even while holding a pickaxe!) returns to exact pre-entry position
+            alice.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new ItemStack(Items.DIAMOND_PICKAXE));
+            alice.setShiftKeyDown(true);
+            var hit = new net.minecraft.world.phys.BlockHitResult(
+                    new net.minecraft.world.phys.Vec3(0.5, StarryPocketChunkGenerator.FLOOR_Y + 1.0, 0.5),
+                    net.minecraft.core.Direction.UP,
+                    new BlockPos(0, StarryPocketChunkGenerator.FLOOR_Y, 0), false);
+            var shiftClick = new net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.RightClickBlock(
+                    alice, net.minecraft.world.InteractionHand.MAIN_HAND,
+                    new BlockPos(0, StarryPocketChunkGenerator.FLOOR_Y, 0), hit);
+            PrivateSpaceManager.onStarryVoidShiftClick(shiftClick);
+            helper.assertTrue(shiftClick.isCanceled(), "Shift+RightClick on StarryVoidBlock must intercept item use");
+            helper.assertTrue(alice.serverLevel() == helper.getLevel()
+                            && alice.distanceToSqr(gatePos.getX() + 0.5, gatePos.getY(), gatePos.getZ() + 1.0) < 4.0,
+                    "Shift+RightClick StarryVoidBlock must return player to exact pre-entry Overworld location");
+
+            alice.discard();
+            bob.discard();
+            registry.unloadDynamicDimension(flatRealm.dimension().location());
+            registry.unloadDynamicDimension(cherryRealm.dimension().location());
+            registry.unloadDynamicDimension(pocketA.dimension().location());
+            registry.unloadDynamicDimension(pocketB.dimension().location());
+            overworld.setBlockAndUpdate(gatePos, Blocks.AIR.defaultBlockState());
+            helper.succeed();
+        });
+    }
+
+    private static int countMatchingBlocks(ServerLevel level, FiniteIslandChunkGenerator generator, Set<Block> targets) {
+        int found = 0;
+        for (int cx = 2; cx <= 5; cx++) {
+            for (int cz = 2; cz <= 5; cz++) {
+                var chunk = level.getChunk(cx, cz);
+                int minX = cx * 16;
+                int minZ = cz * 16;
+                for (int dx = 0; dx < 16; dx += 2) {
+                    for (int dz = 0; dz < 16; dz += 2) {
+                        int x = minX + dx;
+                        int z = minZ + dz;
+                        if (!generator.containsTerrain(x, z)) continue;
+                        int top = generator.surfaceY(x, z);
+                        int bottom = generator.bottomY(x, z);
+                        for (int y = bottom + 1; y < top - 2; y++) {
+                            if (targets.contains(chunk.getBlockState(new BlockPos(x, y, z)).getBlock())) {
+                                found++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return found;
     }
 }

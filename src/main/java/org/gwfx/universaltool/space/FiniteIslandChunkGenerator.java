@@ -13,6 +13,8 @@ import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.biome.BiomeManager;
 import net.minecraft.world.level.biome.BiomeSource;
+import net.minecraft.world.level.block.AmethystClusterBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CaveVines;
 import net.minecraft.world.level.block.LanternBlock;
@@ -309,11 +311,153 @@ public final class FiniteIslandChunkGenerator extends ChunkGenerator {
                 }
             }
         }
+        populateOres(chunk, startX, startZ);
         decorate(chunk, startX, startZ);
         Heightmap.primeHeightmaps(chunk, EnumSet.of(Heightmap.Types.WORLD_SURFACE_WG,
                 Heightmap.Types.OCEAN_FLOOR_WG, Heightmap.Types.WORLD_SURFACE, Heightmap.Types.OCEAN_FLOOR,
                 Heightmap.Types.MOTION_BLOCKING, Heightmap.Types.MOTION_BLOCKING_NO_LEAVES));
         return CompletableFuture.completedFuture(chunk);
+    }
+
+    /**
+     * Deterministically injects theme-specific ore veins and optional underground amethyst geodes
+     * strictly inside this chunk's rock strata, preserving island silhouettes and top layers.
+     */
+    private void populateOres(ChunkAccess chunk, int startX, int startZ) {
+        PrivateSpaceWorldTraits.OreProfile ores = environment.traits().ores();
+        if (ores.rateMultiplier() <= 0.0 || ores.veins().isEmpty()) {
+            return;
+        }
+        long chunkSeed = mix(seed ^ ((long) chunk.getPos().x * 0x9E3779B97F4A7C15L)
+                ^ ((long) chunk.getPos().z * 0xC2B2AE3D27D4EB4FL));
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+
+        int ruleIndex = 0;
+        for (PrivateSpaceWorldTraits.OreVeinRule rule : ores.veins()) {
+            ruleIndex++;
+            int attempts = Math.max(0, (int) Math.round(rule.baseAttemptsPerChunk() * ores.rateMultiplier()));
+            for (int attempt = 0; attempt < attempts; attempt++) {
+                long roll = mix(chunkSeed ^ ((long) ruleIndex << 20) ^ ((long) attempt * 0x517cc1b727220a95L));
+                int vx = startX + (int) (roll & 15);
+                int vz = startZ + (int) ((roll >>> 4) & 15);
+                if (!containsTerrain(vx, vz)) {
+                    continue;
+                }
+                int surface = surfaceY(vx, vz);
+                int bottom = bottomY(vx, vz);
+                int rockTop = surface - profile.surface().fillerDepth() - 2;
+                int rockBottom = bottom + 2;
+                if (rockTop <= rockBottom) {
+                    continue;
+                }
+                int span = rockTop - rockBottom;
+                int yHigh = rockTop - (int) Math.floor(span * rule.minDepthFraction());
+                int yLow = rockTop - (int) Math.ceil(span * rule.maxDepthFraction());
+                int minY = Math.max(rockBottom, Math.min(yLow, yHigh));
+                int maxY = Math.min(rockTop, Math.max(yLow, yHigh));
+                if (maxY < minY) {
+                    continue;
+                }
+                int vy = minY + (maxY == minY ? 0 : Math.floorMod((int) (roll >>> 16), maxY - minY + 1));
+                placeOreVein(chunk, startX, startZ, vx, vy, vz, rule, roll, cursor);
+            }
+        }
+
+        if (ores.amethystGeodes() && (chunkSeed & 7L) == 0L) {
+            placeUndergroundGeode(chunk, startX, startZ, chunkSeed, cursor);
+        }
+    }
+
+    private void placeOreVein(ChunkAccess chunk, int startX, int startZ, int vx, int vy, int vz,
+                              PrivateSpaceWorldTraits.OreVeinRule rule, long roll, BlockPos.MutableBlockPos cursor) {
+        int cx = vx;
+        int cy = vy;
+        int cz = vz;
+        long state = roll;
+        for (int step = 0; step < rule.veinSize(); step++) {
+            if (cx >= startX && cx < startX + 16 && cz >= startZ && cz < startZ + 16 && containsTerrain(cx, cz)) {
+                int surface = surfaceY(cx, cz);
+                int bottom = bottomY(cx, cz);
+                if (isInteriorRock(chunk, cursor.set(cx, cy, cz), cx, cy, cz, surface, bottom)) {
+                    Block ore = cy >= surface - 22 ? rule.midOre() : rule.deepOre();
+                    chunk.setBlockState(cursor, ore.defaultBlockState(), false);
+                }
+            }
+            state = mix(state ^ (step * 0x94d049bb133111ebL));
+            int axis = (int) (state & 3L);
+            int dir = ((state >>> 2) & 1L) == 0L ? 1 : -1;
+            if (axis == 0) cx += dir;
+            else if (axis == 1) cy += dir;
+            else if (axis == 2) cz += dir;
+            else {
+                cx += ((state >>> 4) & 1L) == 0L ? 1 : -1;
+                cz += ((state >>> 5) & 1L) == 0L ? 1 : -1;
+            }
+        }
+    }
+
+    private void placeUndergroundGeode(ChunkAccess chunk, int startX, int startZ, long chunkSeed,
+                                       BlockPos.MutableBlockPos cursor) {
+        int gx = startX + 8;
+        int gz = startZ + 8;
+        if (!containsTerrain(gx, gz) || Math.hypot(gx, gz) <= SPAWN_PROTECTION_RADIUS) {
+            return;
+        }
+        int surface = surfaceY(gx, gz);
+        int bottom = bottomY(gx, gz);
+        int rockTop = surface - profile.surface().fillerDepth() - 6;
+        int rockBottom = bottom + 5;
+        if (rockTop - rockBottom < 10) {
+            return;
+        }
+        int gy = rockBottom + Math.floorMod((int) (chunkSeed >>> 12), rockTop - rockBottom + 1);
+        int radius = 3 + ((chunkSeed & 8L) != 0L ? 1 : 0);
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    int x = gx + dx;
+                    int y = gy + dy;
+                    int z = gz + dz;
+                    if (x < startX || x >= startX + 16 || z < startZ || z >= startZ + 16 || !containsTerrain(x, z)) {
+                        continue;
+                    }
+                    int colSurface = surfaceY(x, z);
+                    int colBottom = bottomY(x, z);
+                    if (!isInteriorRock(chunk, cursor.set(x, y, z), x, y, z, colSurface, colBottom)) {
+                        continue;
+                    }
+                    double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    if (dist <= radius - 1.5) {
+                        BlockState below = chunk.getBlockState(cursor.below());
+                        boolean placeCluster = (below.is(Blocks.AMETHYST_BLOCK) || below.is(Blocks.BUDDING_AMETHYST))
+                                && ((mix(chunkSeed ^ (x * 31L) ^ (z * 97L)) & 3L) == 0L);
+                        chunk.setBlockState(cursor, placeCluster
+                                ? Blocks.AMETHYST_CLUSTER.defaultBlockState()
+                                        .setValue(AmethystClusterBlock.FACING, Direction.UP)
+                                : Blocks.CAVE_AIR.defaultBlockState(), false);
+                    } else if (dist <= radius - 0.65) {
+                        boolean budding = (mix(chunkSeed ^ (x * 73856093L) ^ (y * 19349663L) ^ (z * 83492791L)) & 7L) == 0L;
+                        chunk.setBlockState(cursor, (budding ? Blocks.BUDDING_AMETHYST : Blocks.AMETHYST_BLOCK)
+                                .defaultBlockState(), false);
+                    } else if (dist <= radius + 0.15) {
+                        Block shell = ((dx + dy + dz) & 1) == 0 ? Blocks.CALCITE : Blocks.SMOOTH_BASALT;
+                        chunk.setBlockState(cursor, shell.defaultBlockState(), false);
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean isInteriorRock(ChunkAccess chunk, BlockPos pos, int x, int y, int z, int surface, int bottom) {
+        if (y > surface - profile.surface().fillerDepth() - 2 || y < bottom + 2) {
+            return false;
+        }
+        if (Math.hypot(x, z) <= 10.0 && y >= surface - 6) {
+            return false;
+        }
+        Block existing = chunk.getBlockState(pos).getBlock();
+        Surface material = profile.surface();
+        return existing == material.midStratum() || existing == material.deepStratum();
     }
 
     private void decorate(ChunkAccess chunk, int startX, int startZ) {

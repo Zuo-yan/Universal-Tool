@@ -25,6 +25,10 @@ public class ModBlockEntities {
             BLOCK_ENTITIES.register("personal_space_gate", () ->
                     BlockEntityType.Builder.of(PersonalSpaceGateBlockEntity::new, ModBlocks.PERSONAL_SPACE_GATE.get()).build(null));
 
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<org.gwfx.universaltool.space.StarryVoidBlockEntity>> STARRY_VOID_BE =
+            BLOCK_ENTITIES.register("starry_void_block", () ->
+                    BlockEntityType.Builder.of(org.gwfx.universaltool.space.StarryVoidBlockEntity::new, ModBlocks.STARRY_VOID_BLOCK.get()).build(null));
+
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<org.gwfx.universaltool.lottery.UniversalLotteryMachineBlockEntity>> UNIVERSAL_LOTTERY_MACHINE_BE =
             BLOCK_ENTITIES.register("universal_lottery_machine", () ->
                     BlockEntityType.Builder.of(org.gwfx.universaltool.lottery.UniversalLotteryMachineBlockEntity::new, ModBlocks.UNIVERSAL_LOTTERY_MACHINE.get()).build(null));

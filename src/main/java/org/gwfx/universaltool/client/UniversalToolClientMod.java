@@ -54,6 +54,8 @@ public final class UniversalToolClientMod {
         event.registerBlockEntityRenderer(ModBlockEntities.PHOENIX_POD_BE.get(), PhoenixPodRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.UNIVERSAL_LOTTERY_MACHINE_BE.get(),
                 UniversalLotteryMachineRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.STARRY_VOID_BE.get(),
+                StarryVoidBlockEntityRenderer::new);
         event.registerEntityRenderer(ModEntities.LIGHTNING_SPEAR_PROJECTILE.get(),
                 LightningSpearRenderer::new);
     }

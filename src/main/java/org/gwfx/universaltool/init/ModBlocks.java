@@ -45,6 +45,14 @@ public class ModBlocks {
                     .pushReaction(PushReaction.BLOCK)
                     .sound(SoundType.AMETHYST)));
 
+    public static final DeferredBlock<org.gwfx.universaltool.space.StarryVoidBlock> STARRY_VOID_BLOCK = BLOCKS.register("starry_void_block",
+            () -> new org.gwfx.universaltool.space.StarryVoidBlock(BlockBehaviour.Properties.of()
+                    .strength(-1.0F, 3_600_000.0F)
+                    .lightLevel(state -> 15)
+                    .noLootTable()
+                    .pushReaction(PushReaction.BLOCK)
+                    .sound(SoundType.AMETHYST)));
+
     public static final DeferredBlock<org.gwfx.universaltool.lottery.UniversalLotteryMachineBlock> UNIVERSAL_LOTTERY_MACHINE = BLOCKS.register("universal_lottery_machine",
             () -> new org.gwfx.universaltool.lottery.UniversalLotteryMachineBlock(BlockBehaviour.Properties.of()
                     .strength(3.5F, 5.0F)
