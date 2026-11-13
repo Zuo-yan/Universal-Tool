@@ -39,15 +39,24 @@ public final class UniversalToolClientMod {
                 () -> ClientWaypointCache.getWaypoints().size(),
                 ClientWaypointCache::getMaxCapacity
         );
-        event.enqueueWork(() -> ItemProperties.register(
-                ModItems.NETHERITE_UNIVERSAL_TOOL.get(),
-                ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "tool_form"),
-                (stack, level, entity, seed) -> {
-                    Level resolved = level != null ? level
-                            : (entity != null ? entity.level() : Minecraft.getInstance().level);
-                    return NetheriteToolForm.resolveActiveForm(stack, resolved).propertyValue();
-                }
-        ));
+        event.enqueueWork(() -> {
+            ResourceLocation formProp = ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "tool_form");
+            net.minecraft.client.renderer.item.ClampedItemPropertyFunction formFn = (stack, level, entity, seed) -> {
+                Level resolved = level != null ? level
+                        : (entity != null ? entity.level() : Minecraft.getInstance().level);
+                return NetheriteToolForm.resolveActiveForm(stack, resolved).propertyValue();
+            };
+            for (var itemHolder : java.util.List.of(
+                    ModItems.WOODEN_UNIVERSAL_TOOL,
+                    ModItems.STONE_UNIVERSAL_TOOL,
+                    ModItems.IRON_UNIVERSAL_TOOL,
+                    ModItems.GOLDEN_UNIVERSAL_TOOL,
+                    ModItems.DIAMOND_UNIVERSAL_TOOL,
+                    ModItems.NETHERITE_UNIVERSAL_TOOL
+            )) {
+                ItemProperties.register(itemHolder.get(), formProp, formFn);
+            }
+        });
     }
 
     @SubscribeEvent

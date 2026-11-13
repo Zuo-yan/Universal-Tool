@@ -123,5 +123,37 @@
         1
       ]
     }
-  }
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "universal_tool:tool_form": 0.15
+      },
+      "model": "universal_tool:item/golden_universal_tool_pickaxe"
+    },
+    {
+      "predicate": {
+        "universal_tool:tool_form": 0.35
+      },
+      "model": "universal_tool:item/golden_universal_tool_axe"
+    },
+    {
+      "predicate": {
+        "universal_tool:tool_form": 0.55
+      },
+      "model": "universal_tool:item/golden_universal_tool_shovel"
+    },
+    {
+      "predicate": {
+        "universal_tool:tool_form": 0.75
+      },
+      "model": "universal_tool:item/golden_universal_tool_hoe"
+    },
+    {
+      "predicate": {
+        "universal_tool:tool_form": 0.95
+      },
+      "model": "universal_tool:item/golden_universal_tool_sword"
+    }
+  ]
 }

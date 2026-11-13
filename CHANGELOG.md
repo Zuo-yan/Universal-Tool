@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.7 - 2026-11-13
+- **All 6 Universal Tool Tiers Dynamic Morphing & Vanilla 1.21.1 Silhouettes + Glint Accents**:
+  - Extended dynamic form switching (`universal_tool:tool_form`) from Netherite-only to all 6 Universal Tool tiers (`wooden`, `stone`, `iron`, `golden`, `diamond`, `netherite`).
+  - Built all 30 functional morph textures (`_pickaxe`, `_axe`, `_shovel`, `_hoe`, `_sword` × 6 tiers) directly from authentic Minecraft 1.21.1 vanilla tool sprites overlaid with a diagonal energy shimmer sweep and pulsing tier-core collar gem (`.png` + `.png.mcmeta`).
+  - Fixed block-tag priority in `NetheriteToolForm.detectForBlock` so `BlockTags.MINEABLE_WITH_HOE` / `BlockTags.LEAVES` take precedence over `BlockTags.SWORD_EFFICIENT`, ensuring mining leaves morphs into a Hoe rather than a Sword.
+
 ## 1.9.6 - 2026-11-13
 - **Animated Morphing Netherite Universal Tool (`NetheriteToolForm` & 32×32 Animated Sprites)**:
   - Redesigned `netherite_universal_tool` with 6 high-detail 32×32 8-frame interpolated animated spritesheets (`.png` + `.png.mcmeta`): an arcane folding amethyst-core Base Instrument (`netherite_universal_tool`) plus 5 functional forms (`_pickaxe`, `_axe`, `_shovel`, `_hoe`, `_sword`) sharing unified Netherite-gold-amethyst styling.

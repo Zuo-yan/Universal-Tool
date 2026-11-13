@@ -60,7 +60,7 @@ public enum NetheriteToolForm {
     }
 
     public static NetheriteToolForm detectForBlock(BlockState state) {
-        if (state.is(Blocks.COBWEB) || state.is(BlockTags.SWORD_EFFICIENT)) {
+        if (state.is(Blocks.COBWEB)) {
             return SWORD;
         }
         if (state.is(BlockTags.MINEABLE_WITH_PICKAXE)) {
@@ -72,14 +72,17 @@ public enum NetheriteToolForm {
         if (state.is(BlockTags.MINEABLE_WITH_SHOVEL)) {
             return SHOVEL;
         }
-        if (state.is(BlockTags.MINEABLE_WITH_HOE)) {
+        if (state.is(BlockTags.MINEABLE_WITH_HOE) || state.is(BlockTags.LEAVES)) {
             return HOE;
+        }
+        if (state.is(BlockTags.SWORD_EFFICIENT)) {
+            return SWORD;
         }
         return PICKAXE;
     }
 
     public static boolean supportsDynamicMorph(ItemStack stack) {
-        return stack.getItem() instanceof UniversalToolItem tool && tool.getTier() == Tiers.NETHERITE;
+        return stack.getItem() instanceof UniversalToolItem;
     }
 
     public static void activate(ItemStack stack, @Nullable Level level, NetheriteToolForm form) {
