@@ -88,26 +88,11 @@ public final class PrivateSpaceManager {
 
     /** Opens the Star Gate terminal for whichever player right-clicked it (no lock-in, no passwords). */
     public static void onGateUsed(ServerPlayer player, BlockPos gatePos) {
-        ensureUpperHalf(player.serverLevel(), gatePos);
         String currentEnv = resolveEnvironment(player.serverLevel())
                 .map(PrivateSpaceEnvironment::id)
                 .orElse(PrivateSpaceEnvironment.SUPERFLAT.id());
         openScreen(player, gatePos, PAGE_REALMS,
                 player.getName().getString(), currentEnv, privatePocketPath(player.getUUID()));
-    }
-
-    private static void ensureUpperHalf(ServerLevel level, BlockPos basePos) {
-        BlockState baseState = level.getBlockState(basePos);
-        if (!baseState.is(ModBlocks.PERSONAL_SPACE_GATE.get())
-                || baseState.getValue(PersonalSpaceGateBlock.HALF) != net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER) {
-            return;
-        }
-        BlockPos upperPos = basePos.above();
-        BlockState upperState = level.getBlockState(upperPos);
-        if (upperState.isAir() || upperState.canBeReplaced()) {
-            level.setBlock(upperPos, baseState.setValue(PersonalSpaceGateBlock.HALF,
-                    net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
-        }
     }
 
     private static void openScreen(ServerPlayer player, BlockPos gatePos, int page,
@@ -173,17 +158,26 @@ public final class PrivateSpaceManager {
     }
 
     private static void setGateOpenState(ServerLevel level, BlockPos basePos, boolean open) {
-        ensureUpperHalf(level, basePos);
         BlockState baseState = level.getBlockState(basePos);
-        if (baseState.is(ModBlocks.PERSONAL_SPACE_GATE.get()) && baseState.getValue(PersonalSpaceGateBlock.OPEN) != open) {
-            level.setBlock(basePos, baseState.setValue(PersonalSpaceGateBlock.OPEN, open), 3);
+        if (!baseState.is(ModBlocks.PERSONAL_SPACE_GATE.get())) {
+            return;
+        }
+        BlockState targetBase = baseState.setValue(PersonalSpaceGateBlock.OPEN, open);
+        if (baseState.getValue(PersonalSpaceGateBlock.OPEN) != open) {
+            level.setBlock(basePos, targetBase, 3);
         }
         BlockPos upperPos = basePos.above();
         BlockState upperState = level.getBlockState(upperPos);
-        if (upperState.is(ModBlocks.PERSONAL_SPACE_GATE.get())
-                && upperState.getValue(PersonalSpaceGateBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER
-                && upperState.getValue(PersonalSpaceGateBlock.OPEN) != open) {
-            level.setBlock(upperPos, upperState.setValue(PersonalSpaceGateBlock.OPEN, open), 3);
+        if (open) {
+            if (upperState.isAir() || upperState.canBeReplaced()
+                    || (upperState.is(ModBlocks.PERSONAL_SPACE_GATE.get())
+                    && upperState.getValue(PersonalSpaceGateBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER)) {
+                level.setBlock(upperPos, targetBase.setValue(PersonalSpaceGateBlock.HALF,
+                        net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
+            }
+        } else if (upperState.is(ModBlocks.PERSONAL_SPACE_GATE.get())
+                && upperState.getValue(PersonalSpaceGateBlock.HALF) == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER) {
+            level.setBlock(upperPos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 35);
         }
     }
 

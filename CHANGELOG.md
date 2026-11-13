@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.5 - 2026-11-13
+- **Half-Base to Full-Stargate Unfolding Animation (`PersonalSpaceGateRenderer` & `PersonalSpaceGateBlockEntity`)**:
+  - Kept closed/idle `PersonalSpaceGateBlock` as the compact 1-block mossy carved stone pedestal base (`HALF = LOWER` only).
+  - When activated (`OPEN = true`), `PersonalSpaceGateRenderer` smoothly animates the 4 stone/moss/cyan-rune tiers (`TIER_1_PILLARS`, `TIER_2_LOWER_CURVE`, `TIER_3_UPPER_CURVE`, `TIER_4_CROWN`) rising and unfolding from inside the base into the complete 2.5-block pointed-oval Stargate arch over ~1.1 seconds, followed by the electric-cyan spiral vortex (`stargate_portal_vortex.png`) blooming at the center.
+  - Added smooth retraction back into the pedestal base (`clientAnimTicks` unwinds cleanly) when closing the gate (`OPEN = false`), while preserving safe `UPPER`/`LOWER` cleanup guards in `PersonalSpaceGateBlock.onRemove`.
+
 ## 1.9.4 - 2026-11-13
 - **Fix Missing Texture & Distorted Portal Quad on Stargate**:
   - Removed reference to nonexistent `personal_space_gate_energy.png` in `PersonalSpaceGateRenderer` that caused the purple-black missing texture checkerboard.
