@@ -385,15 +385,15 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
         // 1. 绘制左侧 3 个原版风格外挂模式标签
         renderModeTabs(guiGraphics, relX, relY, mouseX, mouseY);
 
-        // 2. 经典 MC #C6C6C6 斜切倒角主容器面板
+        // 2. 胡桃木黄铜精装羊皮纸主容器面板
         LotterySubModeRenderers.drawMcPanel(guiGraphics, relX, relY, this.imageWidth, this.imageHeight);
 
-        // 3. 顶部原版标题栏与红石金铆钉饰线
-        LotterySubModeRenderers.drawGroove(guiGraphics, relX + 7, relX + this.imageWidth - 7, relY + 18);
-        guiGraphics.fill(relX + 8, relY + 8, relX + 11, relY + 11, 0xFFB88324);
-        guiGraphics.fill(relX + 9, relY + 9, relX + 10, relY + 10, 0xFFDC2626);
-        guiGraphics.fill(relX + this.imageWidth - 11, relY + 8, relX + this.imageWidth - 8, relY + 11, 0xFFB88324);
-        guiGraphics.fill(relX + this.imageWidth - 10, relY + 9, relX + this.imageWidth - 9, relY + 10, 0xFFDC2626);
+        // 3. 顶部精装标题分隔线与黄铜铆钉
+        LotterySubModeRenderers.drawGroove(guiGraphics, relX + 8, relX + this.imageWidth - 8, relY + 18);
+        guiGraphics.fill(relX + 10, relY + 8, relX + 13, relY + 11, LotterySubModeRenderers.COLOR_BRASS_D);
+        guiGraphics.fill(relX + 11, relY + 9, relX + 12, relY + 10, LotterySubModeRenderers.COLOR_BRASS_HI);
+        guiGraphics.fill(relX + this.imageWidth - 13, relY + 8, relX + this.imageWidth - 10, relY + 11, LotterySubModeRenderers.COLOR_BRASS_D);
+        guiGraphics.fill(relX + this.imageWidth - 12, relY + 9, relX + this.imageWidth - 11, relY + 10, LotterySubModeRenderers.COLOR_BRASS_HI);
 
         Component titleComp = switch (this.clientSelectedTab) {
             case 1 -> Component.translatable("gui.universal_tool.lottery.title.wheel");
@@ -447,7 +447,7 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
     }
 
     /**
-     * 绘制左侧外突的 3 个原版配方书风格玩法切换标签
+     * 绘制左侧外突的 3 个抛光黄铜与羊皮纸玩法切换标签
      */
     private void renderModeTabs(GuiGraphics guiGraphics, int relX, int relY, int mouseX, int mouseY) {
         Component[] tabNames = new Component[]{
@@ -464,23 +464,24 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
             boolean isActive = (this.clientSelectedTab == i);
             boolean isHovered = mouseX >= tabX && mouseX < relX && mouseY >= tabY && mouseY <= tabY + tabH;
 
-            int bg = isActive ? LotterySubModeRenderers.COLOR_PANEL : (isHovered ? 0xFFB0B0B0 : 0xFF9A9A9A);
-            int hi = isActive ? LotterySubModeRenderers.COLOR_WHITE : 0xFFDCDCDC;
-            int sh = LotterySubModeRenderers.COLOR_SHADOW;
+            int bg = isActive ? LotterySubModeRenderers.COLOR_PANEL : (isHovered ? 0xFFD9C5A2 : 0xFFB9A483);
+            int hi = isActive ? LotterySubModeRenderers.COLOR_BRASS_HI : LotterySubModeRenderers.COLOR_BRASS;
+            int sh = LotterySubModeRenderers.COLOR_WALNUT_SH;
 
-            guiGraphics.fill(tabX, tabY, relX + (isActive ? 3 : 0), tabY + tabH, 0xFF000000);
-            guiGraphics.fill(tabX + 1, tabY + 1, relX + (isActive ? 3 : 0), tabY + tabH - 1, bg);
-            guiGraphics.fill(tabX + 1, tabY + 1, relX + (isActive ? 2 : 0), tabY + 2, hi);
-            guiGraphics.fill(tabX + 1, tabY + 1, tabX + 2, tabY + tabH - 1, hi);
-            guiGraphics.fill(tabX + 1, tabY + tabH - 2, relX + (isActive ? 2 : 0), tabY + tabH - 1, sh);
+            guiGraphics.fill(tabX, tabY, relX + (isActive ? 4 : 0), tabY + tabH, LotterySubModeRenderers.COLOR_UMBER);
+            guiGraphics.fill(tabX + 1, tabY + 1, relX + (isActive ? 4 : 0), tabY + tabH - 1, LotterySubModeRenderers.COLOR_WALNUT);
+            guiGraphics.fill(tabX + 3, tabY + 3, relX + (isActive ? 4 : 0), tabY + tabH - 3, bg);
+            guiGraphics.fill(tabX + 2, tabY + 2, relX + (isActive ? 4 : 0), tabY + 3, hi);
+            guiGraphics.fill(tabX + 2, tabY + 2, tabX + 3, tabY + tabH - 2, hi);
+            guiGraphics.fill(tabX + 2, tabY + tabH - 3, relX + (isActive ? 4 : 0), tabY + tabH - 2, sh);
 
             if (isActive) {
-                guiGraphics.fill(tabX + 2, tabY + 4, tabX + 4, tabY + tabH - 4, 0xFFD97706);
-                guiGraphics.fill(tabX + 2, tabY + 11, tabX + 4, tabY + 15, 0xFFDC2626);
+                guiGraphics.fill(tabX + 4, tabY + 5, tabX + 6, tabY + tabH - 5, LotterySubModeRenderers.COLOR_BRASS);
+                guiGraphics.fill(tabX + 4, tabY + 11, tabX + 6, tabY + 15, 0xFF2FA89E);
             }
 
-            int textColor = isActive ? LotterySubModeRenderers.COLOR_LABEL : (isHovered ? 0xFF2B2B2B : 0xFF3E3E3E);
-            int tx = tabX + 2 + (tabW - 2 - this.font.width(tabNames[i])) / 2;
+            int textColor = isActive ? LotterySubModeRenderers.COLOR_LABEL : (isHovered ? 0xFF3A281A : 0xFF4F3824);
+            int tx = tabX + 3 + (tabW - 3 - this.font.width(tabNames[i])) / 2;
             int ty = tabY + (tabH - 8) / 2;
             guiGraphics.drawString(this.font, tabNames[i], tx, ty, textColor, false);
         }
@@ -523,13 +524,13 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
             boolean hoverPlus = mouseX >= plusX && mouseX <= plusX + 12 && mouseY >= btnY && mouseY <= btnY + 12;
 
             LotterySubModeRenderers.drawMcButton(guiGraphics, minusX, btnY, 12, 12, hoverMinus, true, false);
-            guiGraphics.drawString(this.font, "-", minusX + 4, btnY + 2, hoverMinus ? 0xFFFFFFA0 : 0xFFFFFFFF, true);
+            guiGraphics.drawString(this.font, "-", minusX + 4, btnY + 2, hoverMinus ? 0xFFFFF3C4 : 0xFFF7ECDA, true);
 
             String betStr = "×" + this.clientWheelBet;
             guiGraphics.drawString(this.font, betStr, relX + 29 - this.font.width(betStr) / 2, btnY + 2, LotterySubModeRenderers.COLOR_LABEL, false);
 
             LotterySubModeRenderers.drawMcButton(guiGraphics, plusX, btnY, 12, 12, hoverPlus, true, false);
-            guiGraphics.drawString(this.font, "+", plusX + 3, btnY + 2, hoverPlus ? 0xFFFFFFA0 : 0xFFFFFFFF, true);
+            guiGraphics.drawString(this.font, "+", plusX + 3, btnY + 2, hoverPlus ? 0xFFFFF3C4 : 0xFFF7ECDA, true);
 
             LotterySubModeRenderers.drawOakPlaque(guiGraphics, relX + 4, relY + 80, 62, 40);
             guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.lottery.wheel.odds_common"), relX + 6, relY + 83, 0xFF94A3B8, true);
@@ -549,7 +550,7 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
 
                 String label = m + "x";
                 int tx = bx + (14 - this.font.width(label)) / 2;
-                int labelColor = selected ? 0xFFFFFFFF : (hovered ? 0xFFFFFFA0 : 0xFFE0E0E0);
+                int labelColor = selected ? 0xFFFFF8DC : (hovered ? 0xFFFFF3C4 : 0xFFF7ECDA);
                 guiGraphics.drawString(this.font, label, tx, btnY + 3, labelColor, true);
             }
 
@@ -588,7 +589,7 @@ public class UniversalLotteryMachineScreen extends AbstractContainerScreen<Unive
             };
         }
 
-        int labelColor = canRoll ? (hovered ? 0xFFFFFFA0 : 0xFFFFFFFF) : 0xFFA0A0A0;
+        int labelColor = canRoll ? (hovered ? 0xFFFFF8DC : 0xFFF7ECDA) : 0xFFD0C4B2;
         guiGraphics.drawString(this.font, btnLabel, btnX + (btnW - this.font.width(btnLabel)) / 2, btnY + 8, labelColor, true);
 
         // 消耗提示 (位于按钮正下方)

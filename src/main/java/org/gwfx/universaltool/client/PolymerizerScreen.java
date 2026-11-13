@@ -54,7 +54,7 @@ public class PolymerizerScreen extends AbstractContainerScreen<PolymerizerMenu> 
 
     @Override
     protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, 0xFF404040, false);
+        guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, 0xFF3A281A, false);
     }
 
     @Override
@@ -85,19 +85,19 @@ public class PolymerizerScreen extends AbstractContainerScreen<PolymerizerMenu> 
             guiGraphics.blit(GUI_TEXTURE, btnX, btnY, 196, 0, 48, 12);
         }
 
-        // 顶部经典 MC 容器标题 (#404040 无阴影)
+        // 顶部精装羊皮纸标题 (深浓缩咖啡墨色 #3A281A 无阴影)
         int titleX = relX + (this.imageWidth - this.font.width(this.title)) / 2;
-        guiGraphics.drawString(this.font, this.title, titleX, relY + 6, 0xFF404040, false);
+        guiGraphics.drawString(this.font, this.title, titleX, relY + 6, 0xFF3A281A, false);
 
-        // 原版石质按钮文字（居中对齐，严密限制在 48px 按钮内）
+        // 橡木黄铜按钮文字（居中对齐，严密限制在 48px 按钮内）
         Component btnText = this.menu.isCrafting()
                 ? Component.translatable("gui.universal_tool.polymerizing")
                 : Component.translatable("gui.universal_tool.start_polymerize");
         int textW = this.font.width(btnText);
         int btnTextX = btnX + Math.max(2, (48 - textW) / 2);
         int textColor = this.menu.isCrafting()
-                ? 0xFFFFFFFF
-                : (disabled ? 0xFFA0A0A0 : (hovered ? 0xFFFFFFA0 : 0xFFE0E0E0));
+                ? 0xFFA8FFF5
+                : (disabled ? 0xFFB0A08A : (hovered ? 0xFFFFF3C4 : 0xFFF7ECDA));
         guiGraphics.drawString(this.font, btnText, btnTextX, btnY + 2, textColor, true);
     }
 

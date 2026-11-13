@@ -18,8 +18,8 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
 
     private static final ResourceLocation TEXTURE =
             ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "textures/block/universal_lottery_machine.png");
-    private static final float U0_METAL = 0.035F, V0_METAL = 0.004F, U1_METAL = 0.058F, V1_METAL = 0.027F;
-    private static final float U0_SOLID = 0.004F, V0_SOLID = 0.004F, U1_SOLID = 0.027F, V1_SOLID = 0.027F;
+    private static final float U0_METAL = 0.070F, V0_METAL = 0.008F, U1_METAL = 0.117F, V1_METAL = 0.055F;
+    private static final float U0_SOLID = 0.008F, V0_SOLID = 0.008F, U1_SOLID = 0.055F, V1_SOLID = 0.055F;
 
     public UniversalLotteryMachineRenderer(BlockEntityRendererProvider.Context context) {
     }

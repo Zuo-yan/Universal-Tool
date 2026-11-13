@@ -46,8 +46,8 @@ public class PhoenixPodScreen extends AbstractContainerScreen<PhoenixPodMenu> {
 
     @Override
     protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        guiGraphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, 0xFF404040, false);
-        guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, 0xFF404040, false);
+        guiGraphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, 0xFF3A281A, false);
+        guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, 0xFF3A281A, false);
     }
 
     @Override
@@ -69,21 +69,21 @@ public class PhoenixPodScreen extends AbstractContainerScreen<PhoenixPodMenu> {
             int scaledW = max > 0 ? Math.min(24, (int) (24.0F * progress / max)) : 0;
             guiGraphics.blit(GUI_TEXTURE, relX + 76, relY + 36, 176, 0, scaledW, 16);
 
-            // 玻璃管下方火焰微光点缀
+            // 玻璃管下方炼金炉火微光点缀
             int flameFlicker = (int) ((System.currentTimeMillis() / 160L) % 3);
-            guiGraphics.fill(relX + 86, relY + 58 - flameFlicker, relX + 90, relY + 61, 0xFFEA580C);
-            guiGraphics.fill(relX + 87, relY + 59, relX + 89, relY + 61, 0xFFFDE047);
+            guiGraphics.fill(relX + 86, relY + 57 - flameFlicker, relX + 90, relY + 60, 0xFFE08024);
+            guiGraphics.fill(relX + 87, relY + 58, relX + 89, relY + 60, 0xFFFCD660);
         } else if (state == PodState.READY) {
-            // 就绪绿灯 (u=176, v=16, 24x16)
+            // 就绪翠绿管 (u=176, v=16, 24x16)
             guiGraphics.blit(GUI_TEXTURE, relX + 76, relY + 36, 176, 16, 24, 16);
         } else {
-            // 空置状态启动按钮 (u=176, v=32)
+            // 空置状态黄铜启动按钮 (u=176, v=32)
             boolean hovered = mouseX >= relX + 76 && mouseX <= relX + 100 && mouseY >= relY + 36 && mouseY <= relY + 52;
             int vOffset = hovered ? 48 : 32;
             guiGraphics.blit(GUI_TEXTURE, relX + 76, relY + 36, 176, vOffset, 24, 16);
         }
 
-        // 3. 状态文字描述
+        // 3. 状态文字描述（精装徽标衬底 + 高对比墨色）
         Component statusText = switch (state) {
             case EMPTY -> Component.translatable("gui.universal_tool.phoenix.state_empty");
             case CULTIVATING -> {
@@ -94,11 +94,14 @@ public class PhoenixPodScreen extends AbstractContainerScreen<PhoenixPodMenu> {
             }
             case READY -> Component.translatable("gui.universal_tool.phoenix.state_ready");
         };
-        int textX = relX + (this.imageWidth - this.font.width(statusText)) / 2;
+        int tw = this.font.width(statusText);
+        int textX = relX + (this.imageWidth - tw) / 2;
+        guiGraphics.fill(textX - 4, relY + 20, textX + tw + 4, relY + 30, 0xFFE3D5B8);
+        guiGraphics.renderOutline(textX - 4, relY + 20, tw + 8, 10, 0xFF9E7330);
         int statusColor = switch (state) {
-            case EMPTY -> 0xFF404040;
-            case CULTIVATING -> 0xFF9E3B10;
-            case READY -> 0xFF1E6B24;
+            case EMPTY -> 0xFF5C4735;
+            case CULTIVATING -> 0xFF9E5310;
+            case READY -> 0xFF1F6E43;
         };
         guiGraphics.drawString(this.font, statusText, textX, relY + 21, statusColor, false);
     }

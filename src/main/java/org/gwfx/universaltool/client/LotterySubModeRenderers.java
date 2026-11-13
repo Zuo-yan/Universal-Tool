@@ -20,12 +20,21 @@ import org.joml.Matrix4f;
  */
 final class LotterySubModeRenderers {
 
-    static final int COLOR_PANEL = 0xFFC6C6C6;
-    static final int COLOR_DARK = 0xFF373737;
-    static final int COLOR_SHADOW = 0xFF555555;
-    static final int COLOR_SLOT = 0xFF8B8B8B;
-    static final int COLOR_WHITE = 0xFFFFFFFF;
-    static final int COLOR_LABEL = 0xFF404040;
+    static final int COLOR_PANEL = 0xFFEFE5CF;
+    static final int COLOR_PARCHMENT_BANNER = 0xFFF4ECD9;
+    static final int COLOR_PARCHMENT_SH = 0xFFE3D5B8;
+    static final int COLOR_WALNUT = 0xFF5C4028;
+    static final int COLOR_WALNUT_HI = 0xFF7A5638;
+    static final int COLOR_WALNUT_SH = 0xFF3D2818;
+    static final int COLOR_UMBER = 0xFF26180E;
+    static final int COLOR_BRASS = 0xFFD6A84E;
+    static final int COLOR_BRASS_HI = 0xFFF2D88A;
+    static final int COLOR_BRASS_D = 0xFF9E7330;
+    static final int COLOR_DARK = 0xFF735F46;
+    static final int COLOR_SHADOW = 0xFF9E7330;
+    static final int COLOR_SLOT = 0xFFC4B395;
+    static final int COLOR_WHITE = 0xFFFAF2E2;
+    static final int COLOR_LABEL = 0xFF3A281A;
 
     static final ItemStack[] WHEEL_SECTOR_ITEMS = new ItemStack[]{
             new ItemStack(Items.GOLDEN_APPLE),
@@ -63,37 +72,84 @@ final class LotterySubModeRenderers {
     }
 
     // -------------------------------------------------------------------------
-    // 经典 Minecraft #C6C6C6 原版容器绘图原语
+    // Walnut Timber, Burnished Brass & Illuminated Parchment 绘图原语
     // -------------------------------------------------------------------------
 
     static void drawMcPanel(GuiGraphics g, int x, int y, int w, int h) {
         int x1 = x + w - 1;
         int y1 = y + h - 1;
-        // 主体填充 (避开 2px 圆角外缘)
+        // 1. 主体羊皮纸填充 + 顶部羊皮纸横幅衬底
         g.fill(x + 2, y + 1, x1 - 1, y1, COLOR_PANEL);
         g.fill(x + 1, y + 2, x1, y1 - 1, COLOR_PANEL);
+        g.fill(x + 5, y + 5, x1 - 4, y + 18, COLOR_PARCHMENT_BANNER);
+        g.renderOutline(x + 5, y + 5, w - 10, h - 10, COLOR_PARCHMENT_SH);
 
-        // 1px 黑色圆角外框
-        g.fill(x + 2, y, x1 - 1, y + 1, 0xFF000000);
-        g.fill(x + 2, y1, x1 - 1, y1 + 1, 0xFF000000);
-        g.fill(x, y + 2, x + 1, y1 - 1, 0xFF000000);
-        g.fill(x1, y + 2, x1 + 1, y1 - 1, 0xFF000000);
-        g.fill(x + 1, y + 1, x + 2, y + 2, 0xFF000000);
-        g.fill(x1 - 1, y + 1, x1, y + 2, 0xFF000000);
-        g.fill(x + 1, y1 - 1, x + 2, y1, 0xFF000000);
-        g.fill(x1 - 1, y1 - 1, x1, y1, 0xFF000000);
+        // 2. 内侧 1px 抛光黄铜嵌线
+        g.fill(x + 4, y + 4, x1 - 3, y + 5, COLOR_BRASS);
+        g.fill(x + 4, y1 - 4, x1 - 3, y1 - 3, COLOR_BRASS_D);
+        g.fill(x + 4, y + 4, x + 5, y1 - 3, COLOR_BRASS);
+        g.fill(x1 - 4, y + 4, x1 - 3, y1 - 3, COLOR_BRASS_D);
 
-        // 2px 顶部与左侧高光 (#FFFFFF)
-        g.fill(x + 2, y + 1, x1 - 1, y + 2, COLOR_WHITE);
-        g.fill(x + 2, y + 2, x1 - 2, y + 3, COLOR_WHITE);
-        g.fill(x + 1, y + 2, x + 2, y1 - 1, COLOR_WHITE);
-        g.fill(x + 2, y + 2, x + 3, y1 - 2, COLOR_WHITE);
+        // 3. 3px 胡桃木边框 (含高光与阴影倒角)
+        g.fill(x + 2, y + 1, x1 - 1, y + 2, COLOR_WALNUT_HI);
+        g.fill(x + 2, y + 2, x1 - 1, y + 4, COLOR_WALNUT);
+        g.fill(x + 2, y1 - 3, x1 - 1, y1 - 1, COLOR_WALNUT);
+        g.fill(x + 2, y1 - 1, x1 - 1, y1, COLOR_WALNUT_SH);
 
-        // 2px 底部与右侧阴影 (#555555)
-        g.fill(x + 2, y1 - 1, x1 - 1, y1, COLOR_SHADOW);
-        g.fill(x + 3, y1 - 2, x1 - 1, y1 - 1, COLOR_SHADOW);
-        g.fill(x1 - 1, y + 2, x1, y1 - 1, COLOR_SHADOW);
-        g.fill(x1 - 2, y + 3, x1 - 1, y1 - 1, COLOR_SHADOW);
+        g.fill(x + 1, y + 2, x + 2, y1 - 1, COLOR_WALNUT_HI);
+        g.fill(x + 2, y + 2, x + 4, y1 - 1, COLOR_WALNUT);
+        g.fill(x1 - 3, y + 2, x1 - 1, y1 - 1, COLOR_WALNUT);
+        g.fill(x1 - 1, y + 2, x1, y1 - 1, COLOR_WALNUT_SH);
+
+        // 4. 1px 深棕木外轮廓 (2px 圆角)
+        g.fill(x + 2, y, x1 - 1, y + 1, COLOR_UMBER);
+        g.fill(x + 2, y1, x1 - 1, y1 + 1, COLOR_UMBER);
+        g.fill(x, y + 2, x + 1, y1 - 1, COLOR_UMBER);
+        g.fill(x1, y + 2, x1 + 1, y1 - 1, COLOR_UMBER);
+        g.fill(x + 1, y + 1, x + 2, y + 2, COLOR_UMBER);
+        g.fill(x1 - 1, y + 1, x1, y + 2, COLOR_UMBER);
+        g.fill(x + 1, y1 - 1, x + 2, y1, COLOR_UMBER);
+        g.fill(x1 - 1, y1 - 1, x1, y1, COLOR_UMBER);
+
+        // 5. 四角抛光黄铜护角与铆钉
+        drawBrassCornerBrackets(g, x, y, w, h, 6);
+    }
+
+    private static void drawBrassCornerBrackets(GuiGraphics g, int x, int y, int w, int h, int len) {
+        int x1 = x + w - 1;
+        int y1 = y + h - 1;
+        // Top-Left
+        g.fill(x + 2, y + 1, x + 1 + len, y + 2, COLOR_BRASS_HI);
+        g.fill(x + 2, y + 2, x + 1 + len, y + 3, COLOR_BRASS);
+        g.fill(x + 2, y + 3, x + 1 + len, y + 4, COLOR_BRASS_D);
+        g.fill(x + 1, y + 2, x + 2, y + 1 + len, COLOR_BRASS_HI);
+        g.fill(x + 2, y + 2, x + 3, y + 1 + len, COLOR_BRASS);
+        g.fill(x + 3, y + 2, x + 4, y + 1 + len, COLOR_BRASS_D);
+        g.fill(x + 2, y + 2, x + 3, y + 3, COLOR_BRASS_HI);
+        // Top-Right
+        g.fill(x1 - len, y + 1, x1 - 1, y + 2, COLOR_BRASS_HI);
+        g.fill(x1 - len, y + 2, x1 - 1, y + 3, COLOR_BRASS);
+        g.fill(x1 - len, y + 3, x1 - 1, y + 4, COLOR_BRASS_D);
+        g.fill(x1 - 3, y + 2, x1 - 2, y + 1 + len, COLOR_BRASS_HI);
+        g.fill(x1 - 2, y + 2, x1 - 1, y + 1 + len, COLOR_BRASS);
+        g.fill(x1 - 1, y + 2, x1, y + 1 + len, COLOR_BRASS_D);
+        g.fill(x1 - 2, y + 2, x1 - 1, y + 3, COLOR_BRASS_HI);
+        // Bottom-Left
+        g.fill(x + 2, y1 - 3, x + 1 + len, y1 - 2, COLOR_BRASS_HI);
+        g.fill(x + 2, y1 - 2, x + 1 + len, y1 - 1, COLOR_BRASS);
+        g.fill(x + 2, y1 - 1, x + 1 + len, y1, COLOR_BRASS_D);
+        g.fill(x + 1, y1 - len, x + 2, y1 - 1, COLOR_BRASS_HI);
+        g.fill(x + 2, y1 - len, x + 3, y1 - 1, COLOR_BRASS);
+        g.fill(x + 3, y1 - len, x + 4, y1 - 1, COLOR_BRASS_D);
+        g.fill(x + 2, y1 - 2, x + 3, y1 - 1, COLOR_BRASS);
+        // Bottom-Right
+        g.fill(x1 - len, y1 - 3, x1 - 1, y1 - 2, COLOR_BRASS_HI);
+        g.fill(x1 - len, y1 - 2, x1 - 1, y1 - 1, COLOR_BRASS);
+        g.fill(x1 - len, y1 - 1, x1 - 1, y1, COLOR_BRASS_D);
+        g.fill(x1 - 3, y1 - len, x1 - 2, y1 - 1, COLOR_BRASS_HI);
+        g.fill(x1 - 2, y1 - len, x1 - 1, y1 - 1, COLOR_BRASS);
+        g.fill(x1 - 1, y1 - len, x1, y1 - 1, COLOR_BRASS_D);
+        g.fill(x1 - 2, y1 - 2, x1 - 1, y1 - 1, COLOR_BRASS);
     }
 
     static void drawMcSlot(GuiGraphics g, int sx, int sy) {
@@ -102,14 +158,15 @@ final class LotterySubModeRenderers {
         g.fill(sx, sy + 1, sx + 1, sy + 17, COLOR_DARK);
         g.fill(sx + 1, sy + 17, sx + 18, sy + 18, COLOR_WHITE);
         g.fill(sx + 17, sy + 1, sx + 18, sy + 17, COLOR_WHITE);
-        g.fill(sx + 17, sy, sx + 18, sy + 1, COLOR_SLOT);
-        g.fill(sx, sy + 17, sx + 1, sy + 18, COLOR_SLOT);
+        g.fill(sx + 17, sy, sx + 18, sy + 1, 0xFFB2A082);
+        g.fill(sx, sy + 17, sx + 1, sy + 18, 0xFFB2A082);
     }
 
     static void drawGoldTrimSlot(GuiGraphics g, int sx, int sy) {
-        g.fill(sx - 1, sy - 1, sx + 19, sy + 19, 0xFF8C6214);
-        g.fill(sx - 1, sy - 1, sx + 18, sy, 0xFFE5B94B);
-        g.fill(sx - 1, sy - 1, sx, sy + 18, 0xFFE5B94B);
+        g.fill(sx - 2, sy - 2, sx + 20, sy + 20, COLOR_WALNUT);
+        g.fill(sx - 1, sy - 1, sx + 19, sy + 19, COLOR_BRASS_D);
+        g.fill(sx - 1, sy - 1, sx + 18, sy, COLOR_BRASS_HI);
+        g.fill(sx - 1, sy - 1, sx, sy + 18, COLOR_BRASS_HI);
         drawMcSlot(g, sx, sy);
     }
 
@@ -124,31 +181,32 @@ final class LotterySubModeRenderers {
     }
 
     static void drawOakPlaque(GuiGraphics g, int x, int y, int w, int h) {
-        drawRecessedWell(g, x, y, w, h, 0xFF4A321F);
-        g.fill(x + 2, y + 2, x + w - 2, y + h - 2, 0xFF241A13);
+        drawRecessedWell(g, x, y, w, h, COLOR_WALNUT);
+        g.renderOutline(x + 1, y + 1, w - 2, h - 2, COLOR_BRASS_D);
+        g.fill(x + 2, y + 2, x + w - 2, y + h - 2, 0xFF241B14);
     }
 
     static void drawGroove(GuiGraphics g, int x0, int x1, int y) {
-        g.fill(x0, y, x1, y + 1, COLOR_SHADOW);
+        g.fill(x0, y, x1, y + 1, COLOR_BRASS_D);
         g.fill(x0, y + 1, x1, y + 2, COLOR_WHITE);
     }
 
     static void drawMcButton(GuiGraphics g, int x, int y, int w, int h, boolean hovered, boolean enabled, boolean goldStyle) {
         int face, hi, sh;
         if (!enabled) {
-            face = 0xFF5E5E5E;
-            hi = 0xFF787878;
-            sh = 0xFF424242;
+            face = 0xFF8C7D6B;
+            hi = 0xFFA89882;
+            sh = 0xFF635648;
         } else if (goldStyle) {
-            face = hovered ? 0xFFD49E32 : 0xFFB88324;
-            hi = hovered ? 0xFFFCE28A : 0xFFF2C864;
-            sh = hovered ? 0xFF855A12 : 0xFF6E490E;
+            face = hovered ? 0xFFD9AE48 : 0xFFBC8E38;
+            hi = hovered ? 0xFFFCE69C : 0xFFF2D88A;
+            sh = hovered ? 0xFF855A18 : 0xFF704C1C;
         } else {
-            face = hovered ? 0xFF7D88BD : 0xFF7E7E7E;
-            hi = hovered ? 0xFFB4BCE2 : 0xFFB0B0B0;
-            sh = hovered ? 0xFF4F5678 : 0xFF545454;
+            face = hovered ? 0xFFA67846 : 0xFF845C34;
+            hi = hovered ? 0xFFE6C273 : 0xFFD6A84E;
+            sh = hovered ? 0xFF5C3E1C : 0xFF4C321A;
         }
-        g.fill(x, y, x + w, y + h, 0xFF000000);
+        g.fill(x, y, x + w, y + h, COLOR_UMBER);
         g.fill(x + 1, y + 1, x + w - 1, y + h - 1, face);
         g.fill(x + 1, y + 1, x + w - 1, y + 2, hi);
         g.fill(x + 1, y + 1, x + 2, y + h - 1, hi);
@@ -176,16 +234,17 @@ final class LotterySubModeRenderers {
         int chamberY = relY + 28;
         int chamberSize = 44;
 
-        // 橡木金框凹槽竞技场
-        drawRecessedWell(guiGraphics, chamberX - 2, chamberY - 2, chamberSize + 4, chamberSize + 4, 0xFF6B4C2A);
-        guiGraphics.renderOutline(chamberX - 1, chamberY - 1, chamberSize + 2, chamberSize + 2, 0xFFC59632);
-        guiGraphics.fill(chamberX, chamberY, chamberX + chamberSize, chamberY + chamberSize, 0xFF211B18);
+        // 胡桃木黄铜框 + 深靛蓝丝绒舞台视窗
+        drawRecessedWell(guiGraphics, chamberX - 2, chamberY - 2, chamberSize + 4, chamberSize + 4, COLOR_WALNUT);
+        guiGraphics.renderOutline(chamberX - 1, chamberY - 1, chamberSize + 2, chamberSize + 2, COLOR_BRASS);
+        guiGraphics.fill(chamberX, chamberY, chamberX + chamberSize, chamberY + chamberSize, 0xFF171E30);
+        guiGraphics.renderOutline(chamberX + 1, chamberY + 1, chamberSize - 2, chamberSize - 2, 0xFF232E4A);
 
-        // 四角黄铜铆钉
-        guiGraphics.fill(chamberX + 1, chamberY + 1, chamberX + 3, chamberY + 3, 0xFFD4A237);
-        guiGraphics.fill(chamberX + chamberSize - 3, chamberY + 1, chamberX + chamberSize - 1, chamberY + 3, 0xFFD4A237);
-        guiGraphics.fill(chamberX + 1, chamberY + chamberSize - 3, chamberX + 3, chamberY + chamberSize - 1, 0xFFD4A237);
-        guiGraphics.fill(chamberX + chamberSize - 3, chamberY + chamberSize - 3, chamberX + chamberSize - 1, chamberY + chamberSize - 1, 0xFFD4A237);
+        // 四角抛光黄铜铆钉
+        guiGraphics.fill(chamberX + 1, chamberY + 1, chamberX + 3, chamberY + 3, COLOR_BRASS_HI);
+        guiGraphics.fill(chamberX + chamberSize - 3, chamberY + 1, chamberX + chamberSize - 1, chamberY + 3, COLOR_BRASS_HI);
+        guiGraphics.fill(chamberX + 1, chamberY + chamberSize - 3, chamberX + 3, chamberY + chamberSize - 1, COLOR_BRASS_HI);
+        guiGraphics.fill(chamberX + chamberSize - 3, chamberY + chamberSize - 3, chamberX + chamberSize - 1, chamberY + chamberSize - 1, COLOR_BRASS_HI);
 
         renderCelestialDie(guiGraphics, menu.isRolling(), chamberX + chamberSize / 2, chamberY + chamberSize / 2, partialTick, diceRotX, diceRotY, diceRotZ);
 
@@ -220,11 +279,12 @@ final class LotterySubModeRenderers {
         int centerX = relX + 98;
         int centerY = relY + 54;
 
-        // 橡木外环底座 (静置装饰，与中心轮盘完美契合)
-        guiGraphics.fill(centerX - 31, centerY - 29, centerX + 31, centerY + 29, 0xFF6B4C2A);
-        guiGraphics.fill(centerX - 29, centerY - 31, centerX + 29, centerY + 31, 0xFF6B4C2A);
-        guiGraphics.fill(centerX - 29, centerY - 28, centerX + 29, centerY + 28, 0xFF8C6214);
-        guiGraphics.fill(centerX - 28, centerY - 29, centerX + 28, centerY + 29, 0xFF8C6214);
+        // 胡桃木与抛光黄铜外环底座 + 深翡翠丝绒背景
+        guiGraphics.fill(centerX - 31, centerY - 29, centerX + 31, centerY + 29, COLOR_WALNUT);
+        guiGraphics.fill(centerX - 29, centerY - 31, centerX + 29, centerY + 31, COLOR_WALNUT);
+        guiGraphics.fill(centerX - 29, centerY - 28, centerX + 29, centerY + 28, COLOR_BRASS_D);
+        guiGraphics.fill(centerX - 28, centerY - 29, centerX + 28, centerY + 29, COLOR_BRASS_D);
+        guiGraphics.fill(centerX - 27, centerY - 27, centerX + 27, centerY + 27, 0xFF14241D);
 
         var pose = guiGraphics.pose();
         pose.pushPose();
@@ -405,11 +465,11 @@ final class LotterySubModeRenderers {
         int cabinetW = 88;
         int cabinetH = 62;
 
-        // 橡木金框老虎机机箱
-        drawRecessedWell(guiGraphics, cabinetX - 2, cabinetY - 2, cabinetW + 4, cabinetH + 4, 0xFF6B4C2A);
-        int cabinetBorder = isSuspense ? 0xFFDC2626 : 0xFFD4A237;
+        // 胡桃木黄铜框 + 深翡翠丝绒老虎机舞台视窗
+        drawRecessedWell(guiGraphics, cabinetX - 2, cabinetY - 2, cabinetW + 4, cabinetH + 4, COLOR_WALNUT);
+        int cabinetBorder = isSuspense ? 0xFFDC2626 : COLOR_BRASS;
         guiGraphics.renderOutline(cabinetX - 1, cabinetY - 1, cabinetW + 2, cabinetH + 2, cabinetBorder);
-        guiGraphics.fill(cabinetX, cabinetY, cabinetX + cabinetW, cabinetY + cabinetH, 0xFF28221D);
+        guiGraphics.fill(cabinetX, cabinetY, cabinetX + cabinetW, cabinetY + cabinetH, 0xFF16261F);
 
         int[] reelX = new int[]{cabinetX + 4, cabinetX + 32, cabinetX + 60};
         float[] scrolls = new float[]{reel0Scroll, reel1Scroll, reel2Scroll};
@@ -419,7 +479,8 @@ final class LotterySubModeRenderers {
         int paylineY = cabinetY + 23;
         for (int r = 0; r < 3; r++) {
             int cx = reelX[r];
-            drawRecessedWell(guiGraphics, cx, cabinetY + 2, 24, cabinetH - 4, 0xFF342E28);
+            drawRecessedWell(guiGraphics, cx, cabinetY + 2, 24, cabinetH - 4, 0xFF1E342A);
+            guiGraphics.renderOutline(cx + 1, cabinetY + 3, 22, cabinetH - 6, COLOR_BRASS_D);
 
             float scroll = scrolls[r];
             int totalSyms = SLOT_SYMBOLS.length;
@@ -450,10 +511,10 @@ final class LotterySubModeRenderers {
     }
 
     private static void renderLever(GuiGraphics guiGraphics, int pivotX, int pivotY, float leverPullTimer) {
-        // 橡木与黄铜底座
-        guiGraphics.fill(pivotX - 4, pivotY + 11, pivotX + 8, pivotY + 21, 0xFF000000);
-        guiGraphics.fill(pivotX - 3, pivotY + 12, pivotX + 7, pivotY + 20, 0xFF6B4C2A);
-        guiGraphics.renderOutline(pivotX - 3, pivotY + 12, 10, 8, 0xFFD4A237);
+        // 胡桃木与抛光黄铜机械底座
+        guiGraphics.fill(pivotX - 4, pivotY + 11, pivotX + 8, pivotY + 21, COLOR_UMBER);
+        guiGraphics.fill(pivotX - 3, pivotY + 12, pivotX + 7, pivotY + 20, COLOR_WALNUT);
+        guiGraphics.renderOutline(pivotX - 3, pivotY + 12, 10, 8, COLOR_BRASS);
 
         var pose = guiGraphics.pose();
         pose.pushPose();
@@ -462,12 +523,12 @@ final class LotterySubModeRenderers {
         float pullAngle = -25.0F + (float) Math.sin(leverPullTimer * Math.PI) * 60.0F;
         pose.mulPose(Axis.ZP.rotationDegrees(pullAngle));
 
-        guiGraphics.fill(-2, -18, 2, 0, 0xFFD1D5DB);
-        guiGraphics.renderOutline(-2, -18, 4, 18, 0xFF555555);
+        guiGraphics.fill(-2, -18, 2, 0, COLOR_BRASS_HI);
+        guiGraphics.renderOutline(-2, -18, 4, 18, COLOR_BRASS_D);
 
-        // 红石火把拉杆球头
-        guiGraphics.fill(-5, -24, 5, -16, 0xFFDC2626);
-        guiGraphics.renderOutline(-5, -24, 10, 8, 0xFF7F1D1D);
+        // 红宝石镶金机械拉杆球头
+        guiGraphics.fill(-5, -24, 5, -16, 0xFFB91C1C);
+        guiGraphics.renderOutline(-5, -24, 10, 8, COLOR_BRASS);
         guiGraphics.fill(-3, -22, 1, -19, 0xFFFCA5A5);
 
         pose.popPose();
@@ -476,12 +537,13 @@ final class LotterySubModeRenderers {
     static void drawRarityBadge(GuiGraphics guiGraphics, Font font, int x, int y, Component label, int color, boolean active) {
         if (active) {
             int labelW = font.width(label);
-            guiGraphics.fill(x - 1, y - 1, x + 7 + labelW + 1, y + 9, 0xFF2B241D);
+            guiGraphics.fill(x - 1, y - 1, x + 7 + labelW + 1, y + 9, 0xFF241B14);
+            guiGraphics.renderOutline(x - 1, y - 1, 8 + labelW + 2, 10, COLOR_BRASS_D);
             guiGraphics.fill(x, y + 2, x + 4, y + 6, color);
             guiGraphics.drawString(font, label, x + 6, y, color, true);
         } else {
-            guiGraphics.fill(x, y + 2, x + 4, y + 6, 0xFF6E6E6E);
-            guiGraphics.drawString(font, label, x + 6, y, 0xFF555555, false);
+            guiGraphics.fill(x, y + 2, x + 4, y + 6, 0xFFA6967C);
+            guiGraphics.drawString(font, label, x + 6, y, 0xFF735F46, false);
         }
     }
 
