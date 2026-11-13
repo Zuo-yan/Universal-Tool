@@ -65,6 +65,8 @@ import java.util.UUID;
  */
 @EventBusSubscriber(modid = UniversalToolMod.MODID)
 public final class PrivateSpaceManager {
+    public static final ResourceLocation STARRY_POCKET_EFFECTS =
+            ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "starry_pocket");
     private static final int WORLD_SIZE = 512;
     private static final int LAND_SEARCH_RADIUS = 48;
     private static final int PAGE_REALMS = 0;
@@ -282,7 +284,7 @@ public final class PrivateSpaceManager {
                 source.height(),
                 source.logicalHeight(),
                 source.infiniburn(),
-                source.effectsLocation(),
+                STARRY_POCKET_EFFECTS,
                 Math.max(source.ambientLight(), 0.35F),
                 monsters
         );

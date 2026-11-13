@@ -6,6 +6,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import org.gwfx.universaltool.UniversalToolMod;
@@ -13,6 +14,7 @@ import org.gwfx.universaltool.init.ModBlockEntities;
 import org.gwfx.universaltool.init.ModEntities;
 import org.gwfx.universaltool.init.ModMenuTypes;
 import org.gwfx.universaltool.item.TeleportCodexItem;
+import org.gwfx.universaltool.space.PrivateSpaceManager;
 
 /**
  * Client-only event subscriber for registering screens, block/entity renderers, keybinds, payload handlers, and client hooks.
@@ -64,5 +66,10 @@ public final class UniversalToolClientMod {
     public static void registerKeys(RegisterKeyMappingsEvent event) {
         SkillClientController.registerKeys(event);
         KleinKeybind.registerKeys(event);
+    }
+
+    @SubscribeEvent
+    public static void registerDimensionEffects(RegisterDimensionSpecialEffectsEvent event) {
+        event.register(PrivateSpaceManager.STARRY_POCKET_EFFECTS, new StarryPocketDimensionEffects());
     }
 }

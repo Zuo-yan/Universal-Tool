@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.1 - 2026-11-13
+- **Cloud-Free Dense Starry Sky for Personal Starry Space (`StarryPocketDimensionEffects`)**:
+  - Replaced default Overworld sky/clouds in `universal_tool:private_pocket/<uuid>` with custom `universal_tool:starry_pocket` `DimensionSpecialEffects`.
+  - Completely suppressed clouds (`cloudLevel = Float.NaN` and `renderClouds` override) and rendered a deep midnight-indigo sky dome, smooth radial-falloff galactic nebula band, and 2,800 multi-tiered twinkling stars in starlight white, ice-cyan, soft violet, and pale gold.
+
 ## 1.9.0 - 2026-11-13
 - **Eight Realm World Traits (`PrivateSpaceWorldTraits` & `PrivateSpaceWorldTraitHandler`)**:
   - Added distinct, documented environmental rules across all 8 realms: fixed day/night clocks (`6000L` eternal noon, `18000L` eternal starry night, `13000L` dusk, ambient skylight modulation), tailored weather (`ALWAYS_CLEAR`, `SNOW_FLURRY`), custom natural mob rosters and spawn multipliers (e.g., Superflat zero natural spawns while preserving spawners/eggs/breeding; Mushroom Wonderland mooshroom-only; Obsidian Forge `2.0x` Nether-tier spawns with zombification immunity; Amethyst Starfall passive/neutral roster + Night Vision), geological ore tables (0 ores in Superflat; `2.5x` Overworld ores incl. diamond/emerald/redstone in Amethyst Starfall; XP/lapis/redstone focus in Cherry Grove; emerald/coal/iron in Sky Islands; quartz/gold/ancient debris in Obsidian Forge), and ambient protections against griefing/explosions.
