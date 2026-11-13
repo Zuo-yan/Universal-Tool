@@ -141,8 +141,11 @@ public class TeleportManager {
                 30, 0.5, 1.0, 0.5, 0.1
         );
 
-        // 施加 5 秒冷却
-        player.getCooldowns().addCooldown(ModItems.TELEPORT_CODEX.get(), COOLDOWN_TICKS);
+        // 施加冷却
+        int cooldownTicks = org.gwfx.universaltool.config.ModConfigs.getTeleportCooldownTicks();
+        if (cooldownTicks > 0) {
+            player.getCooldowns().addCooldown(ModItems.TELEPORT_CODEX.get(), cooldownTicks);
+        }
         player.displayClientMessage(Component.translatable("message.universal_tool.teleport_success", target.name()), true);
     }
 

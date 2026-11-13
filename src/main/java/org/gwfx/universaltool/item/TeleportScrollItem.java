@@ -1,10 +1,7 @@
 package org.gwfx.universaltool.item;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
@@ -12,9 +9,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.network.PacketDistributor;
+import org.gwfx.universaltool.init.ModDataComponents;
 import org.gwfx.universaltool.init.ModItems;
 import org.gwfx.universaltool.network.SyncWaypointsPayload;
 import org.gwfx.universaltool.waypoint.TeleportManager;
@@ -31,40 +28,12 @@ public class TeleportScrollItem extends Item {
 
     public static ItemStack createScroll(Waypoint waypoint) {
         ItemStack stack = new ItemStack(ModItems.TELEPORT_SCROLL.get());
-        CompoundTag tag = new CompoundTag();
-        tag.putString("WpId", waypoint.id());
-        tag.putString("WpName", waypoint.name());
-        tag.putString("WpDim", waypoint.dimension().toString());
-        tag.putDouble("WpX", waypoint.x());
-        tag.putDouble("WpY", waypoint.y());
-        tag.putDouble("WpZ", waypoint.z());
-        tag.putFloat("WpYaw", waypoint.yaw());
-        tag.putFloat("WpPitch", waypoint.pitch());
-        tag.putString("WpPhoto", waypoint.photoId());
-        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+        ModDataComponents.setTeleportTarget(stack, waypoint);
         return stack;
     }
 
     public static Waypoint readScroll(ItemStack stack) {
-        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
-        if (customData != null) {
-            CompoundTag tag = customData.copyTag();
-            if (tag.contains("WpName")) {
-                return new Waypoint(
-                        tag.getString("WpId"),
-                        tag.getString("WpName"),
-                        ResourceLocation.parse(tag.getString("WpDim")),
-                        tag.getDouble("WpX"),
-                        tag.getDouble("WpY"),
-                        tag.getDouble("WpZ"),
-                        tag.getFloat("WpYaw"),
-                        tag.getFloat("WpPitch"),
-                        System.currentTimeMillis(),
-                        tag.getString("WpPhoto")
-                );
-            }
-        }
-        return null;
+        return ModDataComponents.getTeleportTarget(stack);
     }
 
     @Override

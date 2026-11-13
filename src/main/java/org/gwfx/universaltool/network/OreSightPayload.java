@@ -6,9 +6,7 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.gwfx.universaltool.UniversalToolMod;
-import org.gwfx.universaltool.client.OreSightMarkers;
 
 public record OreSightPayload(CompoundTag data) implements CustomPacketPayload {
     public static final Type<OreSightPayload> TYPE = new Type<>(
@@ -20,9 +18,5 @@ public record OreSightPayload(CompoundTag data) implements CustomPacketPayload {
     @Override
     public Type<? extends CustomPacketPayload> type() {
         return TYPE;
-    }
-
-    public static void handle(OreSightPayload payload, IPayloadContext context) {
-        context.enqueueWork(() -> OreSightMarkers.update(payload.data()));
     }
 }

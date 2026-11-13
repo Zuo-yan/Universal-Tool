@@ -37,11 +37,17 @@ public class PhoenixPodScreen extends AbstractContainerScreen<PhoenixPodMenu> {
         // 按钮悬停提示
         if (this.menu.getPodState() == PodState.EMPTY) {
             int bx = this.leftPos + 76;
-            int by = this.topPos + 34;
-            if (mouseX >= bx && mouseX <= bx + 24 && mouseY >= by && mouseY <= by + 20) {
+            int by = this.topPos + 36;
+            if (mouseX >= bx && mouseX <= bx + 24 && mouseY >= by && mouseY <= by + 16) {
                 guiGraphics.renderTooltip(this.font, Component.translatable("gui.universal_tool.phoenix.start_btn_tip"), mouseX, mouseY);
             }
         }
+    }
+
+    @Override
+    protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+        guiGraphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, 0xFFF5D678, true);
+        guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, 0xFFF0E8D6, false);
     }
 
     @Override
@@ -82,7 +88,8 @@ public class PhoenixPodScreen extends AbstractContainerScreen<PhoenixPodMenu> {
             case READY -> Component.translatable("gui.universal_tool.phoenix.state_ready");
         };
         int textX = relX + (this.imageWidth - this.font.width(statusText)) / 2;
-        guiGraphics.drawString(this.font, statusText, textX, relY + 20, 0x3F3F3F, false);
+        int statusColor = (state == PodState.EMPTY) ? 0xFFF0E8D6 : 0xFF9CF5F0;
+        guiGraphics.drawString(this.font, statusText, textX, relY + 21, statusColor, false);
     }
 
     @Override

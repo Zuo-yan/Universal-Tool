@@ -424,37 +424,65 @@ public class PersonalSpaceScreen extends Screen {
         graphics.fill(x - 1, y - 1, x + width + 1, y + height + 1, 0xFF22303F);
         graphics.fill(x, y, x + width, y + height, 0xFF0E1822);
         int baseline = y + height - 1;
+        Prototype prototype = environment.profile().prototype();
+        int bodyColor = silhouetteBodyColor(prototype);
+        int topColor = silhouetteTopColor(prototype);
         for (int column = 0; column < width; column++) {
-            Slice slice = silhouetteSlice((float) column / (width - 1), environment.profile().prototype());
+            Slice slice = silhouetteSlice((float) column / (width - 1), prototype);
             if (slice == null) continue;
             int sliceTop = y + Math.round(slice.top() * (height - 1));
             int sliceBottom = y + Math.round(slice.bottom() * (height - 1));
             sliceTop = Math.max(y, Math.min(sliceTop, baseline));
             sliceBottom = Math.max(sliceTop + 1, Math.min(sliceBottom, baseline));
-            graphics.fill(x + column, sliceTop, x + column + 1, sliceBottom, 0xFF1F4A52);
-            graphics.fill(x + column, sliceTop, x + column + 1, Math.min(sliceTop + 2, sliceBottom), 0xFF43949A);
+            graphics.fill(x + column, sliceTop, x + column + 1, sliceBottom, bodyColor);
+            graphics.fill(x + column, sliceTop, x + column + 1, Math.min(sliceTop + 2, sliceBottom), topColor);
         }
+    }
+
+    private static int silhouetteBodyColor(Prototype prototype) {
+        return switch (prototype) {
+            case HIGHLAND -> 0xFF3E2944;
+            case PEAKS -> 0xFF3D2A5C;
+            case SANCTUM -> 0xFF143542;
+            case ROLLING -> 0xFF2B463F;
+            case CALDERA -> 0xFF3B2428;
+            case GLACIER -> 0xFF204B66;
+            default -> 0xFF1F4A52;
+        };
+    }
+
+    private static int silhouetteTopColor(Prototype prototype) {
+        return switch (prototype) {
+            case HIGHLAND -> 0xFFD98AB2;
+            case PEAKS -> 0xFFB47EE8;
+            case SANCTUM -> 0xFF38C4C2;
+            case ROLLING -> 0xFF7AD6A2;
+            case CALDERA -> 0xFFE5A44D;
+            case GLACIER -> 0xFF8BE5FF;
+            default -> 0xFF43949A;
+        };
     }
 
     private static Slice silhouetteSlice(float t, Prototype prototype) {
         if (prototype == Prototype.SKY) {
-            // The only prototype that is not one solid mass: a broad centre with two satellites.
+            // Celestial sky archipelago: a broad central sanctuary flanked by floating satellites.
             float centre = 1 - Math.min(1, Math.abs(t - 0.5F) / 0.22F);
-            if (centre > 0) return new Slice(0.30F, 0.30F + 0.50F * centre);
+            if (centre > 0) return new Slice(0.30F, 0.30F + 0.52F * centre);
             float leftSatellite = 1 - Math.min(1, Math.abs(t - 0.15F) / 0.075F);
-            if (leftSatellite > 0) return new Slice(0.14F, 0.14F + 0.18F * leftSatellite);
+            if (leftSatellite > 0) return new Slice(0.14F, 0.14F + 0.22F * leftSatellite);
             float rightSatellite = 1 - Math.min(1, Math.abs(t - 0.85F) / 0.065F);
-            if (rightSatellite > 0) return new Slice(0.60F, 0.60F + 0.16F * rightSatellite);
+            if (rightSatellite > 0) return new Slice(0.56F, 0.56F + 0.20F * rightSatellite);
             return null;
         }
         return new Slice(switch (prototype) {
-            case FLAT -> 0.32F;
-            case ROLLING -> 0.36F + 0.14F * wave(t, 1.5F, 0.0F) + 0.06F * wave(t, 3.7F, 1.0F);
-            case HIGHLAND -> 0.34F + 0.40F * peak(t, 0.30F, 0.10F) + 0.32F * peak(t, 0.72F, 0.07F);
-            case DUNES -> 0.30F + 0.20F * wave(t, 1.0F, 0.35F) + 0.07F * wave(t, 2.3F, 0.0F);
-            case TUNDRA -> 0.36F + 0.05F * wave(t, 2.5F, 0.2F);
-            case PLATEAU -> 0.30F + 0.22F * (float) Math.floor((wave(t, 1.2F, 0.0F) + 1.0F) * 2.0F) / 2.0F;
-            default -> 0.32F;
+            case FLAT -> 0.36F;
+            case HIGHLAND -> 0.64F - 0.36F * peak(t, 0.28F, 0.10F) - 0.28F * peak(t, 0.74F, 0.08F);
+            case PEAKS -> 0.62F - 0.46F * peak(t, 0.26F, 0.07F) - 0.52F * peak(t, 0.54F, 0.06F) - 0.40F * peak(t, 0.80F, 0.08F);
+            case SANCTUM -> 0.28F + 0.20F * (float) Math.floor((Math.abs(t - 0.5F) * 2.0F) * 3.0F) / 2.0F;
+            case ROLLING -> 0.38F + 0.14F * wave(t, 1.5F, 0.0F) - 0.18F * peak(t, 0.35F, 0.06F) - 0.15F * peak(t, 0.70F, 0.05F);
+            case CALDERA -> 0.55F - 0.38F * peak(t, 0.18F, 0.10F) - 0.38F * peak(t, 0.82F, 0.10F) + 0.10F * peak(t, 0.50F, 0.16F);
+            case GLACIER -> 0.60F - 0.48F * peak(t, 0.20F, 0.045F) - 0.42F * peak(t, 0.48F, 0.04F) - 0.50F * peak(t, 0.76F, 0.05F);
+            default -> 0.34F;
         }, 1.0F);
     }
 

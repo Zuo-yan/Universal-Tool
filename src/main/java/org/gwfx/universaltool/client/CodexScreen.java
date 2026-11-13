@@ -58,9 +58,9 @@ public class CodexScreen extends Screen {
         this.leftPos = (this.width - GUI_WIDTH) / 2;
         this.topPos = (this.height - GUI_HEIGHT) / 2;
 
-        this.nameInput = new EditBox(this.font, this.leftPos + 60, this.topPos + 80, 160, 20, Component.literal("地点名称"));
+        this.nameInput = new EditBox(this.font, this.leftPos + 60, this.topPos + 80, 160, 20, Component.translatable("gui.universal_tool.codex.location_name"));
         this.nameInput.setMaxLength(32);
-        this.nameInput.setValue("探索坐标 " + (ClientWaypointCache.getWaypoints().size() + 1));
+        this.nameInput.setValue(Component.translatable("gui.universal_tool.codex.default_waypoint", ClientWaypointCache.getWaypoints().size() + 1).getString());
         this.nameInput.setVisible(this.isNaming);
 
         this.confirmButton = Button.builder(Component.translatable("gui.universal_tool.codex.confirm"), btn -> onConfirmAdd())
@@ -78,7 +78,7 @@ public class CodexScreen extends Screen {
         this.shutterFlash = 6;
         if (this.nameInput != null) {
             this.nameInput.setVisible(true);
-            this.nameInput.setValue("探索坐标 " + (ClientWaypointCache.getWaypoints().size() + 1));
+            this.nameInput.setValue(Component.translatable("gui.universal_tool.codex.default_waypoint", ClientWaypointCache.getWaypoints().size() + 1).getString());
             this.setFocused(this.nameInput);
         }
         if (this.confirmButton != null) {
@@ -89,7 +89,7 @@ public class CodexScreen extends Screen {
     private void onConfirmAdd() {
         if (this.minecraft != null && this.minecraft.player != null) {
             String name = this.nameInput.getValue().trim();
-            if (name.isEmpty()) name = "未命名坐标";
+            if (name.isEmpty()) name = Component.translatable("gui.universal_tool.codex.unnamed_waypoint").getString();
             var p = this.minecraft.player;
             Waypoint wp = Waypoint.of(
                     name,
@@ -126,8 +126,13 @@ public class CodexScreen extends Screen {
         List<Waypoint> waypoints = ClientWaypointCache.getWaypoints();
 
         if (this.isNaming) {
-            guiGraphics.fill(this.leftPos + 40, this.topPos + 50, this.leftPos + 240, this.topPos + 140, 0xEE2A2521);
-            guiGraphics.drawCenteredString(this.font, "记录当前传送点", this.leftPos + 140, this.topPos + 62, 0xFFE8D3A2);
+            int mx = this.leftPos + 40;
+            int my = this.topPos + 50;
+            int mw = 200;
+            int mh = 90;
+            guiGraphics.fill(mx, my, mx + mw, my + mh, 0xF21E1924);
+            drawBevelOutline(guiGraphics, mx, my, mw, mh, 0xFF0E0B12, 0xFFD9AE48, 0xFF6B5220);
+            guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.record_waypoint_title"), this.leftPos + 140, this.topPos + 62, 0xFFE8D3A2);
             return;
         }
 
@@ -147,9 +152,9 @@ public class CodexScreen extends Screen {
         int pageTop = this.topPos + 18;
 
         if (waypoints.isEmpty() || selectedIndex < 0 || selectedIndex >= waypoints.size()) {
-            guiGraphics.drawCenteredString(this.font, "探险家手记", pageLeft + 55, pageTop + 30, 0x5C4033);
-            guiGraphics.drawCenteredString(this.font, "当前卷尚无选定地点", pageLeft + 55, pageTop + 55, 0x8B7355);
-            guiGraphics.drawCenteredString(this.font, "点击右侧记录当前位置", pageLeft + 55, pageTop + 75, 0x8B7355);
+            guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.journal_title"), pageLeft + 55, pageTop + 30, 0xFF5C4033);
+            guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.empty_hint_1"), pageLeft + 55, pageTop + 55, 0xFF8B7355);
+            guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.empty_hint_2"), pageLeft + 55, pageTop + 75, 0xFF8B7355);
             return;
         }
 
@@ -158,28 +163,29 @@ public class CodexScreen extends Screen {
         int photoX = pageLeft + 4;
         int photoY = pageTop + 4;
         guiGraphics.fill(photoX - 2, photoY - 2, photoX + 112, photoY + 64, 0xFFEDE2CD);
-        guiGraphics.fill(photoX - 3, photoY - 3, photoX + 113, photoY - 2, 0xFFBFB5A0);
+        drawBevelOutline(guiGraphics, photoX - 3, photoY - 3, 116, 68, 0xFF5D4632, 0xFFF7EBD5, 0xFF8E7454);
 
         ResourceLocation photoTex = PhotoManager.getOrLoadTexture(wp.photoId());
         if (photoTex != null) {
             guiGraphics.blit(photoTex, photoX, photoY, 0, 0, 110, 62, 110, 62);
         } else {
             guiGraphics.fill(photoX, photoY, photoX + 110, photoY + 62, 0xFF4A4036);
-            guiGraphics.drawCenteredString(this.font, "无实景照片", photoX + 55, photoY + 26, 0xD4C4A8);
+            guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.no_photo"), photoX + 55, photoY + 26, 0xFFD4C4A8);
         }
 
         int infoY = photoY + 70;
-        guiGraphics.drawString(this.font, Component.literal(wp.name()).withStyle(ChatFormatting.BOLD), pageLeft + 2, infoY, 0x3E2723, false);
-        guiGraphics.drawString(this.font, "维度: " + getDimensionName(wp.dimension()), pageLeft + 2, infoY + 14, 0x5D4037, false);
-        guiGraphics.drawString(this.font, String.format("坐标: %.0f, %.0f, %.0f", wp.x(), wp.y(), wp.z()), pageLeft + 2, infoY + 26, 0x5D4037, false);
+        guiGraphics.drawString(this.font, Component.literal(wp.name()).withStyle(ChatFormatting.BOLD), pageLeft + 2, infoY, 0xFF3E2723, false);
+        guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.dimension", getDimensionName(wp.dimension())), pageLeft + 2, infoY + 14, 0xFF5D4037, false);
+        guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.coords",
+                Math.round(wp.x()), Math.round(wp.y()), Math.round(wp.z())), pageLeft + 2, infoY + 26, 0xFF5D4037, false);
 
         if (this.minecraft != null && this.minecraft.player != null) {
             var player = this.minecraft.player;
             if (player.level().dimension().location().equals(wp.dimension())) {
                 double dist = Math.sqrt(player.distanceToSqr(wp.x(), wp.y(), wp.z()));
-                guiGraphics.drawString(this.font, String.format("直线距离: %.0fm", dist), pageLeft + 2, infoY + 38, 0x795548, false);
+                guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.distance", Math.round(dist)), pageLeft + 2, infoY + 38, 0xFF795548, false);
             } else {
-                guiGraphics.drawString(this.font, "距离: 异次元空间", pageLeft + 2, infoY + 38, 0x9E9D24, false);
+                guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.distance_other_dim"), pageLeft + 2, infoY + 38, 0xFF8A7A20, false);
             }
         }
     }
@@ -189,10 +195,14 @@ public class CodexScreen extends Screen {
         int rightTop = this.topPos + 16;
         int maxCap = ClientWaypointCache.getMaxCapacity();
 
-        // 顶部「记录当前位置」按钮
-        boolean hoverAdd = mouseX >= rightLeft + 50 && mouseX <= rightLeft + 120 && mouseY >= rightTop - 2 && mouseY <= rightTop + 14;
-        guiGraphics.fill(rightLeft + 48, rightTop - 2, rightLeft + 122, rightTop + 14, hoverAdd ? 0xFFC9B68F : 0xFFDFD1B5);
-        guiGraphics.drawCenteredString(this.font, "记录当前位置", rightLeft + 85, rightTop + 1, 0x3E2723);
+        // 顶部「记录当前位置」秘法黄铜羊皮纸按钮
+        boolean hoverAdd = mouseX >= rightLeft + 48 && mouseX <= rightLeft + 122 && mouseY >= rightTop - 2 && mouseY <= rightTop + 14;
+        drawPixelButton(guiGraphics, rightLeft + 48, rightTop - 2, 74, 16,
+                hoverAdd ? 0xFFCDB992 : 0xFFE3D3B3,
+                0xFF5D4632,
+                hoverAdd ? 0xFFF7ECD6 : 0xFFF3E6CD,
+                0xFF9C815C);
+        guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.record_here"), rightLeft + 85, rightTop + 2, 0xFF3E2723);
 
         // 12 个条目渲染 (根据当前卷切换)
         int itemH = 9;
@@ -210,20 +220,20 @@ public class CodexScreen extends Screen {
             }
 
             String numStr = (globalIdx < ROMAN_NUMERALS.length ? ROMAN_NUMERALS[globalIdx] : String.valueOf(globalIdx + 1)) + ".";
-            guiGraphics.drawString(this.font, numStr, rightLeft + 2, itemY, isUnlocked ? 0x4E342E : 0x9E9E9E, false);
+            guiGraphics.drawString(this.font, numStr, rightLeft + 2, itemY, isUnlocked ? 0xFF4E342E : 0xFF9E9E9E, false);
 
             if (!isUnlocked) {
-                guiGraphics.drawString(this.font, "[未解锁]", rightLeft + 28, itemY, 0x9E9E9E, false);
+                guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.locked_slot"), rightLeft + 28, itemY, 0xFF9E9E9E, false);
             } else if (globalIdx < waypoints.size()) {
                 String name = waypoints.get(globalIdx).name();
                 if (name.length() > 7) name = name.substring(0, 6) + "..";
-                guiGraphics.drawString(this.font, name, rightLeft + 28, itemY, 0x2E1C14, false);
+                guiGraphics.drawString(this.font, name, rightLeft + 28, itemY, 0xFF2E1C14, false);
 
                 // 删除按钮
                 boolean hoverDel = mouseX >= rightLeft + 108 && mouseX <= rightLeft + 118 && mouseY >= itemY && mouseY < itemY + itemH;
                 guiGraphics.drawString(this.font, "x", rightLeft + 110, itemY, hoverDel ? 0xFFD32F2F : 0xFF8D6E63, false);
             } else {
-                guiGraphics.drawString(this.font, "---", rightLeft + 28, itemY, 0x8D6E63, false);
+                guiGraphics.drawString(this.font, "---", rightLeft + 28, itemY, 0xFF8D6E63, false);
             }
         }
 
@@ -232,24 +242,34 @@ public class CodexScreen extends Screen {
         boolean hoverPrev = mouseX >= rightLeft + 10 && mouseX <= rightLeft + 28 && mouseY >= pageControlY && mouseY <= pageControlY + 12;
         boolean hoverNext = mouseX >= rightLeft + 92 && mouseX <= rightLeft + 110 && mouseY >= pageControlY && mouseY <= pageControlY + 12;
 
-        guiGraphics.fill(rightLeft + 10, pageControlY, rightLeft + 28, pageControlY + 12, hoverPrev ? 0xFFC9B68F : 0xFFDFD1B5);
-        guiGraphics.drawCenteredString(this.font, "<", rightLeft + 19, pageControlY + 2, 0x3E2723);
+        drawPixelButton(guiGraphics, rightLeft + 10, pageControlY, 18, 12,
+                hoverPrev ? 0xFFCDB992 : 0xFFE3D3B3, 0xFF5D4632, 0xFFF3E6CD, 0xFF9C815C);
+        guiGraphics.drawCenteredString(this.font, "<", rightLeft + 19, pageControlY + 2, 0xFF3E2723);
 
-        String volText = String.format("第 %d/%d 卷", currentVolume + 1, VOLUMES_COUNT);
-        guiGraphics.drawCenteredString(this.font, volText, rightLeft + 60, pageControlY + 2, 0x5D4037);
+        Component volText = Component.translatable("gui.universal_tool.codex.volume", currentVolume + 1, VOLUMES_COUNT);
+        guiGraphics.drawCenteredString(this.font, volText, rightLeft + 60, pageControlY + 2, 0xFF5D4037);
 
-        guiGraphics.fill(rightLeft + 92, pageControlY, rightLeft + 110, pageControlY + 12, hoverNext ? 0xFFC9B68F : 0xFFDFD1B5);
-        guiGraphics.drawCenteredString(this.font, ">", rightLeft + 101, pageControlY + 2, 0x3E2723);
+        drawPixelButton(guiGraphics, rightLeft + 92, pageControlY, 18, 12,
+                hoverNext ? 0xFFCDB992 : 0xFFE3D3B3, 0xFF5D4632, 0xFFF3E6CD, 0xFF9C815C);
+        guiGraphics.drawCenteredString(this.font, ">", rightLeft + 101, pageControlY + 2, 0xFF3E2723);
 
-        // 底部火漆印章按钮
+        // 底部秘法火漆 / 黄铜镶边印章按钮
         int btnY = rightTop + 144;
         boolean hoverWarp = mouseX >= rightLeft + 2 && mouseX <= rightLeft + 56 && mouseY >= btnY && mouseY <= btnY + 18;
-        guiGraphics.fill(rightLeft + 2, btnY, rightLeft + 56, btnY + 18, hoverWarp ? 0xFFB71C1C : 0xFF880E4F);
-        guiGraphics.drawCenteredString(this.font, "跃迁", rightLeft + 29, btnY + 5, 0xFFFFEBEE);
+        drawPixelButton(guiGraphics, rightLeft + 2, btnY, 54, 18,
+                hoverWarp ? 0xFF9E2B3B : 0xFF7D2131,
+                0xFF340B15,
+                hoverWarp ? 0xFFD45B6B : 0xFFB04352,
+                0xFF4D111E);
+        guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.warp"), rightLeft + 29, btnY + 5, 0xFFFFF0E0);
 
         boolean hoverScroll = mouseX >= rightLeft + 64 && mouseX <= rightLeft + 118 && mouseY >= btnY && mouseY <= btnY + 18;
-        guiGraphics.fill(rightLeft + 64, btnY, rightLeft + 118, btnY + 18, hoverScroll ? 0xFFF57F17 : 0xFFE65100);
-        guiGraphics.drawCenteredString(this.font, "誊写", rightLeft + 91, btnY + 5, 0xFFFFF8E1);
+        drawPixelButton(guiGraphics, rightLeft + 64, btnY, 54, 18,
+                hoverScroll ? 0xFFC48F35 : 0xFFA67527,
+                0xFF422C0B,
+                hoverScroll ? 0xFFF2C86E : 0xFFD9AE48,
+                0xFF6B4A16);
+        guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.transcribe"), rightLeft + 91, btnY + 5, 0xFF28190A);
     }
 
     @Override
@@ -319,14 +339,30 @@ public class CodexScreen extends Screen {
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
-    private String getDimensionName(ResourceLocation dim) {
+    private Component getDimensionName(ResourceLocation dim) {
         String path = dim.getPath();
         return switch (path) {
-            case "overworld" -> "主世界";
-            case "the_nether" -> "下界";
-            case "the_end" -> "末地";
-            default -> path;
+            case "overworld" -> Component.translatable("gui.universal_tool.codex.dim.overworld");
+            case "the_nether" -> Component.translatable("gui.universal_tool.codex.dim.the_nether");
+            case "the_end" -> Component.translatable("gui.universal_tool.codex.dim.the_end");
+            default -> Component.literal(path);
         };
+    }
+
+    private static void drawPixelButton(GuiGraphics g, int x, int y, int w, int h, int fill, int border, int hiBevel, int loBevel) {
+        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, fill);
+        drawBevelOutline(g, x, y, w, h, border, hiBevel, loBevel);
+    }
+
+    private static void drawBevelOutline(GuiGraphics g, int x, int y, int w, int h, int border, int hiBevel, int loBevel) {
+        g.fill(x, y, x + w, y + 1, border);
+        g.fill(x, y + h - 1, x + w, y + h, border);
+        g.fill(x, y + 1, x + 1, y + h - 1, border);
+        g.fill(x + w - 1, y + 1, x + w, y + h - 1, border);
+        g.fill(x + 1, y + 1, x + w - 1, y + 2, hiBevel);
+        g.fill(x + 1, y + 2, x + 2, y + h - 1, hiBevel);
+        g.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, loBevel);
+        g.fill(x + w - 2, y + 2, x + w - 1, y + h - 2, loBevel);
     }
 
     @Override

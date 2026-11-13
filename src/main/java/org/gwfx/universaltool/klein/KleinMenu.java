@@ -198,12 +198,29 @@ public final class KleinMenu extends AbstractContainerMenu {
         lastSequence = action.sequence();
         if (action.operation() == KleinActionPayload.INSERT_CARRIED || action.operation() == KleinActionPayload.INSERT_ONE) {
             ItemStack carried = getCarried();
-            if (!KleinWarehouse.canStore(carried)) return;
-            BigInteger amount = warehouse.insert(carried, BigInteger.valueOf(action.operation() == KleinActionPayload.INSERT_ONE ? 1 : carried.getCount()));
-            if (amount.signum() > 0) {
-                carried.shrink(amount.intValue());
-                setCarried(carried);
-                savedData.changed();
+            if (action.operation() == KleinActionPayload.INSERT_ONE && carried.isEmpty()
+                    && action.sourceSlot() >= 0 && action.sourceSlot() < slots.size()) {
+                Slot source = slots.get(action.sourceSlot());
+                if (source.container == inventory && source.getContainerSlot() != lockedInventorySlot && source.hasItem()) {
+                    ItemStack stack = source.getItem();
+                    KleinWarehouse.Entry targetEntry = warehouse.entry(action.entryId());
+                    if (KleinWarehouse.canStore(stack)
+                            && (targetEntry == null || ItemStack.isSameItemSameComponents(stack, targetEntry.template()))) {
+                        BigInteger amount = warehouse.insert(stack, BigInteger.ONE);
+                        if (amount.signum() > 0) {
+                            source.remove(amount.intValue());
+                            source.setChanged();
+                            savedData.changed();
+                        }
+                    }
+                }
+            } else if (KleinWarehouse.canStore(carried)) {
+                BigInteger amount = warehouse.insert(carried, BigInteger.valueOf(action.operation() == KleinActionPayload.INSERT_ONE ? 1 : carried.getCount()));
+                if (amount.signum() > 0) {
+                    carried.shrink(amount.intValue());
+                    setCarried(carried);
+                    savedData.changed();
+                }
             }
         } else if (action.operation() == KleinActionPayload.DEPOSIT_MATCHING) {
             boolean anyChanged = false;

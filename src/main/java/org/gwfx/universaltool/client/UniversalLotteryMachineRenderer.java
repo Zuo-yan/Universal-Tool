@@ -18,6 +18,8 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
 
     private static final ResourceLocation TEXTURE =
             ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "textures/block/universal_lottery_machine.png");
+    private static final float U0_METAL = 0.035F, V0_METAL = 0.004F, U1_METAL = 0.058F, V1_METAL = 0.027F;
+    private static final float U0_SOLID = 0.004F, V0_SOLID = 0.004F, U1_SOLID = 0.027F, V1_SOLID = 0.027F;
 
     public UniversalLotteryMachineRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -75,9 +77,9 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
             case UniversalLotteryMachineBlockEntity.MODE_WHEEL ->
                 renderWheelChamber(be, poseStack, buffer, animTime, rolling, glowLight, packedOverlay);
             case UniversalLotteryMachineBlockEntity.MODE_SLOT ->
-                renderSlotChamber(be, poseStack, buffer, animTime, rolling, glowLight, packedOverlay);
+                renderSlotChamber(be, poseStack, buffer, animTime, rolling, packedLight, glowLight, packedOverlay);
             default ->
-                renderDiceChamber(be, poseStack, buffer, animTime, rolling, glowLight, packedOverlay);
+                renderDiceChamber(be, poseStack, buffer, animTime, rolling, packedLight, glowLight, packedOverlay);
         }
 
         poseStack.popPose(); // end of chamber
@@ -104,23 +106,23 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
         float rodThick = 0.008F;
         renderBox(poseStack, buffer, -rodW / 2, -rodLen, -rodThick / 2,
                 rodW / 2, 0.0F, rodThick / 2,
-                0.59F, 0.34F, 0.61F, 0.36F,
-                240, 195, 65, 255, glowLight, packedOverlay);
+                U0_METAL, V0_METAL, U1_METAL, V1_METAL,
+                240, 195, 65, 255, packedLight, packedOverlay);
 
         // 钟摆末端金色重锤圆盘 (Pendulum Bob)
         float bobSize = 0.024F;
         float bobThick = 0.012F;
         renderBox(poseStack, buffer, -bobSize / 2, -rodLen - bobSize / 2, -bobThick / 2,
                 bobSize / 2, -rodLen + bobSize / 2, bobThick / 2,
-                0.59F, 0.34F, 0.61F, 0.36F,
-                255, 218, 75, 255, glowLight, packedOverlay);
+                U0_METAL, V0_METAL, U1_METAL, V1_METAL,
+                255, 218, 75, 255, packedLight, packedOverlay);
 
         // 支点黄铜固定螺栓
         float pivotSize = 0.014F;
         renderBox(poseStack, buffer, -pivotSize / 2, -pivotSize / 2, -bobThick / 2,
                 pivotSize / 2, pivotSize / 2, bobThick / 2,
-                0.59F, 0.34F, 0.61F, 0.36F,
-                220, 170, 50, 255, glowLight, packedOverlay);
+                U0_METAL, V0_METAL, U1_METAL, V1_METAL,
+                220, 170, 50, 255, packedLight, packedOverlay);
 
         poseStack.popPose(); // end of pendulum
 
@@ -142,7 +144,7 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
      * 模式 0: 3D 命运天体骰子 (带 6 面点数金边与自转定格)
      */
     private void renderDiceChamber(UniversalLotteryMachineBlockEntity be, PoseStack poseStack, VertexConsumer buffer,
-                                   float animTime, boolean rolling, int glowLight, int packedOverlay) {
+                                   float animTime, boolean rolling, int packedLight, int glowLight, int packedOverlay) {
         poseStack.pushPose();
 
         if (rolling) {
@@ -168,25 +170,34 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
         }
 
         float s = 0.058F;
-        // 骰子黑曜石本体
+        // 骰子黑曜石本体 (使用环境光照)
         renderBox(poseStack, buffer, -s, -s, -s, s, s, s,
-                0.445F, 0.351F, 0.453F, 0.359F,
-                24, 16, 40, 255, glowLight, packedOverlay);
+                U0_SOLID, V0_SOLID, U1_SOLID, V1_SOLID,
+                24, 16, 40, 255, packedLight, packedOverlay);
 
         // 骰子六面微凸边缘与金色镶边
         float sf = s * 0.90F;
         renderBox(poseStack, buffer, -sf, -sf, -s - 0.001F, sf, sf, -s + 0.001F,
-                0.59F, 0.34F, 0.61F, 0.36F,
+                U0_METAL, V0_METAL, U1_METAL, V1_METAL,
                 210, 165, 55, 255, glowLight, packedOverlay); // -Z (Face 1: 对应正面舷窗)
         renderBox(poseStack, buffer, -sf, -sf, s - 0.001F, sf, sf, s + 0.001F,
-                0.59F, 0.34F, 0.61F, 0.36F,
+                U0_METAL, V0_METAL, U1_METAL, V1_METAL,
                 210, 165, 55, 255, glowLight, packedOverlay); // +Z (Face 6)
         renderBox(poseStack, buffer, -s - 0.001F, -sf, -sf, -s + 0.001F, sf, sf,
-                0.59F, 0.34F, 0.61F, 0.36F,
+                U0_METAL, V0_METAL, U1_METAL, V1_METAL,
                 210, 165, 55, 255, glowLight, packedOverlay); // -X (Face 2)
         renderBox(poseStack, buffer, s - 0.001F, -sf, -sf, s + 0.001F, sf, sf,
-                0.59F, 0.34F, 0.61F, 0.36F,
+                U0_METAL, V0_METAL, U1_METAL, V1_METAL,
                 210, 165, 55, 255, glowLight, packedOverlay); // +X (Face 5)
+        renderBox(poseStack, buffer, -sf, -s - 0.001F, -sf, sf, -s + 0.001F, sf,
+                U0_METAL, V0_METAL, U1_METAL, V1_METAL,
+                210, 165, 55, 255, glowLight, packedOverlay); // -Y (Face 3)
+        renderBox(poseStack, buffer, -sf, s - 0.001F, -sf, sf, s + 0.001F, sf,
+                U0_METAL, V0_METAL, U1_METAL, V1_METAL,
+                210, 165, 55, 255, glowLight, packedOverlay); // +Y (Face 4)
+
+        // 骰子六面立体点数镶嵌 (Face 1..6)
+        renderDicePips(poseStack, buffer, s, glowLight, packedOverlay);
 
         // 围绕骰子的金色星轨倾斜光环
         poseStack.pushPose();
@@ -196,6 +207,46 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
         poseStack.popPose();
 
         poseStack.popPose();
+    }
+
+    private void renderDicePips(PoseStack poseStack, VertexConsumer buffer, float s,
+                                int glowLight, int packedOverlay) {
+        float off = s * 0.44F;
+        float r = 0.0075F;
+        float d = 0.0025F;
+        // Face 1 (-Z): single glowing cyan/crimson core pip
+        renderBox(poseStack, buffer, -r * 1.3F, -r * 1.3F, -s - d, r * 1.3F, r * 1.3F, -s + 0.0005F,
+                U0_SOLID, V0_SOLID, U1_SOLID, V1_SOLID, 156, 245, 240, 255, glowLight, packedOverlay);
+        // Face 6 (+Z): 6 pips
+        float[][] f6 = {{-off, -off}, {off, -off}, {-off, 0}, {off, 0}, {-off, off}, {off, off}};
+        for (float[] p : f6) {
+            renderBox(poseStack, buffer, p[0] - r, p[1] - r, s - 0.0005F, p[0] + r, p[1] + r, s + d,
+                    U0_SOLID, V0_SOLID, U1_SOLID, V1_SOLID, 245, 214, 120, 255, glowLight, packedOverlay);
+        }
+        // Face 2 (-X): 2 pips
+        float[][] f2 = {{-off, -off}, {off, off}};
+        for (float[] p : f2) {
+            renderBox(poseStack, buffer, -s - d, p[0] - r, p[1] - r, -s + 0.0005F, p[0] + r, p[1] + r,
+                    U0_SOLID, V0_SOLID, U1_SOLID, V1_SOLID, 245, 214, 120, 255, glowLight, packedOverlay);
+        }
+        // Face 5 (+X): 5 pips
+        float[][] f5 = {{0, 0}, {-off, -off}, {off, -off}, {-off, off}, {off, off}};
+        for (float[] p : f5) {
+            renderBox(poseStack, buffer, s - 0.0005F, p[0] - r, p[1] - r, s + d, p[0] + r, p[1] + r,
+                    U0_SOLID, V0_SOLID, U1_SOLID, V1_SOLID, 245, 214, 120, 255, glowLight, packedOverlay);
+        }
+        // Face 3 (-Y): 3 pips
+        float[][] f3 = {{-off, -off}, {0, 0}, {off, off}};
+        for (float[] p : f3) {
+            renderBox(poseStack, buffer, p[0] - r, -s - d, p[1] - r, p[0] + r, -s + 0.0005F, p[1] + r,
+                    U0_SOLID, V0_SOLID, U1_SOLID, V1_SOLID, 216, 168, 255, 255, glowLight, packedOverlay);
+        }
+        // Face 4 (+Y): 4 pips
+        float[][] f4 = {{-off, -off}, {off, -off}, {-off, off}, {off, off}};
+        for (float[] p : f4) {
+            renderBox(poseStack, buffer, p[0] - r, s - 0.0005F, p[1] - r, p[0] + r, s + d, p[1] + r,
+                    U0_SOLID, V0_SOLID, U1_SOLID, V1_SOLID, 216, 168, 255, 255, glowLight, packedOverlay);
+        }
     }
 
     /**
@@ -221,7 +272,7 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
         // 1. 中央金黄轴心
         float hubS = 0.025F;
         renderBox(poseStack, buffer, -hubS, -hubS, -0.015F, hubS, hubS, 0.015F,
-                0.59F, 0.34F, 0.61F, 0.36F,
+                U0_METAL, V0_METAL, U1_METAL, V1_METAL,
                 255, 215, 60, 255, glowLight, packedOverlay);
 
         // 2. 8 个彩色发光扇区辐条与外沿宝石
@@ -235,13 +286,13 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
 
             // 辐条 (从轴心向外辐射)
             renderBox(poseStack, buffer, -spokeW / 2, 0.02F, -0.008F, spokeW / 2, 0.02F + spokeLen, 0.008F,
-                    0.59F, 0.34F, 0.61F, 0.36F,
+                    U0_METAL, V0_METAL, U1_METAL, V1_METAL,
                     rgb[0], rgb[1], rgb[2], 255, glowLight, packedOverlay);
 
             // 辐条顶端宝石色块
             float gemS = 0.018F;
             renderBox(poseStack, buffer, -gemS / 2, radius - gemS / 2, -0.012F, gemS / 2, radius + gemS / 2, 0.012F,
-                    0.54F, 0.39F, 0.55F, 0.40F,
+                    U0_SOLID, V0_SOLID, U1_SOLID, V1_SOLID,
                     rgb[0], rgb[1], rgb[2], 255, glowLight, packedOverlay);
             poseStack.popPose();
         }
@@ -259,10 +310,10 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
             poseStack.mulPose(Axis.ZP.rotationDegrees(jiggle));
         }
         renderBox(poseStack, buffer, -0.008F, 0.0F, -0.006F, 0.008F, 0.025F, 0.006F,
-                0.59F, 0.34F, 0.61F, 0.36F,
+                U0_METAL, V0_METAL, U1_METAL, V1_METAL,
                 240, 190, 60, 255, glowLight, packedOverlay);
         renderBox(poseStack, buffer, -0.005F, -0.014F, -0.008F, 0.005F, 0.0F, 0.008F,
-                0.54F, 0.39F, 0.55F, 0.40F,
+                U0_SOLID, V0_SOLID, U1_SOLID, V1_SOLID,
                 239, 68, 68, 255, glowLight, packedOverlay);
         poseStack.popPose();
 
@@ -273,7 +324,7 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
      * 模式 2: 三联微缩全息滚轮 (水平排列，支持分段急刹车与听牌悬念)
      */
     private void renderSlotChamber(UniversalLotteryMachineBlockEntity be, PoseStack poseStack, VertexConsumer buffer,
-                                   float animTime, boolean rolling, int glowLight, int packedOverlay) {
+                                   float animTime, boolean rolling, int packedLight, int glowLight, int packedOverlay) {
         poseStack.pushPose();
 
         boolean extended = (be.getTotalRollDurationTicks() == UniversalLotteryMachineBlockEntity.EXTENDED_ROLL_DURATION_TICKS);
@@ -330,22 +381,22 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
                 poseStack.mulPose(Axis.XP.rotationDegrees(k * 60.0F));
                 int[] col = WHEEL_COLORS_RGB[k % 8];
                 renderBox(poseStack, buffer, -rW / 2, rRad - 0.006F, -rLen / 2, rW / 2, rRad + 0.006F, rLen / 2,
-                        0.59F, 0.34F, 0.61F, 0.36F,
+                        U0_METAL, V0_METAL, U1_METAL, V1_METAL,
                         col[0], col[1], col[2], 255, glowLight, packedOverlay);
                 poseStack.popPose();
             }
 
-            // 滚筒金属轴心
+            // 滚筒金属轴心 (使用环境光照)
             renderBox(poseStack, buffer, -rW / 2 - 0.003F, -0.010F, -0.010F, rW / 2 + 0.003F, 0.010F, 0.010F,
-                    0.59F, 0.34F, 0.61F, 0.36F,
-                    220, 180, 50, 255, glowLight, packedOverlay);
+                    U0_METAL, V0_METAL, U1_METAL, V1_METAL,
+                    220, 180, 50, 255, packedLight, packedOverlay);
 
             poseStack.popPose();
         }
 
         // 中轴发光激光赔率线 (横跨三滚轮)
         renderBox(poseStack, buffer, -0.115F, -0.003F, -0.052F, 0.115F, 0.003F, -0.048F,
-                0.445F, 0.351F, 0.453F, 0.359F,
+                U0_SOLID, V0_SOLID, U1_SOLID, V1_SOLID,
                 244, 63, 94, 230, glowLight, packedOverlay);
 
         poseStack.popPose();
@@ -359,11 +410,11 @@ public class UniversalLotteryMachineRenderer implements BlockEntityRenderer<Univ
             poseStack.mulPose(Axis.YP.rotationDegrees(i * 45.0F));
             renderBox(poseStack, buffer, -segLen / 2, -barThick / 2, ringRadius - barThick / 2,
                     segLen / 2, barThick / 2, ringRadius + barThick / 2,
-                    0.59F, 0.34F, 0.61F, 0.36F,
+                    U0_METAL, V0_METAL, U1_METAL, V1_METAL,
                     255, 220, 94, 255, glowLight, packedOverlay);
             renderBox(poseStack, buffer, -segLen / 2, -barThick / 2, -ringRadius - barThick / 2,
                     segLen / 2, barThick / 2, -ringRadius + barThick / 2,
-                    0.59F, 0.34F, 0.61F, 0.36F,
+                    U0_METAL, V0_METAL, U1_METAL, V1_METAL,
                     255, 220, 94, 255, glowLight, packedOverlay);
             poseStack.popPose();
         }

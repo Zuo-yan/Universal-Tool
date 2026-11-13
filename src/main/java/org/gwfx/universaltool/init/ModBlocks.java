@@ -18,6 +18,7 @@ public class ModBlocks {
             () -> new UniversalPolymerizerBlock(BlockBehaviour.Properties.of()
                     .strength(3.5F, 3.5F)
                     .requiresCorrectToolForDrops()
+                    .noOcclusion()
                     .sound(SoundType.STONE)));
 
     public static final DeferredBlock<PhoenixPodBlock> OPERATION_PHOENIX_POD = BLOCKS.register("operation_phoenix_pod",

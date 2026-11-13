@@ -6,9 +6,7 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.gwfx.universaltool.UniversalToolMod;
-import org.gwfx.universaltool.client.PersonalDimensionClientRegistry;
 
 public record PersonalDimensionSyncPayload(ResourceLocation id, CompoundTag serializedType, boolean remove)
         implements CustomPacketPayload {
@@ -22,8 +20,4 @@ public record PersonalDimensionSyncPayload(ResourceLocation id, CompoundTag seri
 
     @Override
     public Type<? extends CustomPacketPayload> type() { return TYPE; }
-
-    public static void handle(PersonalDimensionSyncPayload payload, IPayloadContext context) {
-        context.enqueueWork(() -> PersonalDimensionClientRegistry.apply(payload));
-    }
 }

@@ -1,6 +1,8 @@
 package org.gwfx.universaltool.network;
 
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.handling.IPayloadHandler;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.klein.KleinActionPayload;
@@ -11,7 +13,27 @@ import org.gwfx.universaltool.klein.KleinOpenPayload;
 import org.gwfx.universaltool.klein.KleinRenamePayload;
 import org.gwfx.universaltool.klein.KleinSyncPayload;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 public final class ModPacketHandler {
+
+    private static final Map<CustomPacketPayload.Type<?>, IPayloadHandler<?>> CLIENT_HANDLERS = new ConcurrentHashMap<>();
+
+    public static <T extends CustomPacketPayload> void registerClientHandler(
+            CustomPacketPayload.Type<T> type, IPayloadHandler<T> handler) {
+        CLIENT_HANDLERS.put(type, handler);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends CustomPacketPayload> IPayloadHandler<T> dispatchClient(CustomPacketPayload.Type<T> type) {
+        return (payload, context) -> {
+            IPayloadHandler<T> handler = (IPayloadHandler<T>) CLIENT_HANDLERS.get(type);
+            if (handler != null) {
+                handler.handle(payload, context);
+            }
+        };
+    }
 
     public static void register(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("14");
@@ -41,26 +63,29 @@ public final class ModPacketHandler {
         registrar.playToServer(KleinDrawerPayload.TYPE, KleinDrawerPayload.STREAM_CODEC, KleinDrawerPayload::handle);
         registrar.playToServer(KleinOpenPayload.TYPE, KleinOpenPayload.STREAM_CODEC, KleinOpenPayload::handle);
         registrar.playToServer(KleinRenamePayload.TYPE, KleinRenamePayload.STREAM_CODEC, KleinRenamePayload::handle);
-        registrar.playToServer(org.gwfx.universaltool.lottery.LotteryRollActionPayload.TYPE, org.gwfx.universaltool.lottery.LotteryRollActionPayload.STREAM_CODEC, org.gwfx.universaltool.lottery.LotteryRollActionPayload::handle);
+        registrar.playToServer(org.gwfx.universaltool.lottery.LotteryRollActionPayload.TYPE,
+                org.gwfx.universaltool.lottery.LotteryRollActionPayload.STREAM_CODEC,
+                org.gwfx.universaltool.lottery.LotteryRollActionPayload::handle);
 
-        registrar.playToClient(OreSightPayload.TYPE, OreSightPayload.STREAM_CODEC, OreSightPayload::handle);
+        // 服务端发往客户端 (dispatched to ClientPayloadHandlers registered on client setup)
+        registrar.playToClient(OreSightPayload.TYPE, OreSightPayload.STREAM_CODEC,
+                dispatchClient(OreSightPayload.TYPE));
         registrar.playToClient(CounterGuardEffectPayload.TYPE, CounterGuardEffectPayload.STREAM_CODEC,
-                CounterGuardEffectPayload::handle);
-
-        // 服务端发往客户端
-        registrar.playToClient(SyncWaypointsPayload.TYPE, SyncWaypointsPayload.STREAM_CODEC, SyncWaypointsPayload::handle);
-        registrar.playToClient(PhoenixCinematicStartPayload.TYPE, PhoenixCinematicStartPayload.STREAM_CODEC, PhoenixCinematicStartPayload::handle);
+                dispatchClient(CounterGuardEffectPayload.TYPE));
+        registrar.playToClient(SyncWaypointsPayload.TYPE, SyncWaypointsPayload.STREAM_CODEC,
+                dispatchClient(SyncWaypointsPayload.TYPE));
+        registrar.playToClient(PhoenixCinematicStartPayload.TYPE, PhoenixCinematicStartPayload.STREAM_CODEC,
+                dispatchClient(PhoenixCinematicStartPayload.TYPE));
         registrar.playToClient(PersonalSpaceScreenPayload.TYPE, PersonalSpaceScreenPayload.STREAM_CODEC,
-                PersonalSpaceScreenPayload::handle);
+                dispatchClient(PersonalSpaceScreenPayload.TYPE));
         registrar.playToClient(PersonalSpaceResultPayload.TYPE, PersonalSpaceResultPayload.STREAM_CODEC,
-                PersonalSpaceResultPayload::handle);
+                dispatchClient(PersonalSpaceResultPayload.TYPE));
         registrar.playToClient(PersonalDimensionSyncPayload.TYPE, PersonalDimensionSyncPayload.STREAM_CODEC,
-                PersonalDimensionSyncPayload::handle);
+                dispatchClient(PersonalDimensionSyncPayload.TYPE));
         registrar.playToClient(SyncSkillDataPayload.TYPE, SyncSkillDataPayload.STREAM_CODEC,
-                SyncSkillDataPayload::handle);
+                dispatchClient(SyncSkillDataPayload.TYPE));
         registrar.playToClient(OpenSkillScreenPayload.TYPE, OpenSkillScreenPayload.STREAM_CODEC,
-                OpenSkillScreenPayload::handle);
+                dispatchClient(OpenSkillScreenPayload.TYPE));
         registrar.playToClient(KleinSyncPayload.TYPE, KleinSyncPayload.STREAM_CODEC, KleinSyncPayload::handle);
     }
 }
-

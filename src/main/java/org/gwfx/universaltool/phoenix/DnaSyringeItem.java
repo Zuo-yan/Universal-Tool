@@ -1,6 +1,5 @@
 package org.gwfx.universaltool.phoenix;
 
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -10,8 +9,8 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
+import org.gwfx.universaltool.init.ModDataComponents;
 import org.gwfx.universaltool.init.ModItems;
 
 import java.util.List;
@@ -36,10 +35,7 @@ public class DnaSyringeItem extends Item {
 
             // 生成带有玩家完整身份信息的 DNA 样本
             ItemStack sample = new ItemStack(ModItems.DNA_SAMPLE.get());
-            CustomData.update(DataComponents.CUSTOM_DATA, sample, tag -> {
-                tag.putUUID("OwnerUUID", player.getUUID());
-                tag.putString("OwnerName", player.getGameProfile().getName());
-            });
+            ModDataComponents.setDnaOwner(sample, player.getUUID(), player.getGameProfile().getName());
 
             level.playSound(null, player.getX(), player.getY(), player.getZ(),
                     SoundEvents.BOTTLE_FILL, SoundSource.PLAYERS, 1.0F, 1.2F);

@@ -1,10 +1,8 @@
 package org.gwfx.universaltool.phoenix;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -16,8 +14,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
+import org.gwfx.universaltool.init.ModDataComponents;
 
 import java.util.List;
 
@@ -93,11 +91,7 @@ public class NutrientSolutionItem extends Item {
                 }
 
                 final int totalItems = recordedCount;
-                CustomData.update(DataComponents.CUSTOM_DATA, targetStack, tag -> {
-                    tag.putBoolean("HasSnapshot", true);
-                    tag.putInt("ItemCount", totalItems);
-                    tag.put("InventorySnapshot", snapshotList);
-                });
+                ModDataComponents.setNutrientSnapshot(targetStack, totalItems, snapshotList);
 
                 if (split) {
                     if (!player.getInventory().add(targetStack)) {
@@ -119,24 +113,17 @@ public class NutrientSolutionItem extends Item {
     }
 
     public static boolean hasSnapshot(ItemStack stack) {
-        CustomData data = stack.get(DataComponents.CUSTOM_DATA);
-        return data != null && data.copyTag().getBoolean("HasSnapshot");
+        return ModDataComponents.hasNutrientSnapshot(stack);
     }
 
     public static int getSnapshotItemCount(ItemStack stack) {
-        CustomData data = stack.get(DataComponents.CUSTOM_DATA);
-        if (data != null && data.copyTag().contains("ItemCount")) {
-            return data.copyTag().getInt("ItemCount");
-        }
-        return 0;
+        ModDataComponents.NutrientSnapshotData data = ModDataComponents.getNutrientSnapshot(stack);
+        return data != null ? data.itemCount() : 0;
     }
 
     public static ListTag getSnapshotTag(ItemStack stack) {
-        CustomData data = stack.get(DataComponents.CUSTOM_DATA);
-        if (data != null && data.copyTag().contains("InventorySnapshot")) {
-            return data.copyTag().getList("InventorySnapshot", Tag.TAG_COMPOUND);
-        }
-        return null;
+        ModDataComponents.NutrientSnapshotData data = ModDataComponents.getNutrientSnapshot(stack);
+        return data != null ? data.toListTag() : null;
     }
 
     @Override

@@ -58,6 +58,25 @@ public class UniversalToolJeiPlugin implements IModPlugin {
                     .toList();
             registration.addRecipes(POLYMERIZING_JEI_TYPE, recipes);
         }
+        registerIngredientInfo(registration);
+    }
+
+    private static void registerIngredientInfo(IRecipeRegistration registration) {
+        addInfo(registration, ModItems.UNIVERSAL_POLYMERIZER.get(), "jei.universal_tool.info.universal_polymerizer");
+        addInfo(registration, ModItems.OPERATION_PHOENIX_POD.get(), "jei.universal_tool.info.operation_phoenix_pod");
+        addInfo(registration, ModItems.PERSONAL_SPACE_GATE.get(), "jei.universal_tool.info.personal_space_gate");
+        addInfo(registration, ModItems.KLEIN_BOTTLE.get(), "jei.universal_tool.info.klein_bottle");
+        addInfo(registration, ModItems.UNIVERSAL_LOTTERY_MACHINE.get(), "jei.universal_tool.info.universal_lottery_machine");
+        addInfo(registration, ModItems.UNIVERSAL_REPAIR_MATERIAL.get(), "jei.universal_tool.info.universal_repair_material");
+        addInfo(registration, ModItems.TELEPORT_CODEX.get(), "jei.universal_tool.info.teleport_codex");
+    }
+
+    private static void addInfo(IRecipeRegistration registration, net.minecraft.world.level.ItemLike item, String translationKey) {
+        registration.addIngredientInfo(
+                new ItemStack(item),
+                VanillaTypes.ITEM_STACK,
+                Component.translatable(translationKey)
+        );
     }
 
     @Override

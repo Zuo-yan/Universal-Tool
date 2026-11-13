@@ -26,6 +26,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import org.gwfx.universaltool.config.ModConfigs;
 import org.gwfx.universaltool.init.ModBlockEntities;
 import org.gwfx.universaltool.init.ModItems;
 
@@ -42,6 +43,7 @@ public class PhoenixPodBlockEntity extends BlockEntity implements MenuProvider, 
     private final NonNullList<ItemStack> items = NonNullList.withSize(TOTAL_SLOTS, ItemStack.EMPTY);
 
     private int progress = 0;
+    private int cultivationDuration = MAX_PROGRESS;
     private PodState state = PodState.EMPTY;
     private UUID ownerUUID = null;
     private String ownerName = "";
@@ -58,7 +60,7 @@ public class PhoenixPodBlockEntity extends BlockEntity implements MenuProvider, 
         public int get(int index) {
             return switch (index) {
                 case 0 -> progress;
-                case 1 -> MAX_PROGRESS;
+                case 1 -> cultivationDuration;
                 case 2 -> state.ordinal();
                 default -> 0;
             };
@@ -67,6 +69,7 @@ public class PhoenixPodBlockEntity extends BlockEntity implements MenuProvider, 
         @Override
         public void set(int index, int value) {
             if (index == 0) progress = value;
+            if (index == 1) cultivationDuration = Math.max(1, value);
             if (index == 2 && value >= 0 && value < PodState.values().length) {
                 state = PodState.values()[value];
             }
@@ -80,6 +83,7 @@ public class PhoenixPodBlockEntity extends BlockEntity implements MenuProvider, 
 
     public PhoenixPodBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.PHOENIX_POD_BE.get(), pos, state);
+        this.cultivationDuration = Math.max(20, ModConfigs.getPhoenixCultivationTicks());
     }
 
     public static void tick(Level level, BlockPos pos, BlockState blockState, PhoenixPodBlockEntity be) {
@@ -125,7 +129,7 @@ public class PhoenixPodBlockEntity extends BlockEntity implements MenuProvider, 
         if (be.state == PodState.CULTIVATING) {
             if (!level.isClientSide) {
                 be.progress++;
-                if (be.progress >= MAX_PROGRESS) {
+                if (be.progress >= be.cultivationDuration) {
                     be.completeCultivation();
                 } else if (be.progress % 40 == 0) {
                     level.playSound(null, pos, SoundEvents.BREWING_STAND_BREW, SoundSource.BLOCKS, 0.6F, 1.2F);
@@ -204,6 +208,7 @@ public class PhoenixPodBlockEntity extends BlockEntity implements MenuProvider, 
         nutrientStack.shrink(1);
 
         this.state = PodState.CULTIVATING;
+        this.cultivationDuration = Math.max(20, ModConfigs.getPhoenixCultivationTicks());
         this.progress = 0;
         this.doorProgress = 0.0F;
         this.doorPhase = 0;
@@ -227,7 +232,7 @@ public class PhoenixPodBlockEntity extends BlockEntity implements MenuProvider, 
 
     private void completeCultivation() {
         this.state = PodState.READY;
-        this.progress = MAX_PROGRESS;
+        this.progress = this.cultivationDuration;
         this.doorProgress = 0.0F;
         this.doorPhase = 0;
         this.doorPhaseTimer = 0;
@@ -308,6 +313,8 @@ public class PhoenixPodBlockEntity extends BlockEntity implements MenuProvider, 
         items.clear();
         ContainerHelper.loadAllItems(tag, items, registries);
         progress = tag.getInt("Progress");
+        cultivationDuration = tag.contains("CultivationDuration") ? Math.max(20, tag.getInt("CultivationDuration"))
+                : Math.max(20, ModConfigs.getPhoenixCultivationTicks());
         doorProgress = tag.getFloat("DoorProgress");
         doorPhase = tag.getInt("DoorPhase");
         doorPhaseTimer = tag.getInt("DoorPhaseTimer");
@@ -335,6 +342,7 @@ public class PhoenixPodBlockEntity extends BlockEntity implements MenuProvider, 
         super.saveAdditional(tag, registries);
         ContainerHelper.saveAllItems(tag, items, registries);
         tag.putInt("Progress", progress);
+        tag.putInt("CultivationDuration", cultivationDuration);
         tag.putFloat("DoorProgress", doorProgress);
         tag.putInt("DoorPhase", doorPhase);
         tag.putInt("DoorPhaseTimer", doorPhaseTimer);

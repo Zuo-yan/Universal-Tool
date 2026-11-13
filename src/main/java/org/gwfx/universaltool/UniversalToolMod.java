@@ -1,29 +1,33 @@
 package org.gwfx.universaltool;
 
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.loading.FMLEnvironment;
 import com.mojang.logging.LogUtils;
-import org.slf4j.Logger;
-import net.neoforged.neoforge.client.event.EntityRenderersEvent;
-import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
-import org.gwfx.universaltool.client.PhoenixPodRenderer;
-import org.gwfx.universaltool.client.LightningSpearRenderer;
-import org.gwfx.universaltool.client.PhoenixPodScreen;
-import org.gwfx.universaltool.client.PolymerizerScreen;
-import org.gwfx.universaltool.client.KleinScreen;
-import org.gwfx.universaltool.init.*;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.event.RegisterGameTestsEvent;
+import org.gwfx.universaltool.config.ModConfigs;
+import org.gwfx.universaltool.init.ModAttachments;
+import org.gwfx.universaltool.init.ModBlockEntities;
+import org.gwfx.universaltool.init.ModBlocks;
+import org.gwfx.universaltool.init.ModCreativeTabs;
+import org.gwfx.universaltool.init.ModDataComponents;
+import org.gwfx.universaltool.init.ModEntities;
+import org.gwfx.universaltool.init.ModItems;
+import org.gwfx.universaltool.init.ModMenuTypes;
+import org.gwfx.universaltool.init.ModRecipes;
+import org.gwfx.universaltool.init.ModSounds;
+import org.gwfx.universaltool.init.ModWorldGeneration;
 import org.gwfx.universaltool.network.ModPacketHandler;
-import org.gwfx.universaltool.skill.SkillAttachments;
-import org.gwfx.universaltool.waypoint.WaypointData;
+import org.slf4j.Logger;
 
 @Mod(UniversalToolMod.MODID)
 public class UniversalToolMod {
     public static final String MODID = "universal_tool";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public UniversalToolMod(IEventBus modEventBus) {
+    public UniversalToolMod(IEventBus modEventBus, ModContainer modContainer) {
+        ModConfigs.register(modContainer);
+        ModDataComponents.register(modEventBus);
         ModBlocks.BLOCKS.register(modEventBus);
         ModEntities.ENTITIES.register(modEventBus);
         ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
@@ -36,7 +40,7 @@ public class UniversalToolMod {
         ModWorldGeneration.GENERATORS.register(modEventBus);
         ModSounds.SOUNDS.register(modEventBus);
         if (Boolean.getBoolean("universal_tool.islandTests")) {
-            modEventBus.addListener((net.neoforged.neoforge.event.RegisterGameTestsEvent event) -> {
+            modEventBus.addListener((RegisterGameTestsEvent event) -> {
                 event.register(org.gwfx.universaltool.space.PrivateSpaceGameTests.class);
                 event.register(org.gwfx.universaltool.skill.SkillProgressionGameTests.class);
                 event.register(org.gwfx.universaltool.klein.KleinGameTests.class);
@@ -44,33 +48,9 @@ public class UniversalToolMod {
                 event.register(org.gwfx.universaltool.lottery.LotteryValuatorGameTests.class);
             });
         }
-        WaypointData.ATTACHMENTS.register(modEventBus);
-        SkillAttachments.ATTACHMENTS.register(modEventBus);
+        ModAttachments.register(modEventBus);
 
         // 注册模组网络数据包处理器 (RegisterPayloadHandlersEvent)
         modEventBus.addListener(ModPacketHandler::register);
-
-        if (FMLEnvironment.dist == Dist.CLIENT) {
-            modEventBus.addListener(this::registerScreens);
-            modEventBus.addListener(this::registerRenderers);
-            modEventBus.addListener(org.gwfx.universaltool.client.SkillClientController::registerKeys);
-            modEventBus.addListener(org.gwfx.universaltool.client.KleinKeybind::registerKeys);
-        }
-    }
-
-    private void registerScreens(RegisterMenuScreensEvent event) {
-        event.register(ModMenuTypes.UNIVERSAL_POLYMERIZER_MENU.get(), PolymerizerScreen::new);
-        event.register(ModMenuTypes.PHOENIX_POD_MENU.get(), PhoenixPodScreen::new);
-        event.register(ModMenuTypes.KLEIN_MENU.get(), KleinScreen::new);
-        event.register(ModMenuTypes.UNIVERSAL_LOTTERY_MACHINE_MENU.get(), org.gwfx.universaltool.client.UniversalLotteryMachineScreen::new);
-    }
-
-    private void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
-        event.registerBlockEntityRenderer(ModBlockEntities.PHOENIX_POD_BE.get(), PhoenixPodRenderer::new);
-        event.registerBlockEntityRenderer(ModBlockEntities.UNIVERSAL_LOTTERY_MACHINE_BE.get(),
-                org.gwfx.universaltool.client.UniversalLotteryMachineRenderer::new);
-        event.registerEntityRenderer(ModEntities.LIGHTNING_SPEAR_PROJECTILE.get(),
-                LightningSpearRenderer::new);
     }
 }
-

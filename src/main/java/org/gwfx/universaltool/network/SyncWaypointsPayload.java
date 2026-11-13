@@ -5,9 +5,7 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.gwfx.universaltool.UniversalToolMod;
-import org.gwfx.universaltool.client.ClientWaypointCache;
 import org.gwfx.universaltool.waypoint.Waypoint;
 
 import java.util.List;
@@ -23,10 +21,4 @@ public record SyncWaypointsPayload(List<Waypoint> waypoints, int maxCapacity) im
 
     @Override
     public Type<? extends CustomPacketPayload> type() { return TYPE; }
-
-    public static void handle(SyncWaypointsPayload payload, IPayloadContext context) {
-        context.enqueueWork(() -> {
-            ClientWaypointCache.update(payload.waypoints(), payload.maxCapacity());
-        });
-    }
 }

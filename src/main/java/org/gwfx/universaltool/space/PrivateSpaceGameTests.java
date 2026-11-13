@@ -33,20 +33,20 @@ import java.util.*;
 public final class PrivateSpaceGameTests {
     @GameTest(templateNamespace="universal_tool", template="empty", timeoutTicks=400)
     public static void flatIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.SUPERFLAT); }
-    @GameTest(templateNamespace="universal_tool", template="empty", timeoutTicks=400)
-    public static void plainsIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.PLAINS); }
+    @GameTest(templateNamespace="universal_tool", template="empty", timeoutTicks=600)
+    public static void skyIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.SKY_ISLANDS); }
     @GameTest(templateNamespace="universal_tool", template="empty", timeoutTicks=400)
     public static void cherryIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.CHERRY_GROVE); }
     @GameTest(templateNamespace="universal_tool", template="empty", timeoutTicks=400)
-    public static void desertIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.DESERT); }
+    public static void amethystIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.AMETHYST_STARFALL); }
     @GameTest(templateNamespace="universal_tool", template="empty", timeoutTicks=400)
-    public static void snowyIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.SNOWY_PLAINS); }
+    public static void sculkIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.SCULK_SANCTUM); }
     @GameTest(templateNamespace="universal_tool", template="empty", timeoutTicks=400)
-    public static void birchIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.BIRCH_FOREST); }
+    public static void mushroomIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.MUSHROOM_WONDERLAND); }
     @GameTest(templateNamespace="universal_tool", template="empty", timeoutTicks=400)
-    public static void savannaIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.SAVANNA); }
-    @GameTest(templateNamespace="universal_tool", template="empty", timeoutTicks=600)
-    public static void skyIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.SKY_ISLANDS); }
+    public static void obsidianIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.OBSIDIAN_FORGE); }
+    @GameTest(templateNamespace="universal_tool", template="empty", timeoutTicks=400)
+    public static void auroraIsland(GameTestHelper helper) { environment(helper, PrivateSpaceEnvironment.AURORA_GLACIER); }
 
     /** The biome is part of the profile, so a new landscape needs no change here. */
     private static FiniteIslandChunkGenerator generator(ServerLevel overworld, PrivateSpaceEnvironment environment) {
@@ -143,12 +143,19 @@ public final class PrivateSpaceGameTests {
 
     @GameTest(templateNamespace="universal_tool", template="empty")
     public static void savedDataCompatibility(GameTestHelper helper) {
+        helper.assertTrue(PrivateSpaceEnvironment.byId("plains") == PrivateSpaceEnvironment.AMETHYST_STARFALL, "Legacy plains id must map to amethyst_starfall");
+        helper.assertTrue(PrivateSpaceEnvironment.byId("desert") == PrivateSpaceEnvironment.OBSIDIAN_FORGE, "Legacy desert id must map to obsidian_forge");
+        helper.assertTrue(PrivateSpaceEnvironment.byId("snowy_plains") == PrivateSpaceEnvironment.AURORA_GLACIER, "Legacy snowy_plains id must map to aurora_glacier");
+        helper.assertTrue(PrivateSpaceEnvironment.byId("birch_forest") == PrivateSpaceEnvironment.MUSHROOM_WONDERLAND, "Legacy birch_forest id must map to mushroom_wonderland");
+        helper.assertTrue(PrivateSpaceEnvironment.byId("savanna") == PrivateSpaceEnvironment.SCULK_SANCTUM, "Legacy savanna id must map to sculk_sanctum");
+
         UUID owner=UUID.randomUUID(); CompoundTag entry=new CompoundTag();
         entry.putUUID("Owner",owner);entry.putString("Dimension","universal_tool:legacy_fixture");
-        entry.putString("Environment","cherry_grove");entry.putString("PasswordSalt","salt");entry.putString("PasswordHash","hash");
+        entry.putString("Environment","plains");entry.putString("PasswordSalt","salt");entry.putString("PasswordHash","hash");
         ListTag list=new ListTag();list.add(entry);CompoundTag root=new CompoundTag();root.put("Spaces",list);
         var registry=helper.getLevel().registryAccess();
         var legacy=PersonalSpaceSavedData.load(root,registry).getSpace(owner).orElseThrow();
+        helper.assertTrue(legacy.environment() == PrivateSpaceEnvironment.AMETHYST_STARFALL, "Legacy saved data environment must resolve via compatibility mapping");
         helper.assertTrue(!legacy.isFiniteIsland() && legacy.generationVersion().equals("legacy_v1"),"Missing version must retain legacy generator");
         for (var environment : PrivateSpaceEnvironment.values()) {
             var oldRecord = new PersonalSpaceSavedData.SpaceRecord(owner, legacy.dimension(), environment, "s", "h",

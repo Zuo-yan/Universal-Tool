@@ -2,6 +2,7 @@ package org.gwfx.universaltool.lottery;
 
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.food.FoodProperties;
@@ -21,25 +22,33 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class LotteryValuator {
 
     public enum RarityTier {
-        COMMON("普通", 0xAAAAAA, 0L),
-        UNCOMMON("罕见", 0x55FF55, 50L),
-        RARE("稀有", 0x55FFFF, 250L),
-        EPIC("史诗", 0xFF55FF, 1500L),
-        LEGENDARY("传说", 0xFFAA00, 8000L),
-        MYTHIC("神话", 0xFF5555, 40000L);
+        COMMON("gui.universal_tool.lottery.tier.common", 0xAAAAAA, 0L),
+        UNCOMMON("gui.universal_tool.lottery.tier.uncommon", 0x55FF55, 50L),
+        RARE("gui.universal_tool.lottery.tier.rare", 0x55FFFF, 250L),
+        EPIC("gui.universal_tool.lottery.tier.epic", 0xFF55FF, 1500L),
+        LEGENDARY("gui.universal_tool.lottery.tier.legendary", 0xFFAA00, 8000L),
+        MYTHIC("gui.universal_tool.lottery.tier.mythic", 0xFF5555, 40000L);
 
-        private final String displayName;
+        private final String translationKey;
         private final int color;
         private final long minPoints;
 
-        RarityTier(String displayName, int color, long minPoints) {
-            this.displayName = displayName;
+        RarityTier(String translationKey, int color, long minPoints) {
+            this.translationKey = translationKey;
             this.color = color;
             this.minPoints = minPoints;
         }
 
+        public String getTranslationKey() {
+            return translationKey;
+        }
+
+        public Component getDisplayNameComponent() {
+            return Component.translatable(translationKey);
+        }
+
         public String getDisplayName() {
-            return displayName;
+            return Component.translatable(translationKey).getString();
         }
 
         public int getColor() {

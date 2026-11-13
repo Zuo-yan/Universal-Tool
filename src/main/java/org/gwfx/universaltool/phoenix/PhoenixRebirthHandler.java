@@ -10,20 +10,24 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.item.ItemTossEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.network.PhoenixCinematicStartPayload;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -38,21 +42,40 @@ public class PhoenixRebirthHandler {
         final ResourceKey<Level> targetDim;
         final BlockPos podPos;
         final Direction podFacing;
-        int remainingTicks = 240; // 翻倍为 12 秒 (240 ticks)
+        @Nullable
+        final ListTag snapshotTag;
+        int remainingTicks = 240; // 12 seconds (240 ticks)
 
-        RebirthTask(UUID playerUUID, ResourceKey<Level> targetDim, BlockPos podPos, Direction podFacing) {
+        RebirthTask(UUID playerUUID, ResourceKey<Level> targetDim, BlockPos podPos, Direction podFacing,
+                    @Nullable ListTag snapshotTag) {
             this.playerUUID = playerUUID;
             this.targetDim = targetDim;
             this.podPos = podPos;
             this.podFacing = podFacing;
+            this.snapshotTag = snapshotTag;
         }
     }
 
     private static final List<RebirthTask> ACTIVE_TASKS = new ArrayList<>();
 
-    @SubscribeEvent
+    private static boolean isRebirthing(UUID playerUUID) {
+        for (RebirthTask task : ACTIVE_TASKS) {
+            if (task.playerUUID.equals(playerUUID)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onPlayerDeath(LivingDeathEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+
+        // Prevent duplicate rebirth tasks if lethal damage fires again during the cinematic.
+        if (isRebirthing(player.getUUID())) {
+            event.setCanceled(true);
             return;
         }
 
@@ -80,10 +103,23 @@ public class PhoenixRebirthHandler {
             return;
         }
 
-        // 1. 成功拦截致命伤害！
+        // 1. Intercept lethal damage and reserve the pod immediately so no second death can claim it.
         event.setCanceled(true);
+        networkData.unregisterPod(targetPod.dimension(), podPos);
 
-        // 2. 全程绝对无敌防御与状态净化
+        ListTag rawSnapshot = podBe.getSnapshotTag();
+        ListTag snapshotCopy = (rawSnapshot != null && !rawSnapshot.isEmpty()) ? rawSnapshot.copy() : null;
+
+        // 2. Close open containers & clear cursor stack; if a snapshot will replace the inventory,
+        // clear the old inventory immediately so items cannot be dropped or stashed during the 12s cinematic.
+        player.containerMenu.setCarried(ItemStack.EMPTY);
+        player.closeContainer();
+        if (snapshotCopy != null) {
+            player.getInventory().clearContent();
+            player.inventoryMenu.broadcastChanges();
+        }
+
+        // 3. Invulnerability and status purification
         player.removeAllEffects();
         player.setHealth(player.getMaxHealth());
         player.getFoodData().setFoodLevel(20);
@@ -94,11 +130,49 @@ public class PhoenixRebirthHandler {
         BlockState podBlockState = destLevel.getBlockState(podPos);
         Direction facing = podBlockState.hasProperty(PhoenixPodBlock.FACING) ? podBlockState.getValue(PhoenixPodBlock.FACING) : Direction.NORTH;
 
-        // 3. 向客户端同步 12 秒 (240 ticks) 电影级长镜头指令
+        // 4. Sync 12s cinematic to client
         PacketDistributor.sendToPlayer(player, new PhoenixCinematicStartPayload(podPos, facing.get2DDataValue(), targetPod.dimension().location().toString(), 240));
 
-        // 4. 注册服务端协同追踪任务
-        ACTIVE_TASKS.add(new RebirthTask(player.getUUID(), targetPod.dimension(), podPos, facing));
+        // 5. Register server tracking task
+        ACTIVE_TASKS.add(new RebirthTask(player.getUUID(), targetPod.dimension(), podPos, facing, snapshotCopy));
+    }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onLivingDrops(LivingDropsEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player && isRebirthing(player.getUUID())) {
+            event.getDrops().clear();
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onItemToss(ItemTossEvent event) {
+        if (event.getPlayer() instanceof ServerPlayer player && isRebirthing(player.getUUID())) {
+            ItemStack tossed = event.getEntity().getItem();
+            if (!tossed.isEmpty()) {
+                player.getInventory().add(tossed);
+            }
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+        MinecraftServer server = player.getServer();
+        if (server == null) {
+            return;
+        }
+        Iterator<RebirthTask> it = ACTIVE_TASKS.iterator();
+        while (it.hasNext()) {
+            RebirthTask task = it.next();
+            if (task.playerUUID.equals(player.getUUID())) {
+                it.remove();
+                finalizeRebirth(server, task, player, false);
+            }
+        }
     }
 
     @SubscribeEvent
@@ -124,7 +198,7 @@ public class PhoenixRebirthHandler {
                 continue;
             }
 
-            // 阶段 2 (剩余 180 ticks / 过了 60 ticks)：将玩家无感传送到目标培养仓内部
+            // Stage 2 (remaining 180 ticks): move player inside the pod
             if (task.remainingTicks == 180) {
                 double insideX = task.podPos.getX() + 0.5;
                 double insideY = task.podPos.getY() + 0.3;
@@ -139,67 +213,81 @@ public class PhoenixRebirthHandler {
                 }
             }
 
-            // 阶段 5 开启 (剩余 50 ticks / 过了 190 ticks)：启动液压向上大门升起序列 (开门 40 ticks, 保持 60 ticks, 关门 40 ticks)
+            // Stage 5 (remaining 50 ticks): trigger hydraulic door animation
             if (task.remainingTicks == 50) {
                 if (destLevel.getBlockEntity(task.podPos) instanceof PhoenixPodBlockEntity podBe) {
                     podBe.triggerDoorSequence();
                 }
             }
 
-            // 动画完成 (剩余 0 ticks / 240 ticks 结束)：迈步出舱，战备重塑，交还控制！
+            // Rebirth complete
             if (task.remainingTicks <= 0) {
                 it.remove();
-
-                BlockPos exitPos = task.podPos.relative(task.podFacing);
-                double exitX = exitPos.getX() + 0.5;
-                double exitY = exitPos.getY();
-                double exitZ = exitPos.getZ() + 0.5;
-                float exitYaw = task.podFacing.toYRot();
-
-                player.teleportTo(exitX, exitY, exitZ);
-                player.setYRot(exitYaw);
-                player.setXRot(0.0F);
-
-                // 解除无敌并给予出舱保护
-                player.setInvulnerable(false);
-                player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 120, 3, false, false, true));
-                player.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 120, 1, false, false, true));
-                player.addEffect(new MobEffectInstance(MobEffects.WATER_BREATHING, 80, 0, false, false, false));
-
-                // 检查并恢复战备快照 (绝对克隆)
-                if (destLevel.getBlockEntity(task.podPos) instanceof PhoenixPodBlockEntity podBe) {
-                    ListTag snapshotList = podBe.getSnapshotTag();
-                    if (snapshotList != null && !snapshotList.isEmpty()) {
-                        player.getInventory().clearContent();
-
-                        for (int i = 0; i < snapshotList.size(); i++) {
-                            CompoundTag entry = snapshotList.getCompound(i);
-                            int slot = entry.getInt("Slot");
-                            ItemStack restoredStack = ItemStack.parse(destLevel.registryAccess(), entry.getCompound("Item")).orElse(ItemStack.EMPTY);
-
-                            if (!restoredStack.isEmpty()) {
-                                if (slot < 36) {
-                                    player.getInventory().items.set(slot, restoredStack);
-                                } else if (slot >= 36 && slot < 40) {
-                                    player.getInventory().armor.set(slot - 36, restoredStack);
-                                } else if (slot == 40) {
-                                    player.getInventory().offhand.set(0, restoredStack);
-                                }
-                            }
-                        }
-                        player.sendSystemMessage(Component.translatable("message.universal_tool.snapshot_restored"));
-                    }
-
-                    // 消耗克隆体
-                    podBe.consumeClone();
-                }
-
-                // 产生水花喷溅与排气粒子
-                destLevel.sendParticles(ParticleTypes.SPLASH, exitX, exitY + 0.5, exitZ, 40, 0.4, 0.5, 0.4, 0.2);
-                destLevel.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, exitX, exitY + 0.8, exitZ, 25, 0.3, 0.5, 0.3, 0.05);
-
-                player.sendSystemMessage(Component.translatable("message.universal_tool.phoenix.rebirth_success"));
+                finalizeRebirth(server, task, player, true);
             }
+        }
+    }
+
+    private static void finalizeRebirth(MinecraftServer server, RebirthTask task, ServerPlayer player, boolean sendEffects) {
+        ServerLevel destLevel = server.getLevel(task.targetDim);
+        player.setInvulnerable(false);
+
+        if (destLevel == null) {
+            return;
+        }
+
+        BlockPos exitPos = task.podPos.relative(task.podFacing);
+        double exitX = exitPos.getX() + 0.5;
+        double exitY = exitPos.getY();
+        double exitZ = exitPos.getZ() + 0.5;
+        float exitYaw = task.podFacing.toYRot();
+
+        if (player.level() != destLevel) {
+            player.teleportTo(destLevel, exitX, exitY, exitZ, exitYaw, 0.0F);
+        } else {
+            player.teleportTo(exitX, exitY, exitZ);
+            player.setYRot(exitYaw);
+            player.setXRot(0.0F);
+        }
+
+        player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 120, 3, false, false, true));
+        player.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 120, 1, false, false, true));
+        player.addEffect(new MobEffectInstance(MobEffects.WATER_BREATHING, 80, 0, false, false, false));
+
+        if (task.snapshotTag != null && !task.snapshotTag.isEmpty()) {
+            player.containerMenu.setCarried(ItemStack.EMPTY);
+            player.closeContainer();
+            player.getInventory().clearContent();
+
+            for (int i = 0; i < task.snapshotTag.size(); i++) {
+                CompoundTag entry = task.snapshotTag.getCompound(i);
+                int slot = entry.getInt("Slot");
+                ItemStack restoredStack = ItemStack.parse(destLevel.registryAccess(), entry.getCompound("Item")).orElse(ItemStack.EMPTY);
+
+                if (!restoredStack.isEmpty()) {
+                    if (slot >= 0 && slot < 36) {
+                        player.getInventory().items.set(slot, restoredStack);
+                    } else if (slot >= 36 && slot < 40) {
+                        player.getInventory().armor.set(slot - 36, restoredStack);
+                    } else if (slot == 40) {
+                        player.getInventory().offhand.set(0, restoredStack);
+                    }
+                }
+            }
+            player.inventoryMenu.broadcastChanges();
+            if (sendEffects) {
+                player.sendSystemMessage(Component.translatable("message.universal_tool.snapshot_restored"));
+            }
+        }
+
+        if (destLevel.getBlockEntity(task.podPos) instanceof PhoenixPodBlockEntity podBe) {
+            podBe.consumeClone();
+        }
+
+        if (sendEffects) {
+            destLevel.sendParticles(ParticleTypes.SPLASH, exitX, exitY + 0.5, exitZ, 40, 0.4, 0.5, 0.4, 0.2);
+            destLevel.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, exitX, exitY + 0.8, exitZ, 25, 0.3, 0.5, 0.3, 0.05);
+            player.sendSystemMessage(Component.translatable("message.universal_tool.phoenix.rebirth_success"));
         }
     }
 }

@@ -8,6 +8,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.item.TeleportCodexItem;
 import org.gwfx.universaltool.waypoint.TeleportManager;
 import org.gwfx.universaltool.waypoint.Waypoint;
 import org.gwfx.universaltool.waypoint.WaypointData;
@@ -25,7 +26,7 @@ public record TeleportRequestPayload(String waypointId) implements CustomPacketP
 
     public static void handle(TeleportRequestPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
-            if (context.player() instanceof ServerPlayer player) {
+            if (context.player() instanceof ServerPlayer player && TeleportCodexItem.hasCodex(player)) {
                 WaypointData data = player.getData(WaypointData.ATTACHMENT.get());
                 for (Waypoint wp : data.getWaypoints()) {
                     if (wp.id().equals(payload.waypointId())) {
