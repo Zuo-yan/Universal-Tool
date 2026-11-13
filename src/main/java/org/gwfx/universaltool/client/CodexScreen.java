@@ -2,6 +2,7 @@ package org.gwfx.universaltool.client;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -58,14 +59,16 @@ public class CodexScreen extends Screen {
         this.leftPos = (this.width - GUI_WIDTH) / 2;
         this.topPos = (this.height - GUI_HEIGHT) / 2;
 
-        this.nameInput = new EditBox(this.font, this.leftPos + 60, this.topPos + 80, 160, 20, Component.translatable("gui.universal_tool.codex.location_name"));
+        this.nameInput = new EditBox(this.font, this.leftPos + 66, this.topPos + 86, 148, 12, Component.translatable("gui.universal_tool.codex.location_name"));
         this.nameInput.setMaxLength(32);
+        this.nameInput.setBordered(false);
+        this.nameInput.setTextColor(0xFFF7ECDA);
+        this.nameInput.setTextColorUneditable(0xFF9C8972);
         this.nameInput.setValue(Component.translatable("gui.universal_tool.codex.default_waypoint", ClientWaypointCache.getWaypoints().size() + 1).getString());
         this.nameInput.setVisible(this.isNaming);
 
-        this.confirmButton = Button.builder(Component.translatable("gui.universal_tool.codex.confirm"), btn -> onConfirmAdd())
-                .bounds(this.leftPos + 100, this.topPos + 105, 80, 20)
-                .build();
+        this.confirmButton = new GrimoireModalButton(this.leftPos + 100, this.topPos + 106, 80, 20,
+                Component.translatable("gui.universal_tool.codex.confirm"), btn -> onConfirmAdd());
         this.confirmButton.visible = this.isNaming;
 
         this.addRenderableWidget(this.nameInput);
@@ -126,15 +129,34 @@ public class CodexScreen extends Screen {
         List<Waypoint> waypoints = ClientWaypointCache.getWaypoints();
 
         if (this.isNaming) {
-            guiGraphics.fill(this.leftPos, this.topPos, this.leftPos + GUI_WIDTH, this.topPos + GUI_HEIGHT, 0x66000000);
+            guiGraphics.fill(this.leftPos, this.topPos, this.leftPos + GUI_WIDTH, this.topPos + GUI_HEIGHT, 0x77120B06);
             int mx = this.leftPos + 40;
-            int my = this.topPos + 50;
+            int my = this.topPos + 48;
             int mw = 200;
-            int mh = 90;
-            guiGraphics.fill(mx + 1, my + 1, mx + mw - 1, my + mh - 1, 0xFFC6C6C6);
-            drawBevelOutline(guiGraphics, mx, my, mw, mh, 0xFF000000, 0xFFFFFFFF, 0xFF555555);
+            int mh = 92;
+            // Walnut & burnished-brass parchment modal
+            guiGraphics.fill(mx, my, mx + mw, my + mh, 0xFF1E140C);
+            guiGraphics.fill(mx + 1, my + 1, mx + mw - 1, my + mh - 1, 0xFF5C4028);
+            guiGraphics.fill(mx + 3, my + 3, mx + mw - 3, my + mh - 3, 0xFF9E7330);
+            guiGraphics.fill(mx + 4, my + 4, mx + mw - 4, my + mh - 4, 0xFFEAE0C8);
+            // Corner brass studs
+            guiGraphics.fill(mx + 1, my + 1, mx + 3, my + 3, 0xFFD6A84E);
+            guiGraphics.fill(mx + mw - 3, my + 1, mx + mw - 1, my + 3, 0xFFD6A84E);
+            guiGraphics.fill(mx + 1, my + mh - 3, mx + 3, my + mh - 1, 0xFFD6A84E);
+            guiGraphics.fill(mx + mw - 3, my + mh - 3, mx + mw - 1, my + mh - 1, 0xFFD6A84E);
+
             drawCenteredInk(guiGraphics, Component.translatable("gui.universal_tool.codex.record_waypoint_title"),
-                    this.leftPos + 140, this.topPos + 62, 0xFF404040);
+                    this.leftPos + 140, this.topPos + 61, 0xFF3A281A);
+
+            // Dark walnut input well behind nameInput
+            int ix = this.leftPos + 60;
+            int iy = this.topPos + 80;
+            int iw = 160;
+            int ih = 20;
+            guiGraphics.fill(ix - 1, iy - 1, ix + iw + 1, iy + ih + 1, 0xFF1A110A);
+            guiGraphics.fill(ix, iy, ix + iw, iy + ih, this.nameInput.isFocused() ? 0xFFD6A84E : 0xFF8C6A3E);
+            guiGraphics.fill(ix + 1, iy + 1, ix + iw - 1, iy + ih - 1, 0xFF241B14);
+
             for (var renderable : this.renderables) {
                 renderable.render(guiGraphics, mouseX, mouseY, partialTick);
             }
@@ -165,9 +187,9 @@ public class CodexScreen extends Screen {
         int pageTop = this.topPos + 18;
 
         if (waypoints.isEmpty() || selectedIndex < 0 || selectedIndex >= waypoints.size()) {
-            drawCenteredInk(guiGraphics, Component.translatable("gui.universal_tool.codex.journal_title"), pageLeft + 55, pageTop + 30, 0xFF1E1812);
-            drawCenteredInk(guiGraphics, Component.translatable("gui.universal_tool.codex.empty_hint_1"), pageLeft + 55, pageTop + 55, 0xFF3F3325);
-            drawCenteredInk(guiGraphics, Component.translatable("gui.universal_tool.codex.empty_hint_2"), pageLeft + 55, pageTop + 75, 0xFF3F3325);
+            drawCenteredInk(guiGraphics, Component.translatable("gui.universal_tool.codex.journal_title"), pageLeft + 55, pageTop + 30, 0xFF3A281A);
+            drawCenteredInk(guiGraphics, Component.translatable("gui.universal_tool.codex.empty_hint_1"), pageLeft + 55, pageTop + 55, 0xFF5C4735);
+            drawCenteredInk(guiGraphics, Component.translatable("gui.universal_tool.codex.empty_hint_2"), pageLeft + 55, pageTop + 75, 0xFF5C4735);
             return;
         }
 
@@ -175,30 +197,32 @@ public class CodexScreen extends Screen {
 
         int photoX = pageLeft + 4;
         int photoY = pageTop + 4;
-        guiGraphics.fill(photoX - 2, photoY - 2, photoX + 112, photoY + 64, 0xFFE6D7B8);
-        drawBevelOutline(guiGraphics, photoX - 3, photoY - 3, 116, 68, 0xFF5C4328, 0xFF8C7252, 0xFFFBF3DF);
+        // Burnished brass & walnut photo mat
+        guiGraphics.fill(photoX - 3, photoY - 3, photoX + 113, photoY + 65, 0xFF5C4028);
+        guiGraphics.fill(photoX - 2, photoY - 2, photoX + 112, photoY + 64, 0xFFEAE0C8);
+        drawBevelOutline(guiGraphics, photoX - 2, photoY - 2, 114, 66, 0xFF9E7330, 0xFFD6A84E, 0xFF6E4E1F);
 
         ResourceLocation photoTex = PhotoManager.getOrLoadTexture(wp.photoId());
         if (photoTex != null) {
             guiGraphics.blit(photoTex, photoX, photoY, 0, 0, 110, 62, 110, 62);
         } else {
-            guiGraphics.fill(photoX, photoY, photoX + 110, photoY + 62, 0xFF3F3325);
+            guiGraphics.fill(photoX, photoY, photoX + 110, photoY + 62, 0xFF2B2017);
             guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.no_photo"), photoX + 55, photoY + 26, 0xFFEAD9B3);
         }
 
         int infoY = photoY + 70;
-        guiGraphics.drawString(this.font, Component.literal(wp.name()).withStyle(ChatFormatting.BOLD), pageLeft + 2, infoY, 0xFF1E1812, false);
-        guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.dimension", getDimensionName(wp.dimension())), pageLeft + 2, infoY + 14, 0xFF3F3325, false);
+        guiGraphics.drawString(this.font, Component.literal(wp.name()).withStyle(ChatFormatting.BOLD), pageLeft + 2, infoY, 0xFF3A281A, false);
+        guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.dimension", getDimensionName(wp.dimension())), pageLeft + 2, infoY + 14, 0xFF5C4735, false);
         guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.coords",
-                Math.round(wp.x()), Math.round(wp.y()), Math.round(wp.z())), pageLeft + 2, infoY + 26, 0xFF3F3325, false);
+                Math.round(wp.x()), Math.round(wp.y()), Math.round(wp.z())), pageLeft + 2, infoY + 26, 0xFF5C4735, false);
 
         if (this.minecraft != null && this.minecraft.player != null) {
             var player = this.minecraft.player;
             if (player.level().dimension().location().equals(wp.dimension())) {
                 double dist = Math.sqrt(player.distanceToSqr(wp.x(), wp.y(), wp.z()));
-                guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.distance", Math.round(dist)), pageLeft + 2, infoY + 38, 0xFF5C4A36, false);
+                guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.distance", Math.round(dist)), pageLeft + 2, infoY + 38, 0xFF6B523B, false);
             } else {
-                guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.distance_other_dim"), pageLeft + 2, infoY + 38, 0xFF7A5F24, false);
+                guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.distance_other_dim"), pageLeft + 2, infoY + 38, 0xFF8C6223, false);
             }
         }
     }
@@ -208,14 +232,14 @@ public class CodexScreen extends Screen {
         int rightTop = this.topPos + 16;
         int maxCap = ClientWaypointCache.getMaxCapacity();
 
-        // 顶部「记录当前位置」经典羊皮纸按钮
+        // 顶部「记录当前位置」鎏金羊皮纸按钮
         boolean hoverAdd = mouseX >= rightLeft + 48 && mouseX <= rightLeft + 122 && mouseY >= rightTop - 2 && mouseY <= rightTop + 14;
         drawPixelButton(guiGraphics, rightLeft + 48, rightTop - 2, 74, 16,
-                hoverAdd ? 0xFFF2E6CA : 0xFFE2D1AE,
-                0xFF5C4328,
+                hoverAdd ? 0xFFF5EBD4 : 0xFFE5D4B3,
+                hoverAdd ? 0xFFD6A84E : 0xFF8C6223,
                 hoverAdd ? 0xFFFFFAEC : 0xFFF7ECD4,
-                0xFFAC946C);
-        drawCenteredInk(guiGraphics, Component.translatable("gui.universal_tool.codex.record_here"), rightLeft + 85, rightTop + 2, 0xFF1E1812);
+                0xFF9E7B47);
+        drawCenteredInk(guiGraphics, Component.translatable("gui.universal_tool.codex.record_here"), rightLeft + 85, rightTop + 2, 0xFF3A281A);
 
         // 12 个条目渲染 (根据当前卷切换)
         int itemH = 9;
@@ -227,26 +251,29 @@ public class CodexScreen extends Screen {
             boolean isSelected = (globalIdx == selectedIndex && isUnlocked && globalIdx < waypoints.size());
             boolean hover = mouseX >= rightLeft && mouseX <= rightLeft + 120 && mouseY >= itemY && mouseY < itemY + itemH;
 
-            int bgCol = isSelected ? 0xFFD9C59E : (hover ? 0xFFE8DAB9 : 0x00000000);
+            int bgCol = isSelected ? 0xFFD9C398 : (hover ? 0xFFE8DAB8 : 0x00000000);
             if (bgCol != 0) {
                 guiGraphics.fill(rightLeft, itemY, rightLeft + 120, itemY + itemH - 1, bgCol);
+                if (isSelected) {
+                    guiGraphics.fill(rightLeft, itemY, rightLeft + 2, itemY + itemH - 1, 0xFF9E7330);
+                }
             }
 
             String numStr = (globalIdx < ROMAN_NUMERALS.length ? ROMAN_NUMERALS[globalIdx] : String.valueOf(globalIdx + 1)) + ".";
-            guiGraphics.drawString(this.font, numStr, rightLeft + 2, itemY, isUnlocked ? 0xFF3F3325 : 0xFF9C8B72, false);
+            guiGraphics.drawString(this.font, numStr, rightLeft + 3, itemY, isUnlocked ? 0xFF5C4735 : 0xFFA49074, false);
 
             if (!isUnlocked) {
-                guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.locked_slot"), rightLeft + 28, itemY, 0xFF9C8B72, false);
+                guiGraphics.drawString(this.font, Component.translatable("gui.universal_tool.codex.locked_slot"), rightLeft + 28, itemY, 0xFFA49074, false);
             } else if (globalIdx < waypoints.size()) {
                 String name = waypoints.get(globalIdx).name();
                 if (name.length() > 7) name = name.substring(0, 6) + "..";
-                guiGraphics.drawString(this.font, name, rightLeft + 28, itemY, 0xFF1E1812, false);
+                guiGraphics.drawString(this.font, name, rightLeft + 28, itemY, 0xFF3A281A, false);
 
                 // 删除按钮
                 boolean hoverDel = mouseX >= rightLeft + 108 && mouseX <= rightLeft + 118 && mouseY >= itemY && mouseY < itemY + itemH;
-                guiGraphics.drawString(this.font, "x", rightLeft + 110, itemY, hoverDel ? 0xFFAA2222 : 0xFF7D6B54, false);
+                guiGraphics.drawString(this.font, "x", rightLeft + 110, itemY, hoverDel ? 0xFFA63429 : 0xFF7D6B54, false);
             } else {
-                guiGraphics.drawString(this.font, "---", rightLeft + 28, itemY, 0xFF8C7A62, false);
+                guiGraphics.drawString(this.font, "---", rightLeft + 28, itemY, 0xFF948066, false);
             }
         }
 
@@ -256,35 +283,37 @@ public class CodexScreen extends Screen {
         boolean hoverNext = mouseX >= rightLeft + 92 && mouseX <= rightLeft + 110 && mouseY >= pageControlY && mouseY <= pageControlY + 12;
 
         drawPixelButton(guiGraphics, rightLeft + 10, pageControlY, 18, 12,
-                hoverPrev ? 0xFFF2E6CA : 0xFFE2D1AE, 0xFF5C4328,
-                hoverPrev ? 0xFFFFFAEC : 0xFFF7ECD4, 0xFFAC946C);
-        drawCenteredInk(guiGraphics, "<", rightLeft + 19, pageControlY + 2, 0xFF1E1812);
+                hoverPrev ? 0xFFF5EBD4 : 0xFFE5D4B3, hoverPrev ? 0xFFD6A84E : 0xFF8C6223,
+                hoverPrev ? 0xFFFFFAEC : 0xFFF7ECD4, 0xFF9E7B47);
+        drawCenteredInk(guiGraphics, "<", rightLeft + 19, pageControlY + 2, 0xFF3A281A);
 
         Component volText = Component.translatable("gui.universal_tool.codex.volume", currentVolume + 1, VOLUMES_COUNT);
-        drawCenteredInk(guiGraphics, volText, rightLeft + 60, pageControlY + 2, 0xFF3F3325);
+        drawCenteredInk(guiGraphics, volText, rightLeft + 60, pageControlY + 2, 0xFF5C4735);
 
         drawPixelButton(guiGraphics, rightLeft + 92, pageControlY, 18, 12,
-                hoverNext ? 0xFFF2E6CA : 0xFFE2D1AE, 0xFF5C4328,
-                hoverNext ? 0xFFFFFAEC : 0xFFF7ECD4, 0xFFAC946C);
-        drawCenteredInk(guiGraphics, ">", rightLeft + 101, pageControlY + 2, 0xFF1E1812);
+                hoverNext ? 0xFFF5EBD4 : 0xFFE5D4B3, hoverNext ? 0xFFD6A84E : 0xFF8C6223,
+                hoverNext ? 0xFFFFFAEC : 0xFFF7ECD4, 0xFF9E7B47);
+        drawCenteredInk(guiGraphics, ">", rightLeft + 101, pageControlY + 2, 0xFF3A281A);
 
-        // 底部 MC 风格印章/石质按钮
+        // 底部朱砂火漆印章「跃迁」与鎏金黄铜「誊写」按钮
         int btnY = rightTop + 144;
         boolean hoverWarp = mouseX >= rightLeft + 2 && mouseX <= rightLeft + 56 && mouseY >= btnY && mouseY <= btnY + 18;
         drawPixelButton(guiGraphics, rightLeft + 2, btnY, 54, 18,
-                hoverWarp ? 0xFFA33B3B : 0xFF8A2E2E,
-                hoverWarp ? 0xFFFFFFFF : 0xFF2B1010,
-                hoverWarp ? 0xFFD47474 : 0xFFB85C5C,
-                0xFF521919);
-        guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.warp"), rightLeft + 29, btnY + 5, 0xFFFFFFFF);
+                hoverWarp ? 0xFFA83030 : 0xFF8A2424,
+                hoverWarp ? 0xFFD6A84E : 0xFF360D0D,
+                hoverWarp ? 0xFFE88A7E : 0xFFC95B52,
+                0xFF4F1212);
+        guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.warp"),
+                rightLeft + 29, btnY + 5, hoverWarp ? 0xFFFFF5D6 : 0xFFFBE9D7);
 
         boolean hoverScroll = mouseX >= rightLeft + 64 && mouseX <= rightLeft + 118 && mouseY >= btnY && mouseY <= btnY + 18;
         drawPixelButton(guiGraphics, rightLeft + 64, btnY, 54, 18,
-                hoverScroll ? 0xFF7B88B8 : 0xFF8B8B8B,
-                hoverScroll ? 0xFFFFFFFF : 0xFF000000,
-                hoverScroll ? 0xFFAEB8E0 : 0xFFC6C6C6,
-                hoverScroll ? 0xFF4F5980 : 0xFF555555);
-        guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.transcribe"), rightLeft + 91, btnY + 5, 0xFFFFFFFF);
+                hoverScroll ? 0xFFA87328 : 0xFF8C5D1E,
+                hoverScroll ? 0xFFF2D27A : 0xFF2A1A08,
+                hoverScroll ? 0xFFF7DC88 : 0xFFD6A84E,
+                0xFF4F330E);
+        guiGraphics.drawCenteredString(this.font, Component.translatable("gui.universal_tool.codex.transcribe"),
+                rightLeft + 91, btnY + 5, hoverScroll ? 0xFFFFF8D6 : 0xFFFFF2CF);
     }
 
     @Override
@@ -383,5 +412,25 @@ public class CodexScreen extends Screen {
     @Override
     public boolean isPauseScreen() {
         return false;
+    }
+
+    private static final class GrimoireModalButton extends Button {
+        private GrimoireModalButton(int x, int y, int width, int height, Component message, OnPress onPress) {
+            super(x, y, width, height, message, onPress, DEFAULT_NARRATION);
+        }
+
+        @Override
+        protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+            boolean hover = active && isHovered();
+            int x = getX();
+            int y = getY();
+            drawPixelButton(g, x, y, width, height,
+                    hover ? 0xFFA87328 : 0xFF8C5D1E,
+                    hover ? 0xFFF2D27A : 0xFF2A1A08,
+                    hover ? 0xFFF7DC88 : 0xFFD6A84E,
+                    0xFF4F330E);
+            g.drawCenteredString(Minecraft.getInstance().font, getMessage(),
+                    x + width / 2, y + (height - 8) / 2, hover ? 0xFFFFF8D6 : 0xFFFFF2CF);
+        }
     }
 }

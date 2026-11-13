@@ -63,24 +63,24 @@ public class PersonalSpaceScreen extends Screen {
     /** Gap between a label's row and the top edge of its input frame. */
     private static final int LABEL_TO_FIELD = 10;
 
-    private static final int CHIP_SIZE = 24;
-    private static final int CHIP_GAP = 6;
-    private static final int EMBLEM_SIZE = 16;
+    private static final int CHIP_SIZE = 26;
+    private static final int CHIP_GAP = 5;
+    private static final int EMBLEM_SIZE = 22;
     private static final int CHIP_INSET = (CHIP_SIZE - EMBLEM_SIZE) / 2;
 
     private static final int SILHOUETTE_HEIGHT = 12;
 
     /**
      * The two password fields share one row, label above each. Stacking them instead would not fit:
-     * CREATE needs 9+24+9+12+9 (heading, chips, name, silhouette, description) before the fields,
+     * CREATE needs 9+26+9+12+9 (heading, chips, name, silhouette, description) before the fields,
      * and two stacked labelled rows plus a status line overflow the 144px well.
      */
     private static final int FIELD_GAP = 8;
     private static final int FIELD_WIDTH = (CONTENT_WIDTH - FIELD_GAP) / 2;
 
     // CREATE: heading, chip row, name, silhouette, description, the field pair, status line.
-    private static final int CREATE_HEADING_Y = 58;
-    private static final int CREATE_CHIP_Y = 70;
+    private static final int CREATE_HEADING_Y = 57;
+    private static final int CREATE_CHIP_Y = 69;
     private static final int CREATE_NAME_Y = 98;
     private static final int CREATE_SILHOUETTE_Y = 110;
     private static final int CREATE_DESCRIPTION_Y = 128;
@@ -101,12 +101,12 @@ public class PersonalSpaceScreen extends Screen {
     private static final ResourceLocation PANEL_TEXTURE = ResourceLocation.fromNamespaceAndPath(
             "universal_tool", "textures/gui/personal_space_panel.png");
 
-    private static final int COLOR_KICKER = 0xFF555555;
-    private static final int COLOR_TITLE = 0xFF404040;
-    private static final int COLOR_BODY = 0xFF555555;
-    private static final int COLOR_LABEL = 0xFF404040;
-    private static final int COLOR_HINT = 0xFF555555;
-    private static final int COLOR_ERROR = 0xFFAA0000;
+    private static final int COLOR_KICKER = 0xFF7A5E43;
+    private static final int COLOR_TITLE = 0xFF3A281A;
+    private static final int COLOR_BODY = 0xFF5C4735;
+    private static final int COLOR_LABEL = 0xFF3A281A;
+    private static final int COLOR_HINT = 0xFF5C4735;
+    private static final int COLOR_ERROR = 0xFFA63429;
 
     /** Ticks to wait for a server verdict before letting the player try again. */
     private static final int RESULT_TIMEOUT_TICKS = 100;
@@ -205,8 +205,8 @@ public class PersonalSpaceScreen extends Screen {
                 Component.translatable("screen.universal_tool.personal_space.password"));
         box.setMaxLength(PrivateSpaceRules.MAX_PASSWORD_LENGTH);
         box.setBordered(false);
-        box.setTextColor(0xFFE0E0E0);
-        box.setTextColorUneditable(0xFF707070);
+        box.setTextColor(0xFFF7ECDA);
+        box.setTextColorUneditable(0xFF9C8972);
         box.setHint(hint);
         box.setFormatter((value, index) -> FormattedCharSequence.forward("•".repeat(value.length()), Style.EMPTY));
         box.setResponder(value -> clearError());
@@ -405,9 +405,11 @@ public class PersonalSpaceScreen extends Screen {
 
     private static void drawInputFrame(GuiGraphics graphics, int x, int y, int width, int height,
                                        boolean focused, boolean invalid) {
-        int border = invalid ? 0xFFFF5555 : focused ? 0xFFFFFFFF : 0xFFA0A0A0;
+        int border = invalid ? 0xFFC94438 : focused ? 0xFFD6A84E : 0xFF8C6A3E;
+        graphics.fill(x - 1, y - 1, x + width + 1, y + height + 1, 0xFF1A110A);
         graphics.fill(x, y, x + width, y + height, border);
-        graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, 0xFF000000);
+        graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, 0xFF241B14);
+        graphics.fill(x + 1, y + 1, x + width - 1, y + 2, 0xFF17100B);
     }
 
     // ------------------------------------------------------------- silhouette
@@ -422,16 +424,21 @@ public class PersonalSpaceScreen extends Screen {
      */
     private void drawSilhouette(GuiGraphics graphics, int x, int y, int width, int height,
                                 PrivateSpaceEnvironment environment) {
-        // Classic Minecraft recessed inset: #373737 top/left shadow, #FFFFFF bottom/right highlight.
-        graphics.fill(x - 1, y - 1, x + width, y, 0xFF373737);
-        graphics.fill(x - 1, y - 1, x, y + height, 0xFF373737);
-        graphics.fill(x, y + height, x + width + 1, y + height + 1, 0xFFFFFFFF);
-        graphics.fill(x + width, y, x + width + 1, y + height + 1, 0xFFFFFFFF);
-        graphics.fill(x + width, y - 1, x + width + 1, y, 0xFF8B8B8B);
-        graphics.fill(x - 1, y + height, x, y + height + 1, 0xFF8B8B8B);
-        graphics.fill(x, y, x + width, y + height, 0xFF202938);
-        int baseline = y + height - 1;
+        // Burnished brass & walnut miniature landscape diorama frame.
+        graphics.fill(x - 2, y - 2, x + width + 2, y + height + 2, 0xFF2A1C12);
+        graphics.fill(x - 1, y - 1, x + width + 1, y + height + 1, 0xFF9E7330);
+        graphics.fill(x - 1, y - 1, x + width + 1, y, 0xFFD6A84E);
+        graphics.fill(x - 1, y - 1, x, y + height + 1, 0xFFD6A84E);
+        graphics.fill(x, y + height, x + width + 1, y + height + 1, 0xFF5C4028);
+        graphics.fill(x + width, y, x + width + 1, y + height + 1, 0xFF5C4028);
+
         Prototype prototype = environment.profile().prototype();
+        int skyTop = silhouetteSkyTop(prototype);
+        int skyHorizon = silhouetteSkyHorizon(prototype);
+        graphics.fill(x, y, x + width, y + height / 2, skyTop);
+        graphics.fill(x, y + height / 2, x + width, y + height, skyHorizon);
+
+        int baseline = y + height - 1;
         int bodyColor = silhouetteBodyColor(prototype);
         int topColor = silhouetteTopColor(prototype);
         for (int column = 0; column < width; column++) {
@@ -444,6 +451,32 @@ public class PersonalSpaceScreen extends Screen {
             graphics.fill(x + column, sliceTop, x + column + 1, sliceBottom, bodyColor);
             graphics.fill(x + column, sliceTop, x + column + 1, Math.min(sliceTop + 2, sliceBottom), topColor);
         }
+    }
+
+    private static int silhouetteSkyTop(Prototype prototype) {
+        return switch (prototype) {
+            case HIGHLAND -> 0xFF3E3A5E;
+            case PEAKS -> 0xFF151230;
+            case SANCTUM -> 0xFF0B1018;
+            case ROLLING -> 0xFF2B2242;
+            case CALDERA -> 0xFF261012;
+            case GLACIER -> 0xFF121E36;
+            case SKY -> 0xFF2D5E96;
+            default -> 0xFF1E3258;
+        };
+    }
+
+    private static int silhouetteSkyHorizon(Prototype prototype) {
+        return switch (prototype) {
+            case HIGHLAND -> 0xFF7D5A70;
+            case PEAKS -> 0xFF332354;
+            case SANCTUM -> 0xFF162530;
+            case ROLLING -> 0xFF4F3E64;
+            case CALDERA -> 0xFF5C2216;
+            case GLACIER -> 0xFF26496E;
+            case SKY -> 0xFF609EC9;
+            default -> 0xFF3D618C;
+        };
     }
 
     private static int silhouetteBodyColor(Prototype prototype) {
@@ -529,25 +562,32 @@ public class PersonalSpaceScreen extends Screen {
             int y = getY();
 
             if (selected) {
-                // Classic MC hotbar/advancement selection frame around recessed slot.
-                graphics.fill(x - 1, y - 1, x + width + 1, y + height + 1, 0xFF000000);
-                graphics.fill(x, y, x + width, y + height, 0xFFFFD857);
-                graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, 0xFF373737);
-                graphics.fill(x + 2, y + 2, x + width - 1, y + height - 1, 0xFFFFFFFF);
-                graphics.fill(x + 2, y + 2, x + width - 2, y + height - 2, 0xFF6B7867);
+                // Gilded burnished-brass selection frame around dark walnut socket.
+                graphics.fill(x - 1, y - 1, x + width + 1, y + height + 1, 0xFF1E140C);
+                graphics.fill(x, y, x + width, y + height, 0xFFD6A84E);
+                graphics.fill(x, y, x + width - 1, y + 1, 0xFFF2D27A);
+                graphics.fill(x, y, x + 1, y + height - 1, 0xFFF2D27A);
+                graphics.fill(x + 1, y + height - 1, x + width, y + height, 0xFF7A531C);
+                graphics.fill(x + width - 1, y + 1, x + width, y + height, 0xFF7A531C);
+                graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, 0xFF241B14);
+                // Corner brass stud glints
+                graphics.fill(x, y, x + 1, y + 1, 0xFFFFF2BC);
+                graphics.fill(x + width - 1, y, x + width, y + 1, 0xFFFFF2BC);
+                graphics.fill(x, y + height - 1, x + 1, y + height, 0xFFB5863B);
+                graphics.fill(x + width - 1, y + height - 1, x + width, y + height, 0xFF593E18);
             } else {
-                // Standard MC 24x24 recessed slot (#373737 top/left, #FFFFFF bottom/right, #8B8B8B well).
-                graphics.fill(x, y, x + width, y + height, 0xFF8B8B8B);
-                graphics.fill(x, y, x + width - 1, y + 1, 0xFF373737);
-                graphics.fill(x, y, x + 1, y + height - 1, 0xFF373737);
-                graphics.fill(x + 1, y + height - 1, x + width, y + height, 0xFFFFFFFF);
-                graphics.fill(x + width - 1, y + 1, x + width, y + height, 0xFFFFFFFF);
-                if (hovered) {
-                    graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, 0xFFA6A6A6);
-                }
+                // Walnut & antique-bronze recessed medallion socket.
+                graphics.fill(x, y, x + width, y + height, 0xFF1E140C);
+                int hiRim = hovered ? 0xFFD6A84E : 0xFF8C6A3E;
+                int loRim = hovered ? 0xFF7A531C : 0xFF4A331F;
+                graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, 0xFF2B1F16);
+                graphics.fill(x + 1, y + 1, x + width - 1, y + 2, hiRim);
+                graphics.fill(x + 1, y + 1, x + 2, y + height - 1, hiRim);
+                graphics.fill(x + 1, y + height - 2, x + width - 1, y + height - 1, loRim);
+                graphics.fill(x + width - 2, y + 2, x + width - 1, y + height - 1, loRim);
             }
-            graphics.blit(emblem, x + CHIP_INSET, y + CHIP_INSET, 0, 0,
-                    EMBLEM_SIZE, EMBLEM_SIZE, EMBLEM_SIZE, EMBLEM_SIZE);
+            graphics.blit(emblem, x + CHIP_INSET, y + CHIP_INSET, EMBLEM_SIZE, EMBLEM_SIZE,
+                    0.0F, 0.0F, 32, 32, 32, 32);
         }
 
         @Override
@@ -578,10 +618,28 @@ public class PersonalSpaceScreen extends Screen {
             int x = getX();
             int y = getY();
             boolean hover = active && isHovered();
-            int border = !active ? 0xFF373737 : (hover ? 0xFFFFFFFF : 0xFF000000);
-            int fill = !active ? 0xFF585858 : (hover ? 0xFF7B88B8 : 0xFF8B8B8B);
-            int hi = !active ? 0xFF6B6B6B : (hover ? 0xFFAEB8E0 : 0xFFC6C6C6);
-            int lo = !active ? 0xFF424242 : (hover ? 0xFF4F5980 : 0xFF555555);
+            int border;
+            int fill;
+            int hi;
+            int lo;
+            if (!active) {
+                border = 0xFF2B2017;
+                fill = 0xFF47382B;
+                hi = 0xFF635040;
+                lo = 0xFF2E231A;
+            } else if (primary) {
+                // Burnished brass primary action button
+                border = hover ? 0xFFF2D27A : 0xFF2A1A08;
+                fill = hover ? 0xFFA87328 : 0xFF8C5D1E;
+                hi = hover ? 0xFFF7DC88 : 0xFFD6A84E;
+                lo = hover ? 0xFF634112 : 0xFF4F330E;
+            } else {
+                // Warm walnut oak secondary button
+                border = hover ? 0xFFD6A84E : 0xFF1E140C;
+                fill = hover ? 0xFF735134 : 0xFF5C4028;
+                hi = hover ? 0xFFA67B52 : 0xFF8C6642;
+                lo = hover ? 0xFF3E2918 : 0xFF332113;
+            }
 
             graphics.fill(x, y, x + width, y + height, border);
             graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, fill);
@@ -590,7 +648,7 @@ public class PersonalSpaceScreen extends Screen {
             graphics.fill(x + 1, y + height - 2, x + width - 1, y + height - 1, lo);
             graphics.fill(x + width - 2, y + 2, x + width - 1, y + height - 1, lo);
 
-            int textColor = !active ? 0xFFA0A0A0 : (hover ? 0xFFFFFFA0 : (primary ? 0xFFFFFFFF : 0xFFE0E0E0));
+            int textColor = !active ? 0xFF9C8B7A : (hover ? 0xFFFFF8D6 : (primary ? 0xFFFFF5D6 : 0xFFF2E5CF));
             graphics.drawCenteredString(Minecraft.getInstance().font, getMessage(), x + width / 2,
                     y + (height - 8) / 2, textColor);
         }

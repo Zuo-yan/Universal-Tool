@@ -156,8 +156,8 @@ public class SkillScreen extends Screen {
             SkillScreenStyle.progressBar(g, expX, expY, expW, expH, ratio, xpText);
         }
 
-        // Etched MC separator groove beneath header
-        g.fill(left + 6, top + HEADER_H + 1, left + panelW - 6, top + HEADER_H + 2, SkillScreenStyle.BEVEL_LO);
+        // Engraved brass separator line beneath header
+        g.fill(left + 6, top + HEADER_H + 1, left + panelW - 6, top + HEADER_H + 2, SkillScreenStyle.BORDER_BRONZE);
         g.fill(left + 6, top + HEADER_H + 2, left + panelW - 6, top + HEADER_H + 3, SkillScreenStyle.BEVEL_HI);
     }
 
@@ -433,7 +433,7 @@ public class SkillScreen extends Screen {
                 && index == loadoutSelectionIndex;
 
         if (selectedInLoadout) {
-            int selBg = current ? 0xFF476953 : SkillScreenStyle.ROW_SELECTED;
+            int selBg = current ? 0xFF28593E : SkillScreenStyle.ROW_SELECTED;
             SkillScreenStyle.raised(g, x, y, w, h, selBg, SkillScreenStyle.OUTER_BORDER);
         } else {
             SkillScreenStyle.recessed(g, x, y, w, h, hover ? SkillScreenStyle.ROW_HOVER : SkillScreenStyle.ROW_BG);
@@ -442,12 +442,12 @@ public class SkillScreen extends Screen {
         int badgeSize = h - 4;
         int badgeX = x + 2;
         int badgeY = y + 2;
-        SkillScreenStyle.recessed(g, badgeX, badgeY, badgeSize, badgeSize, 0xFF707070);
+        SkillScreenStyle.recessed(g, badgeX, badgeY, badgeSize, badgeSize, 0xFF241B14);
         g.drawCenteredString(font, Integer.toString(index + 1), badgeX + badgeSize / 2, badgeY + (badgeSize - 8) / 2,
                 SkillScreenStyle.TEXT_GOLD);
 
         if (!filled) {
-            g.drawString(font, "空槽位", badgeX + badgeSize + 6, y + (h - 8) / 2, 0xFFD0D0D0, true);
+            g.drawString(font, "空槽位", badgeX + badgeSize + 6, y + (h - 8) / 2, SkillScreenStyle.TEXT_MUTED_LIGHT, true);
             return;
         }
 
@@ -464,14 +464,14 @@ public class SkillScreen extends Screen {
         int btnY = y + (h - btnSize) / 2;
         boolean btnHover = inside(mouseX, mouseY, btnX, btnY, btnSize, btnSize);
         SkillScreenStyle.raised(g, btnX, btnY, btnSize, btnSize,
-                btnHover ? 0xFFB84C4C : 0xFF7A7A7A,
-                btnHover ? SkillScreenStyle.BEVEL_HI : SkillScreenStyle.OUTER_BORDER);
+                btnHover ? 0xFFA83030 : 0xFF5C4028,
+                btnHover ? SkillScreenStyle.BORDER_GOLD_GLOW : SkillScreenStyle.OUTER_BORDER);
         g.drawCenteredString(font, "-", btnX + btnSize / 2, btnY + 2, SkillScreenStyle.TEXT_WHITE);
     }
 
     private void renderFooter(GuiGraphics g, PlayerSkillData data, int mouseX, int mouseY) {
         int footerY = top + panelH - 22;
-        g.fill(left + 6, footerY - 3, left + panelW - 6, footerY - 2, SkillScreenStyle.BEVEL_LO);
+        g.fill(left + 6, footerY - 3, left + panelW - 6, footerY - 2, SkillScreenStyle.BORDER_BRONZE);
         g.fill(left + 6, footerY - 2, left + panelW - 6, footerY - 1, SkillScreenStyle.BEVEL_HI);
 
         String tip = "ℹ 使用鼠标选择技能，点击学习或装配到槽位";
@@ -770,7 +770,7 @@ public class SkillScreen extends Screen {
         PlayerSkillData data = ClientSkillCache.data();
 
         // 1. Darken full screen behind the modal
-        g.fill(0, 0, width, height, 0xCC000000);
+        g.fill(0, 0, width, height, 0xCC120B06);
         g.flush();
 
         // 2. Elevate modal to top layer
@@ -782,7 +782,7 @@ public class SkillScreen extends Screen {
         int mX = modalX();
         int mY = modalY();
 
-        // Classic MC #C6C6C6 beveled modal window
+        // Warm Walnut + Burnished Brass + Illuminated Parchment modal window
         SkillScreenStyle.frame(g, mX, mY, mW, mH);
 
         int pad = 12;
@@ -828,9 +828,9 @@ public class SkillScreen extends Screen {
         boolean closeHover = inside(mouseX, mouseY, closeX, closeY, closeSize, closeSize);
         SkillScreenStyle.closeButton(g, closeX, closeY, closeSize, closeHover);
 
-        // Etched divider groove
+        // Engraved brass divider groove
         int divY = iconY + iconSize + 6;
-        g.fill(mX + pad, divY, mX + mW - pad, divY + 1, SkillScreenStyle.BEVEL_LO);
+        g.fill(mX + pad, divY, mX + mW - pad, divY + 1, SkillScreenStyle.BORDER_BRONZE);
         g.fill(mX + pad, divY + 1, mX + mW - pad, divY + 2, SkillScreenStyle.BEVEL_HI);
 
         int sectionW = mW - pad * 2;
