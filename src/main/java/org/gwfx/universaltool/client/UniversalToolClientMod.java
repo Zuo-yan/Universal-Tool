@@ -13,11 +13,13 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
+import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.init.ModBlockEntities;
 import org.gwfx.universaltool.init.ModEntities;
 import org.gwfx.universaltool.init.ModItems;
 import org.gwfx.universaltool.init.ModMenuTypes;
+import org.gwfx.universaltool.init.ModParticles;
 import org.gwfx.universaltool.item.NetheriteToolForm;
 import org.gwfx.universaltool.item.TeleportCodexItem;
 import org.gwfx.universaltool.space.PrivateSpaceManager;
@@ -99,5 +101,11 @@ public final class UniversalToolClientMod {
     @SubscribeEvent
     public static void registerDimensionEffects(RegisterDimensionSpecialEffectsEvent event) {
         event.register(PrivateSpaceManager.STARRY_POCKET_EFFECTS, new StarryPocketDimensionEffects());
+    }
+
+    @SubscribeEvent
+    public static void registerParticles(RegisterParticleProvidersEvent event) {
+        event.registerSpriteSet(ModParticles.WORMHOLE_SPARK.get(), WormholeSparkParticle.Provider::new);
+        event.registerSpriteSet(ModParticles.WORMHOLE_EXIT_SPARK.get(), WormholeSparkParticle.ExitProvider::new);
     }
 }

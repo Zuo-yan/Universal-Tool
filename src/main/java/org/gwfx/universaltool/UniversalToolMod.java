@@ -14,6 +14,7 @@ import org.gwfx.universaltool.init.ModDataComponents;
 import org.gwfx.universaltool.init.ModEntities;
 import org.gwfx.universaltool.init.ModItems;
 import org.gwfx.universaltool.init.ModMenuTypes;
+import org.gwfx.universaltool.init.ModParticles;
 import org.gwfx.universaltool.init.ModRecipes;
 import org.gwfx.universaltool.init.ModSounds;
 import org.gwfx.universaltool.init.ModWorldGeneration;
@@ -35,6 +36,7 @@ public class UniversalToolMod {
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);
         modEventBus.addListener(ModCreativeTabs::buildContents);
         ModMenuTypes.MENU_TYPES.register(modEventBus);
+        ModParticles.PARTICLE_TYPES.register(modEventBus);
         ModRecipes.RECIPE_TYPES.register(modEventBus);
         ModRecipes.RECIPE_SERIALIZERS.register(modEventBus);
         ModWorldGeneration.GENERATORS.register(modEventBus);

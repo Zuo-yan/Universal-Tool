@@ -7,12 +7,17 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.server.level.WorldGenRegion;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.NoiseColumn;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.biome.BiomeManager;
 import net.minecraft.world.level.biome.BiomeSource;
+import net.minecraft.world.level.biome.MobSpawnSettings;
 import net.minecraft.world.level.block.AmethystClusterBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -806,7 +811,24 @@ public final class FiniteIslandChunkGenerator extends ChunkGenerator {
     public void createReferences(WorldGenLevel level, StructureManager structures, ChunkAccess chunk) {}
 
     @Override
-    public void spawnOriginalMobs(WorldGenRegion region) {}
+    public void spawnOriginalMobs(WorldGenRegion region) {
+        PrivateSpaceWorldTraits.SpawnPolicy policy = environment.traits().spawns();
+        if (policy.mode() == PrivateSpaceWorldTraits.SpawnMode.NO_NATURAL) {
+            return;
+        }
+        List<MobSpawnSettings.SpawnerData> creatures = policy.spawnerDataFor(MobCategory.CREATURE);
+        if (creatures.isEmpty()) {
+            return;
+        }
+        ChunkPos chunkPos = region.getCenter();
+        long chunkSeed = mix(seed ^ (chunkPos.x * 341873128712L) ^ (chunkPos.z * 132897987541L));
+        RandomSource random = RandomSource.create(chunkSeed);
+        if (random.nextFloat() >= 0.25F) {
+            return;
+        }
+        PrivateSpaceWorldTraitHandler.trySpawnCreatureHerd(environment, region, creatures,
+                chunkPos.getMinBlockX(), chunkPos.getMinBlockZ(), 0, MobSpawnType.CHUNK_GENERATION, random);
+    }
 
     @Override
     public void addDebugScreenInfo(List<String> lines, RandomState random, BlockPos position) {

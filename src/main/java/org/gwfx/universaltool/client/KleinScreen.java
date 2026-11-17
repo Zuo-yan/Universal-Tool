@@ -323,6 +323,19 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             }
             return true;
         }
+        if (search != null && search.isFocused()
+                && !(mouseX >= leftPos + 8 && mouseX < leftPos + 122 && mouseY >= topPos + 24 && mouseY < topPos + 38)) {
+            search.setFocused(false);
+            if (getFocused() == search) {
+                setFocused(null);
+            }
+        }
+        if (anvilName != null && anvilName.isFocused() && !anvilName.isMouseOver(mouseX, mouseY)) {
+            anvilName.setFocused(false);
+            if (getFocused() == anvilName) {
+                setFocused(null);
+            }
+        }
         if (button == 0 && mouseX >= leftPos + 178 && mouseX < leftPos + 189 && mouseY >= topPos + 7 && mouseY < topPos + 18) {
             onClose();
             return true;
@@ -394,22 +407,38 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     }
 
     @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (anvilName != null && anvilName.isVisible() && anvilName.isFocused()) {
-            if (keyCode == 256) {
-                anvilName.setFocused(false);
-                return true;
-            }
-            anvilName.keyPressed(keyCode, scanCode, modifiers);
-            // Printable keys are delivered separately through charTyped. Do not
-            // let the inventory shortcut close the screen while typing a name.
+        if (handleFocusedEditBoxKey(search, keyCode, scanCode, modifiers)) {
+            return true;
+        }
+        if (handleFocusedEditBoxKey(anvilName, keyCode, scanCode, modifiers)) {
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
+    private boolean handleFocusedEditBoxKey(EditBox box, int keyCode, int scanCode, int modifiers) {
+        if (box == null || !box.isVisible() || !box.isFocused()) {
+            return false;
+        }
+        if (keyCode == 256 || keyCode == 257 || keyCode == 335) {
+            box.setFocused(false);
+            if (getFocused() == box) {
+                setFocused(null);
+            }
+            return true;
+        }
+        box.keyPressed(keyCode, scanCode, modifiers);
+        // Printable keys (such as 'E') are delivered separately through charTyped.
+        // Consume keyPressed so the inventory shortcut does not close the screen while typing.
+        return true;
+    }
+
     @Override public boolean charTyped(char codePoint, int modifiers) {
-        if (anvilName != null && anvilName.isVisible() && anvilName.isFocused()) {
-            if (anvilName.charTyped(codePoint, modifiers)) return true;
+        if (search != null && search.isVisible() && search.isFocused() && search.charTyped(codePoint, modifiers)) {
+            return true;
+        }
+        if (anvilName != null && anvilName.isVisible() && anvilName.isFocused() && anvilName.charTyped(codePoint, modifiers)) {
+            return true;
         }
         return super.charTyped(codePoint, modifiers);
     }

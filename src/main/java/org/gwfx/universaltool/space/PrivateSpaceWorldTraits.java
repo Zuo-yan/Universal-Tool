@@ -276,7 +276,7 @@ public record PrivateSpaceWorldTraits(
                     new SpawnEntry(EntityType.MOOSHROOM, MobCategory.CREATURE, 10, 2, 4)
             ),
             OreProfile.NONE,
-            new EnvironmentalPerks(null, 0, 1.0F, false, 100),
+            new EnvironmentalPerks(MobEffects.SATURATION, 0, 1.0F, false, 0),
             0.0F,
             false
     );

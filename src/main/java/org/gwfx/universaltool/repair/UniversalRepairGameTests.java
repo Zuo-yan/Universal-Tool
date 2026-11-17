@@ -84,7 +84,7 @@ public final class UniversalRepairGameTests {
     public static void polymerizerRecipeProducesFourMaterials(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         List<ItemStack> ingredients = new ArrayList<>(12);
-        for (int i = 0; i < 4; i++) ingredients.add(new ItemStack(Items.NETHERITE_SCRAP));
+        for (int i = 0; i < 4; i++) ingredients.add(new ItemStack(ModItems.VOID_ESSENCE.get()));
         for (int i = 0; i < 4; i++) ingredients.add(new ItemStack(Items.AMETHYST_SHARD));
         for (int i = 0; i < 4; i++) ingredients.add(new ItemStack(Items.DIAMOND));
 

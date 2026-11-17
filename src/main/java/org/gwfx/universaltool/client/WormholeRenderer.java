@@ -24,7 +24,7 @@ import org.joml.Matrix4f;
 public class WormholeRenderer extends EntityRenderer<WormholeEntity> {
     private static final ResourceLocation VORTEX_TEXTURE =
             ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "textures/block/stargate_portal_vortex.png");
-    private static final int SEGMENTS = 24;
+    private static final int SEGMENTS = 48;
 
     public WormholeRenderer(EntityRendererProvider.Context context) {
         super(context);
@@ -39,11 +39,15 @@ public class WormholeRenderer extends EntityRenderer<WormholeEntity> {
         }
 
         float age = entity.tickCount + partialTick;
-        float pulse = 1.0F + 0.025F * Mth.sin(age * 0.16F);
-        boolean exit = entity.isCorridorExit();
-        float rx = (exit ? 3.20F : 1.45F) * open * pulse;
-        float ry = (exit ? 2.25F : 1.50F) * open * pulse;
-        double centerY = exit ? 1.95D : 1.48D;
+        boolean destExit = entity.isDestinationExit();
+        float pulse = destExit
+                ? (1.0F + 0.045F * Mth.sin(age * 0.24F))
+                : (1.0F + 0.025F * Mth.sin(age * 0.16F));
+        boolean corridorExit = entity.isCorridorExit();
+        float radius = (corridorExit ? 2.45F : (destExit ? 1.50F : 1.45F)) * open * pulse;
+        float rx = radius;
+        float ry = radius;
+        double centerY = corridorExit ? 1.65D : 1.48D;
 
         poseStack.pushPose();
         poseStack.translate(0.0D, centerY, 0.0D);
@@ -51,19 +55,24 @@ public class WormholeRenderer extends EntityRenderer<WormholeEntity> {
 
         Matrix4f pose = poseStack.last().pose();
 
-        // 1. Inner destination vista aperture (live server-raycast vista preferred, fallback to saved photo or sky)
-        ResourceLocation vistaTex = PhotoManager.getOrLoadTexture(entity.getVistaId());
-        if (vistaTex == null) {
-            vistaTex = PhotoManager.getOrLoadTexture(entity.getPhotoId());
-        }
-        if (vistaTex != null) {
-            renderPhotoVista(entity, pose, bufferSource, vistaTex, rx, ry, centerY, open);
+        if (destExit) {
+            renderDestinationExitVortex(pose, bufferSource, rx, ry, age, open);
+            renderDestinationExitRim(pose, bufferSource, rx, ry, age, open);
         } else {
-            renderFallbackDimensionVista(entity.getDestDimension(), pose, bufferSource, rx, ry, age, open);
-        }
+            // 1. Inner destination vista aperture (live server-raycast vista preferred, fallback to saved photo or sky)
+            ResourceLocation vistaTex = PhotoManager.getOrLoadTexture(entity.getVistaId());
+            if (vistaTex == null) {
+                vistaTex = PhotoManager.getOrLoadTexture(entity.getPhotoId());
+            }
+            if (vistaTex != null) {
+                renderPhotoVista(entity, pose, bufferSource, vistaTex, rx, ry, centerY, open);
+            } else {
+                renderFallbackDimensionVista(entity.getDestDimension(), pose, bufferSource, rx, ry, age, open);
+            }
 
-        // 2. Hollow swirling cosmic energy perimeter rim (keeps center vista unobstructed)
-        renderSwirlingRim(pose, bufferSource, rx, ry, age, open);
+            // 2. Hollow swirling cosmic energy perimeter rim (keeps center vista unobstructed)
+            renderSwirlingRim(pose, bufferSource, rx, ry, age, open);
+        }
 
         poseStack.popPose();
     }
@@ -191,6 +200,93 @@ public class WormholeRenderer extends EntityRenderer<WormholeEntity> {
                 vc.addVertex(pose, c1 * rx * rOut, s1 * ry * rOut, z).setColor(168, 120, 255, outerAlpha)
                         .setUv(u1Out, v1Out).setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, side);
                 vc.addVertex(pose, c1 * rx * rIn, s1 * ry * rIn, z).setColor(145, 245, 255, innerAlpha)
+                        .setUv(u1In, v1In).setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, side);
+            }
+        }
+    }
+
+    private static void renderDestinationExitVortex(Matrix4f pose, MultiBufferSource bufferSource,
+                                                    float rx, float ry, float age, float open) {
+        VertexConsumer vc = bufferSource.getBuffer(RenderType.entityTranslucentEmissive(VORTEX_TEXTURE));
+        float rot = -age * 0.115F;
+        float cr = Mth.cos(rot), sr = Mth.sin(rot);
+        float rAper = 0.84F;
+        int centerAlpha = (int) (235 * open);
+        int edgeAlpha = (int) (185 * open);
+
+        for (int i = 0; i < SEGMENTS; i++) {
+            float a0 = (float) (i * Math.PI * 2.0D / SEGMENTS);
+            float a1 = (float) ((i + 1) * Math.PI * 2.0D / SEGMENTS);
+            float c0 = Mth.cos(a0), s0 = Mth.sin(a0);
+            float c1 = Mth.cos(a1), s1 = Mth.sin(a1);
+
+            float u0 = 0.5F + (c0 * cr - s0 * sr) * 0.38F;
+            float v0 = 0.5F + (c0 * sr + s0 * cr) * 0.38F;
+            float u1 = 0.5F + (c1 * cr - s1 * sr) * 0.38F;
+            float v1 = 0.5F + (c1 * sr + s1 * cr) * 0.38F;
+
+            for (int side = -1; side <= 1; side += 2) {
+                float z = side * 0.012F;
+                float x0 = c0 * rx * rAper;
+                float y0 = s0 * ry * rAper;
+                float x1 = c1 * rx * rAper;
+                float y1 = s1 * ry * rAper;
+                vc.addVertex(pose, 0.0F, 0.0F, z).setColor(255, 246, 198, centerAlpha)
+                        .setUv(0.5F, 0.5F).setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, side);
+                vc.addVertex(pose, 0.0F, 0.0F, z).setColor(255, 246, 198, centerAlpha)
+                        .setUv(0.5F, 0.5F).setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, side);
+                vc.addVertex(pose, side > 0 ? x0 : x1, side > 0 ? y0 : y1, z).setColor(255, 168, 72, edgeAlpha)
+                        .setUv(side > 0 ? u0 : u1, side > 0 ? v0 : v1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, side);
+                vc.addVertex(pose, side > 0 ? x1 : x0, side > 0 ? y1 : y0, z).setColor(255, 168, 72, edgeAlpha)
+                        .setUv(side > 0 ? u1 : u0, side > 0 ? v1 : v0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, side);
+            }
+        }
+    }
+
+    private static void renderDestinationExitRim(Matrix4f pose, MultiBufferSource bufferSource,
+                                                 float rx, float ry, float age, float open) {
+        VertexConsumer vc = bufferSource.getBuffer(RenderType.entityTranslucentEmissive(VORTEX_TEXTURE));
+        // Primary counter-rotating Golden-Amber ring
+        renderExitRingLayer(vc, pose, rx, ry, -age * 0.135F, 0.78F, 1.04F, 0.025F,
+                255, 224, 118, (int) (245 * open),
+                255, 130, 82, (int) (145 * open));
+        // Secondary outer Rose-Magenta solar shockwave halo
+        float haloExpand = 1.18F + 0.05F * Mth.sin(age * 0.28F);
+        renderExitRingLayer(vc, pose, rx, ry, age * 0.085F, 0.96F, haloExpand, 0.045F,
+                255, 160, 92, (int) (150 * open),
+                255, 92, 168, (int) (35 * open));
+    }
+
+    private static void renderExitRingLayer(VertexConsumer vc, Matrix4f pose, float rx, float ry,
+                                            float rot, float rIn, float rOut, float zOffset,
+                                            int inR, int inG, int inB, int inA,
+                                            int outR, int outG, int outB, int outA) {
+        float cr = Mth.cos(rot), sr = Mth.sin(rot);
+        for (int i = 0; i < SEGMENTS; i++) {
+            float a0 = (float) (i * Math.PI * 2.0D / SEGMENTS);
+            float a1 = (float) ((i + 1) * Math.PI * 2.0D / SEGMENTS);
+            float c0 = Mth.cos(a0), s0 = Mth.sin(a0);
+            float c1 = Mth.cos(a1), s1 = Mth.sin(a1);
+
+            float u0In = 0.5F + (c0 * cr - s0 * sr) * 0.34F;
+            float v0In = 0.5F + (c0 * sr + s0 * cr) * 0.34F;
+            float u1In = 0.5F + (c1 * cr - s1 * sr) * 0.34F;
+            float v1In = 0.5F + (c1 * sr + s1 * cr) * 0.34F;
+
+            float u0Out = 0.5F + (c0 * cr - s0 * sr) * 0.49F;
+            float v0Out = 0.5F + (c0 * sr + s0 * cr) * 0.49F;
+            float u1Out = 0.5F + (c1 * cr - s1 * sr) * 0.49F;
+            float v1Out = 0.5F + (c1 * sr + s1 * cr) * 0.49F;
+
+            for (int side = -1; side <= 1; side += 2) {
+                float z = side * zOffset;
+                vc.addVertex(pose, c0 * rx * rIn, s0 * ry * rIn, z).setColor(inR, inG, inB, inA)
+                        .setUv(u0In, v0In).setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, side);
+                vc.addVertex(pose, c0 * rx * rOut, s0 * ry * rOut, z).setColor(outR, outG, outB, outA)
+                        .setUv(u0Out, v0Out).setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, side);
+                vc.addVertex(pose, c1 * rx * rOut, s1 * ry * rOut, z).setColor(outR, outG, outB, outA)
+                        .setUv(u1Out, v1Out).setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, side);
+                vc.addVertex(pose, c1 * rx * rIn, s1 * ry * rIn, z).setColor(inR, inG, inB, inA)
                         .setUv(u1In, v1In).setOverlay(OverlayTexture.NO_OVERLAY).setLight(LightTexture.FULL_BRIGHT).setNormal(0.0F, 0.0F, side);
             }
         }

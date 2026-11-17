@@ -34,9 +34,11 @@ public class PersonalSpaceGateBlockEntity extends BlockEntity {
     private int portalMode = MODE_CLOSED;
     private String targetEnvironmentId = "";
     private int entryCooldownTicks = 0;
+    private int deploySequence = 0;
 
     private int clientAnimTicks = 0;
     private int clientPrevAnimTicks = 0;
+    private int clientSeenSequence = -1;
 
     public PersonalSpaceGateBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.PERSONAL_SPACE_GATE_BE.get(), pos, state);
@@ -94,6 +96,7 @@ public class PersonalSpaceGateBlockEntity extends BlockEntity {
         this.portalMode = mode;
         this.targetEnvironmentId = environmentId == null ? "" : environmentId;
         this.entryCooldownTicks = 24;
+        this.deploySequence++;
         setChanged();
         syncToClient();
     }
@@ -107,8 +110,17 @@ public class PersonalSpaceGateBlockEntity extends BlockEntity {
     }
 
     public static void clientTick(Level level, BlockPos pos, BlockState state, PersonalSpaceGateBlockEntity gate) {
-        gate.clientPrevAnimTicks = gate.clientAnimTicks;
         boolean open = state.hasProperty(PersonalSpaceGateBlock.OPEN) && state.getValue(PersonalSpaceGateBlock.OPEN);
+        if (gate.clientSeenSequence == -1) {
+            gate.clientSeenSequence = gate.deploySequence;
+        } else if (gate.clientSeenSequence != gate.deploySequence) {
+            gate.clientSeenSequence = gate.deploySequence;
+            if (open) {
+                gate.clientAnimTicks = 0;
+                gate.clientPrevAnimTicks = 0;
+            }
+        }
+        gate.clientPrevAnimTicks = gate.clientAnimTicks;
         if (open) {
             if (gate.clientAnimTicks < TOTAL_DEPLOY_TICKS) {
                 gate.clientAnimTicks++;
@@ -152,6 +164,7 @@ public class PersonalSpaceGateBlockEntity extends BlockEntity {
         tag.putString("OwnerName", ownerName);
         tag.putInt("PortalMode", portalMode);
         tag.putString("TargetEnv", targetEnvironmentId);
+        tag.putInt("DeploySeq", deploySequence);
     }
 
     @Override
@@ -161,6 +174,7 @@ public class PersonalSpaceGateBlockEntity extends BlockEntity {
         ownerName = tag.getString("OwnerName");
         portalMode = tag.getInt("PortalMode");
         targetEnvironmentId = tag.getString("TargetEnv");
+        deploySequence = tag.getInt("DeploySeq");
     }
 
     @Override

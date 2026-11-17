@@ -15,6 +15,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.LightLayer;
@@ -24,6 +25,7 @@ import net.minecraft.world.level.biome.MobSpawnSettings;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.event.entity.EntityMobGriefingEvent;
 import net.neoforged.neoforge.event.entity.living.LivingFallEvent;
 import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
@@ -48,6 +50,10 @@ public final class PrivateSpaceWorldTraitHandler {
     private static final int NIGHT_VISION_DURATION_TICKS = 260; // Avoids vanilla's <=200t flash warning
     private static final int STANDARD_PERK_DURATION_TICKS = 80;
     private static final int EXTRA_SPAWN_ATTEMPTS_PER_PLAYER = 3;
+    private static final int CREATURE_SPAWN_INTERVAL_TICKS = 100;
+    private static final int CREATURE_SPAWN_ATTEMPTS_PER_PLAYER = 3;
+    private static final double MIN_CENTER_SPAWN_CLEARANCE = 6.0;
+    private static final double MIN_PLAYER_CREATURE_DIST = 14.0;
 
     private PrivateSpaceWorldTraitHandler() {}
 
@@ -151,9 +157,8 @@ public final class PrivateSpaceWorldTraitHandler {
         if (!level.getFluidState(pos).isEmpty()) {
             return false;
         }
-        boolean airborne = entityType == EntityType.BEE || entityType == EntityType.PARROT
-                || entityType == EntityType.ALLAY || entityType == EntityType.BAT;
-        if (!airborne && !level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), Direction.UP)) {
+        if (!isAirborneCreature(entityType)
+                && !level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), Direction.UP)) {
             return false;
         }
         if (entityType.getCategory() == MobCategory.MONSTER) {
@@ -163,6 +168,85 @@ public final class PrivateSpaceWorldTraitHandler {
             }
         }
         return true;
+    }
+
+    static boolean isAirborneCreature(EntityType<?> entityType) {
+        return entityType == EntityType.BEE || entityType == EntityType.PARROT
+                || entityType == EntityType.ALLAY || entityType == EntityType.BAT;
+    }
+
+    /** Spawns one weighted creature herd centered around {@code anchorX, anchorZ} inside {@code spreadBlocks}. */
+    static int trySpawnCreatureHerd(PrivateSpaceEnvironment env, ServerLevelAccessor level,
+                                      List<MobSpawnSettings.SpawnerData> creatures,
+                                      int anchorX, int anchorZ, int spreadBlocks,
+                                      MobSpawnType spawnType, RandomSource random) {
+        if (creatures.isEmpty()) {
+            return 0;
+        }
+        MobSpawnSettings.SpawnerData chosen = pickWeightedSpawner(creatures, random);
+        if (chosen == null) {
+            return 0;
+        }
+        int herdSize = Mth.nextInt(random, Math.max(1, chosen.minCount), Math.max(1, chosen.maxCount));
+        boolean airborne = isAirborneCreature(chosen.type);
+        FiniteIslandChunkGenerator islandGen =
+                level.getLevel().getChunkSource().getGenerator() instanceof FiniteIslandChunkGenerator gen ? gen : null;
+        SpawnGroupData groupData = null;
+        int spawned = 0;
+
+        for (int i = 0; i < herdSize; i++) {
+            int x = anchorX + (spreadBlocks > 0 ? random.nextIntBetweenInclusive(-spreadBlocks, spreadBlocks) : random.nextInt(16));
+            int z = anchorZ + (spreadBlocks > 0 ? random.nextIntBetweenInclusive(-spreadBlocks, spreadBlocks) : random.nextInt(16));
+            if ((islandGen != null && !islandGen.containsTerrain(x, z))
+                    || Math.hypot(x + 0.5, z + 0.5) < MIN_CENTER_SPAWN_CLEARANCE
+                    || !level.hasChunk(x >> 4, z >> 4)) {
+                continue;
+            }
+            int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+            if (y <= level.getMinBuildHeight() + 1) {
+                continue;
+            }
+            if (airborne) {
+                y += 1 + random.nextInt(3);
+            }
+            if (spawnType == MobSpawnType.NATURAL && level.getNearestPlayer(x + 0.5, y, z + 0.5, MIN_PLAYER_CREATURE_DIST, false) != null) {
+                continue;
+            }
+            Entity entity = chosen.type.create(level.getLevel());
+            if (!(entity instanceof Mob mob)) {
+                continue;
+            }
+            mob.moveTo(x + 0.5, y, z + 0.5, random.nextFloat() * 360.0F, 0.0F);
+            BlockPos spawnPos = mob.blockPosition();
+            if (!evaluateNaturalSpawnAllowed(env, level, chosen.type, spawnPos)
+                    || !mob.checkSpawnObstruction(level)) {
+                continue;
+            }
+            groupData = EventHooks.finalizeMobSpawn(mob, level, level.getCurrentDifficultyAt(spawnPos),
+                    spawnType, groupData);
+            level.addFreshEntityWithPassengers(mob);
+            spawned++;
+        }
+        return spawned;
+    }
+
+    private static MobSpawnSettings.SpawnerData pickWeightedSpawner(List<MobSpawnSettings.SpawnerData> entries,
+                                                                    RandomSource random) {
+        int totalWeight = 0;
+        for (MobSpawnSettings.SpawnerData entry : entries) {
+            totalWeight += Math.max(1, entry.getWeight().asInt());
+        }
+        if (totalWeight <= 0) {
+            return null;
+        }
+        int roll = random.nextInt(totalWeight);
+        for (MobSpawnSettings.SpawnerData entry : entries) {
+            roll -= Math.max(1, entry.getWeight().asInt());
+            if (roll < 0) {
+                return entry;
+            }
+        }
+        return entries.get(0);
     }
 
     // --------------------------------------------------------- tick: boost & weather
@@ -201,17 +285,52 @@ public final class PrivateSpaceWorldTraitHandler {
                     && !level.players().isEmpty()) {
                 boostHostileSpawns(level, hostileMult);
             }
+            if (tick % CREATURE_SPAWN_INTERVAL_TICKS == 0
+                    && traits.spawns().mode() != PrivateSpaceWorldTraits.SpawnMode.NO_NATURAL
+                    && level.getGameRules().getBoolean(GameRules.RULE_DOMOBSPAWNING)
+                    && !level.players().isEmpty()) {
+                List<MobSpawnSettings.SpawnerData> creatures = traits.spawns().spawnerDataFor(MobCategory.CREATURE);
+                if (!creatures.isEmpty()) {
+                    populateRealmCreatures(level, env, creatures);
+                }
+            }
+        }
+    }
+
+    private static int countCategoryMobs(ServerLevel level, MobCategory category) {
+        int active = 0;
+        for (Entity entity : level.getAllEntities()) {
+            if (entity instanceof Mob mob && mob.getClassification(true) == category
+                    && !mob.isPersistenceRequired() && !mob.requiresCustomPersistence()) {
+                active++;
+            }
+        }
+        return active;
+    }
+
+    private static void populateRealmCreatures(ServerLevel level, PrivateSpaceEnvironment env,
+                                               List<MobSpawnSettings.SpawnerData> creatures) {
+        int playerCount = Math.max(1, level.players().size());
+        int cap = Math.max(12, playerCount * 12);
+        if (countCategoryMobs(level, MobCategory.CREATURE) >= cap) {
+            return;
+        }
+        RandomSource random = level.random;
+        for (ServerPlayer player : level.players()) {
+            for (int i = 0; i < CREATURE_SPAWN_ATTEMPTS_PER_PLAYER; i++) {
+                double angle = random.nextDouble() * Math.PI * 2.0;
+                double dist = 16.0 + random.nextDouble() * 32.0;
+                int x = Mth.floor(player.getX() + Math.cos(angle) * dist);
+                int z = Mth.floor(player.getZ() + Math.sin(angle) * dist);
+                if (trySpawnCreatureHerd(env, level, creatures, x, z, 4, MobSpawnType.NATURAL, random) > 0) {
+                    break;
+                }
+            }
         }
     }
 
     private static void boostHostileSpawns(ServerLevel level, double multiplier) {
-        int activeHostiles = 0;
-        for (Entity entity : level.getAllEntities()) {
-            if (entity instanceof Mob mob && mob.getClassification(true) == MobCategory.MONSTER
-                    && !mob.isPersistenceRequired() && !mob.requiresCustomPersistence()) {
-                activeHostiles++;
-            }
-        }
+        int activeHostiles = countCategoryMobs(level, MobCategory.MONSTER);
         int playerCount = Math.max(1, level.players().size());
         int boostedCap = (int) Math.round(MobCategory.MONSTER.getMaxInstancesPerChunk() * playerCount * multiplier);
         if (activeHostiles >= boostedCap) {

@@ -9,7 +9,6 @@ import java.util.OptionalLong;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -61,7 +60,7 @@ public final class WormholeCorridorManager {
     private static final double SPAWN_Z = 1.5D;
     private static final double EXIT_Z = 12.5D;
     private static final double COMPLETE_Z = 11.5D;
-    private static final int MAX_CORRIDOR_TICKS = 240;
+    private static final int SPEED_EFFECT_TICKS = 220;
 
     private record TransitSession(
             ResourceKey<Level> originDim,
@@ -82,6 +81,10 @@ public final class WormholeCorridorManager {
     private static final Map<UUID, TransitSession> SESSIONS = new HashMap<>();
 
     private WormholeCorridorManager() {}
+
+    public static boolean hasActiveSession(@javax.annotation.Nullable UUID uuid) {
+        return uuid != null && SESSIONS.containsKey(uuid);
+    }
 
     public static void enterCorridor(ServerPlayer player, Waypoint target, boolean fromScroll) {
         enterCorridor(player, target, fromScroll, "");
@@ -114,10 +117,9 @@ public final class WormholeCorridorManager {
                 return;
             }
             buildTransparentCorridor(transitLevel, laneX, uuid, target, fromScroll, vistaId);
-            seedStarfield(transitLevel, laneX);
             player.fallDistance = 0.0F;
             player.teleportTo(transitLevel, laneX + 0.5D, WALK_Y, SPAWN_Z, 0.0F, 0.0F);
-            player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, MAX_CORRIDOR_TICKS, 1, false, false, false));
+            player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, SPEED_EFFECT_TICKS, 1, false, false, false));
             transitLevel.playSound(null, laneX + 0.5D, WALK_Y + 1.0D, SPAWN_Z,
                     SoundEvents.PORTAL_TRIGGER, SoundSource.PLAYERS, 0.45F, 1.3F);
             player.displayClientMessage(Component.translatable("message.universal_tool.wormhole.corridor_enter"), true);
@@ -264,55 +266,15 @@ public final class WormholeCorridorManager {
                 continue;
             }
 
-            if (session.ticksInCorridor() % 2 == 0) {
-                emitCorridorParticles(player.serverLevel(), session.laneX(), session.ticksInCorridor());
+            if (session.ticksInCorridor() % 100 == 0) {
+                player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, SPEED_EFFECT_TICKS, 1, false, false, false));
             }
 
-            if (player.getZ() >= COMPLETE_Z || session.ticksInCorridor() >= MAX_CORRIDOR_TICKS) {
+            if (player.getZ() >= COMPLETE_Z) {
                 it.remove();
                 player.removeEffect(MobEffects.MOVEMENT_SPEED);
                 discardLaneWormholes(player.serverLevel(), session.laneX());
                 TeleportManager.executeTeleport(player, session.target(), session.fromScroll());
-            }
-        }
-    }
-
-    private static void seedStarfield(ServerLevel level, int laneX) {
-        var rng = level.getRandom();
-        for (int i = 0; i < 64; i++) {
-            double angle = rng.nextDouble() * Math.PI * 2.0D;
-            double radius = 3.8D + rng.nextDouble() * 14.0D;
-            double sx = laneX + 0.5D + Math.cos(angle) * radius;
-            double sy = WALK_Y + 1.5D + Math.sin(angle) * (radius * 0.75D);
-            double sz = -2.0D + rng.nextDouble() * 24.0D;
-            level.sendParticles(i % 4 == 0 ? ParticleTypes.END_ROD : ParticleTypes.ENCHANT,
-                    sx, sy, sz, 1, 0.0D, 0.0D, 0.0D, 0.0D);
-        }
-    }
-
-    private static void emitCorridorParticles(ServerLevel level, int laneX, int tick) {
-        var rng = level.getRandom();
-        // Distant twinkling cosmic starfield around the transparent void corridor
-        for (int s = 0; s < 6; s++) {
-            double angle = rng.nextDouble() * Math.PI * 2.0D;
-            double radius = 3.5D + rng.nextDouble() * 14.5D;
-            double sx = laneX + 0.5D + Math.cos(angle) * radius;
-            double sy = WALK_Y + 1.5D + Math.sin(angle) * (radius * 0.75D);
-            double sz = -2.0D + rng.nextDouble() * 24.0D;
-            level.sendParticles(s < 4 ? ParticleTypes.END_ROD : ParticleTypes.PORTAL,
-                    sx, sy, sz, 1, 0.0D, 0.0D, 0.0D, 0.01D);
-        }
-
-        // Subtle peripheral energy wisps guiding toward the exit wormhole
-        if (tick % 4 == 0) {
-            double phase = (tick * 0.25D) % (Math.PI * 2.0D);
-            for (int zArch : new int[]{4, 7, 10}) {
-                for (int i = 0; i < 4; i++) {
-                    double a = phase + i * (Math.PI / 2.0D);
-                    double px = laneX + 0.5D + Math.cos(a) * 2.35D;
-                    double py = WALK_Y + 1.65D + Math.sin(a) * 2.05D;
-                    level.sendParticles(ParticleTypes.END_ROD, px, py, zArch + 0.5D, 1, 0.0D, 0.0D, 0.0D, 0.0D);
-                }
             }
         }
     }

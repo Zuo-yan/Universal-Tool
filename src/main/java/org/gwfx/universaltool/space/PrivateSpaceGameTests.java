@@ -402,6 +402,27 @@ public final class PrivateSpaceGameTests {
         PrivateSpaceWorldTraitHandler.onSpawnPlacementCheck(spawnerZombie);
         helper.assertTrue(spawnerZombie.getPlacementCheckResult(), "Mushroom Wonderland must leave Spawner Zombies unaffected");
 
+        helper.assertTrue(net.minecraft.world.effect.MobEffects.SATURATION.equals(
+                        PrivateSpaceEnvironment.MUSHROOM_WONDERLAND.traits().perks().potionEffect())
+                        && PrivateSpaceEnvironment.MUSHROOM_WONDERLAND.traits().perks().nourishIntervalTicks() == 0,
+                "Mushroom Wonderland perk must use Saturation potion effect");
+
+        var mushPlayer = mockPlayer(server, mushroomLevel,
+                new com.mojang.authlib.GameProfile(UUID.randomUUID(), "mushroom-perk-test"));
+        mushPlayer.tickCount = 20;
+        PrivateSpaceWorldTraitHandler.onPlayerTick(new net.neoforged.neoforge.event.tick.PlayerTickEvent.Post(mushPlayer));
+        helper.assertTrue(mushPlayer.hasEffect(net.minecraft.world.effect.MobEffects.SATURATION),
+                "Mushroom Wonderland must apply the Vanilla Saturation potion effect to players");
+
+        int mooshroomHerd = PrivateSpaceWorldTraitHandler.trySpawnCreatureHerd(
+                PrivateSpaceEnvironment.MUSHROOM_WONDERLAND,
+                mushroomLevel,
+                PrivateSpaceEnvironment.MUSHROOM_WONDERLAND.traits().spawns().spawnerDataFor(
+                        net.minecraft.world.entity.MobCategory.CREATURE),
+                36, 36, 4, net.minecraft.world.entity.MobSpawnType.NATURAL, mushroomLevel.random);
+        helper.assertTrue(mooshroomHerd > 0,
+                "Mushroom Wonderland must spawn Mooshroom herds on island terrain; spawned=" + mooshroomHerd);
+
         helper.assertTrue(PrivateSpaceEnvironment.OBSIDIAN_FORGE.traits().spawns().hostileRateMultiplier() == 2.0,
                 "Obsidian Forge must declare 2.0x hostile spawn rate multiplier");
 

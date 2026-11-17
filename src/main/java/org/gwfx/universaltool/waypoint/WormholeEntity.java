@@ -3,18 +3,21 @@ package org.gwfx.universaltool.waypoint;
 import java.util.List;
 import java.util.UUID;
 import javax.annotation.Nullable;
-import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.Level;
+import org.gwfx.universaltool.init.ModParticles;
 
 /**
  * Spatial wormhole aperture spawned ahead of the player for immersive teleportation.
@@ -32,6 +35,8 @@ public class WormholeEntity extends Entity {
             SynchedEntityData.defineId(WormholeEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<String> DATA_VISTA_ID =
             SynchedEntityData.defineId(WormholeEntity.class, EntityDataSerializers.STRING);
+    private static final EntityDataAccessor<Boolean> DATA_DEST_EXIT =
+            SynchedEntityData.defineId(WormholeEntity.class, EntityDataSerializers.BOOLEAN);
 
     private static final int MAX_LIFETIME_TICKS = 240;
     private static final int CLOSE_ANIM_TICKS = 10;
@@ -43,6 +48,13 @@ public class WormholeEntity extends Entity {
     private boolean fromScroll;
     private int lifeTicks;
     private int closeTicks;
+    private int scheduledCloseTick = -1;
+    @Nullable
+    private ResourceKey<Level> linkedDestDim;
+    @Nullable
+    private UUID linkedDestUuid;
+    @Nullable
+    private BlockPos linkedDestPos;
 
     public WormholeEntity(EntityType<? extends WormholeEntity> type, Level level) {
         super(type, level);
@@ -65,6 +77,28 @@ public class WormholeEntity extends Entity {
         this.entityData.set(DATA_PHOTO_ID, target.photoId() != null ? target.photoId() : "");
         this.entityData.set(DATA_DEST_DIM, target.dimension().toString());
         this.entityData.set(DATA_CORRIDOR_EXIT, corridorExit);
+        this.entityData.set(DATA_DEST_EXIT, false);
+    }
+
+    public void configureDestinationExit(UUID ownerUuid, float facingYaw) {
+        setYRot(facingYaw);
+        this.ownerUuid = ownerUuid;
+        this.target = null;
+        this.fromScroll = false;
+        this.scheduledCloseTick = -1;
+        this.entityData.set(DATA_PHOTO_ID, "");
+        this.entityData.set(DATA_CORRIDOR_EXIT, false);
+        this.entityData.set(DATA_DEST_EXIT, true);
+    }
+
+    public void linkDestinationExit(ResourceKey<Level> destDim, UUID exitUuid, BlockPos exitPos) {
+        this.linkedDestDim = destDim;
+        this.linkedDestUuid = exitUuid;
+        this.linkedDestPos = exitPos;
+    }
+
+    public void scheduleCloseAfter(int ticksFromNow) {
+        this.scheduledCloseTick = this.lifeTicks + Math.max(1, ticksFromNow);
     }
 
     @Nullable
@@ -79,6 +113,7 @@ public class WormholeEntity extends Entity {
         builder.define(DATA_DEST_DIM, "minecraft:overworld");
         builder.define(DATA_CORRIDOR_EXIT, false);
         builder.define(DATA_VISTA_ID, "");
+        builder.define(DATA_DEST_EXIT, false);
     }
 
     public boolean isClosing() {
@@ -105,17 +140,42 @@ public class WormholeEntity extends Entity {
         return this.entityData.get(DATA_CORRIDOR_EXIT);
     }
 
+    public boolean isDestinationExit() {
+        return this.entityData.get(DATA_DEST_EXIT);
+    }
+
     public float getOpenProgress(float partialTick) {
         if (isClosing()) {
             return Math.max(0.0F, 1.0F - (closeTicks + partialTick) / CLOSE_ANIM_TICKS);
         }
-        return Math.min(1.0F, (tickCount + partialTick) / 8.0F);
+        float openTicks = isDestinationExit() ? 5.0F : 8.0F;
+        return Math.min(1.0F, (tickCount + partialTick) / openTicks);
     }
 
     public void beginClosing() {
         if (!isClosing()) {
             this.entityData.set(DATA_CLOSING, true);
             this.closeTicks = 0;
+            if (!isCorridorExit() && !isDestinationExit()) {
+                closeLinkedDestinationExit();
+            }
+        }
+    }
+
+    private void closeLinkedDestinationExit() {
+        if (linkedDestDim == null || linkedDestUuid == null || !(level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        ServerLevel destLevel = serverLevel.getServer().getLevel(linkedDestDim);
+        if (destLevel == null) {
+            return;
+        }
+        if (linkedDestPos != null) {
+            destLevel.getChunkAt(linkedDestPos);
+        }
+        Entity linked = destLevel.getEntity(linkedDestUuid);
+        if (linked instanceof WormholeEntity destExit && destExit.isDestinationExit()) {
+            destExit.beginClosing();
         }
     }
 
@@ -141,8 +201,40 @@ public class WormholeEntity extends Entity {
         }
 
         if (lifeTicks == 1 && level() instanceof ServerLevel serverLevel) {
-            serverLevel.playSound(null, getX(), getY() + 1.0D, getZ(),
-                    SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 0.7F, 1.35F);
+            if (isDestinationExit()) {
+                serverLevel.playSound(null, getX(), getY() + 1.0D, getZ(),
+                        SoundEvents.BEACON_DEACTIVATE, SoundSource.PLAYERS, 0.55F, 1.45F);
+            } else {
+                serverLevel.playSound(null, getX(), getY() + 1.0D, getZ(),
+                        SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 0.7F, 1.35F);
+            }
+        }
+
+        if (isDestinationExit()) {
+            if (scheduledCloseTick >= 0) {
+                if (lifeTicks >= scheduledCloseTick) {
+                    beginClosing();
+                }
+            } else if (lifeTicks > MAX_LIFETIME_TICKS + 20 && !WormholeCorridorManager.hasActiveSession(ownerUuid)) {
+                beginClosing();
+            }
+            return;
+        }
+
+        if (tickCount >= 3 && target != null) {
+            List<ItemEntity> items = level().getEntitiesOfClass(
+                    ItemEntity.class,
+                    getBoundingBox().inflate(0.65D),
+                    item -> item.isAlive() && !item.getItem().isEmpty()
+            );
+            for (ItemEntity item : items) {
+                if (TeleportManager.teleportItem(item, target) && level() instanceof ServerLevel serverLevel) {
+                    serverLevel.sendParticles(ModParticles.WORMHOLE_SPARK.get(),
+                            getX(), getY() + 1.2D, getZ(), 12, 0.3D, 0.45D, 0.3D, 0.04D);
+                    serverLevel.playSound(null, getX(), getY() + 1.0D, getZ(),
+                            SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 0.4F, 1.7F);
+                }
+            }
         }
 
         if (tickCount >= 6) {
@@ -154,7 +246,7 @@ public class WormholeEntity extends Entity {
             if (!players.isEmpty()) {
                 ServerPlayer entered = players.get(0);
                 if (level() instanceof ServerLevel serverLevel) {
-                    serverLevel.sendParticles(ParticleTypes.REVERSE_PORTAL,
+                    serverLevel.sendParticles(ModParticles.WORMHOLE_SPARK.get(),
                             getX(), getY() + 1.4D, getZ(), 18, 0.45D, 0.75D, 0.45D, 0.06D);
                     serverLevel.playSound(null, getX(), getY() + 1.0D, getZ(),
                             SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 0.6F, 1.55F);
@@ -175,20 +267,46 @@ public class WormholeEntity extends Entity {
     }
 
     private void spawnRimParticles() {
-        double angle = (tickCount * 0.45D) % (Math.PI * 2.0D);
+        float open = getOpenProgress(0.0F);
+        if (open <= 0.05F) {
+            return;
+        }
+        boolean corridorExit = isCorridorExit();
+        boolean destExit = isDestinationExit();
+        double rimRadius = (corridorExit ? 2.38D : (destExit ? 1.46D : 1.38D)) * open;
+        double centerY = corridorExit ? 1.65D : 1.48D;
+
+        double dir = destExit ? -0.52D : 0.45D;
+        double angle = ((tickCount * dir) % (Math.PI * 2.0D));
         double radYaw = Math.toRadians(getYRot());
         double rightX = Math.cos(radYaw);
         double rightZ = Math.sin(radYaw);
-        for (int i = 0; i < 2; i++) {
-            double a = angle + i * Math.PI;
-            double lx = Math.cos(a) * 0.72D;
-            double ly = 1.05D + Math.sin(a) * 1.05D;
+        double normalX = -Math.sin(radYaw);
+        double normalZ = Math.cos(radYaw);
+
+        int count = destExit ? 3 : 2;
+        var particle = destExit ? ModParticles.WORMHOLE_EXIT_SPARK.get() : ModParticles.WORMHOLE_SPARK.get();
+        for (int i = 0; i < count; i++) {
+            double a = angle + i * (Math.PI * 2.0D / count);
+            double cosA = Math.cos(a);
+            double sinA = Math.sin(a);
+            double lx = cosA * rimRadius;
+            double ly = centerY + sinA * rimRadius;
+            double sideOffset = ((i & 1) == 0 ? 0.07D : -0.07D);
+
+            // Orbit tangentially along the circular rim with outward flare (exit flares wider in reverse swirl)
+            double tangent = destExit ? -0.036D : 0.032D;
+            double outward = destExit ? 0.022D : 0.008D;
+            double vx = rightX * (-sinA * tangent + cosA * outward);
+            double vy = cosA * tangent + sinA * outward;
+            double vz = rightZ * (-sinA * tangent + cosA * outward);
+
             level().addParticle(
-                    ParticleTypes.PORTAL,
-                    getX() + rightX * lx,
+                    particle,
+                    getX() + rightX * lx + normalX * sideOffset,
                     getY() + ly,
-                    getZ() + rightZ * lx,
-                    0.0D, 0.02D, 0.0D
+                    getZ() + rightZ * lx + normalZ * sideOffset,
+                    vx, vy, vz
             );
         }
     }
@@ -200,7 +318,9 @@ public class WormholeEntity extends Entity {
         }
         fromScroll = tag.getBoolean("FromScroll");
         lifeTicks = tag.getInt("LifeTicks");
+        scheduledCloseTick = tag.contains("ScheduledCloseTick") ? tag.getInt("ScheduledCloseTick") : -1;
         entityData.set(DATA_CORRIDOR_EXIT, tag.getBoolean("CorridorExit"));
+        entityData.set(DATA_DEST_EXIT, tag.getBoolean("DestExit"));
         entityData.set(DATA_PHOTO_ID, tag.getString("PhotoId"));
         entityData.set(DATA_VISTA_ID, tag.getString("VistaId"));
         if (tag.contains("DestDim")) {
@@ -215,7 +335,9 @@ public class WormholeEntity extends Entity {
         }
         tag.putBoolean("FromScroll", fromScroll);
         tag.putInt("LifeTicks", lifeTicks);
+        tag.putInt("ScheduledCloseTick", scheduledCloseTick);
         tag.putBoolean("CorridorExit", isCorridorExit());
+        tag.putBoolean("DestExit", isDestinationExit());
         tag.putString("PhotoId", getPhotoId());
         tag.putString("VistaId", getVistaId());
         tag.putString("DestDim", getDestDimension());

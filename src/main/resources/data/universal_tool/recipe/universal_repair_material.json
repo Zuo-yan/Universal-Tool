@@ -2,16 +2,16 @@
   "type": "universal_tool:polymerizing",
   "ingredients": [
     {
-      "item": "minecraft:netherite_scrap"
+      "item": "universal_tool:void_essence"
     },
     {
-      "item": "minecraft:netherite_scrap"
+      "item": "universal_tool:void_essence"
     },
     {
-      "item": "minecraft:netherite_scrap"
+      "item": "universal_tool:void_essence"
     },
     {
-      "item": "minecraft:netherite_scrap"
+      "item": "universal_tool:void_essence"
     },
     {
       "item": "minecraft:amethyst_shard"
