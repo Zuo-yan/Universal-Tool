@@ -4,6 +4,7 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.Tiers;
+import net.neoforged.neoforge.common.DeferredSpawnEggItem;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.gwfx.universaltool.UniversalToolMod;
@@ -17,6 +18,7 @@ import org.gwfx.universaltool.phoenix.DnaSampleItem;
 import org.gwfx.universaltool.phoenix.DnaSyringeItem;
 import org.gwfx.universaltool.phoenix.NutrientSolutionItem;
 import org.gwfx.universaltool.klein.KleinBottleItem;
+import org.gwfx.universaltool.wheelchair.AllTerrainWheelchairItem;
 
 public class ModItems {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(UniversalToolMod.MODID);
@@ -92,5 +94,13 @@ public class ModItems {
 
     public static final DeferredItem<VoidEssenceItem> VOID_ESSENCE = ITEMS.register("void_essence",
             () -> new VoidEssenceItem(new Item.Properties().stacksTo(64).rarity(Rarity.EPIC)));
+
+    // 全地形轮椅 (Roadster 反重力攀爬载具)
+    public static final DeferredItem<AllTerrainWheelchairItem> ALL_TERRAIN_WHEELCHAIR = ITEMS.register("all_terrain_wheelchair",
+            () -> new AllTerrainWheelchairItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC).fireResistant()));
+
+    // 奶蛙刷怪蛋 (滴滴代打保镖)
+    public static final DeferredItem<DeferredSpawnEggItem> NAIWA_SPAWN_EGG = ITEMS.register("naiwa_spawn_egg",
+            () -> new DeferredSpawnEggItem(ModEntities.NAIWA, 0xFFE055, 0xFF7B1C, new Item.Properties()));
 
 }

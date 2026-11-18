@@ -16,6 +16,11 @@ public final class ModSounds {
                     ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
                             "skill.lightning_spear_throw")));
 
+    public static final DeferredHolder<SoundEvent, SoundEvent> NAIWA_LAUGH =
+            SOUNDS.register("entity.naiwa.laugh", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
+                            "entity.naiwa.laugh")));
+
     private ModSounds() {
     }
 }

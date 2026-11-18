@@ -42,6 +42,12 @@ public class ModCreativeTabs {
                         output.accept(ModItems.NUTRIENT_SOLUTION.get());
                         output.accept(ModItems.OPERATION_PHOENIX_POD.get());
                         output.accept(ModItems.PERSONAL_SPACE_GATE.get());
+                        // 全地形载具
+                        output.accept(ModItems.ALL_TERRAIN_WHEELCHAIR.get());
+                        // 奶蛙与 MCphone
+                        output.accept(ModItems.NAIWA_SPAWN_EGG.get());
+                        output.accept(com.november.mcphone.core.ModItems.PHONE.get());
+                        output.accept(com.november.mcphone.core.ModItems.TABLET.get());
                     })
                     .build());
 
@@ -50,6 +56,9 @@ public class ModCreativeTabs {
                 || event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
             event.accept(ModItems.UNIVERSAL_REPAIR_MATERIAL.get());
             event.accept(ModItems.VOID_ESSENCE.get());
+        }
+        if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
+            event.accept(ModItems.ALL_TERRAIN_WHEELCHAIR.get());
         }
     }
 }

@@ -5,6 +5,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
+import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import org.gwfx.universaltool.config.ModConfigs;
 import org.gwfx.universaltool.init.ModAttachments;
 import org.gwfx.universaltool.init.ModBlockEntities;
@@ -48,9 +49,14 @@ public class UniversalToolMod {
                 event.register(org.gwfx.universaltool.klein.KleinGameTests.class);
                 event.register(org.gwfx.universaltool.repair.UniversalRepairGameTests.class);
                 event.register(org.gwfx.universaltool.lottery.LotteryValuatorGameTests.class);
+                event.register(org.gwfx.universaltool.wheelchair.AllTerrainWheelchairGameTests.class);
+                event.register(org.gwfx.universaltool.naiwa.NaiwaGameTests.class);
             });
         }
         ModAttachments.register(modEventBus);
+
+        modEventBus.addListener((EntityAttributeCreationEvent event) ->
+                event.put(ModEntities.NAIWA.get(), org.gwfx.universaltool.naiwa.NaiwaEntity.createAttributes().build()));
 
         // 注册模组网络数据包处理器 (RegisterPayloadHandlersEvent)
         modEventBus.addListener(ModPacketHandler::register);

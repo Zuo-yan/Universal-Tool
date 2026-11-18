@@ -2,6 +2,7 @@ package org.gwfx.universaltool.client;
 
 import net.minecraft.core.Direction;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
+import org.gwfx.universaltool.naiwa.NaiwaLaughSoundPayload;
 import org.gwfx.universaltool.network.CounterGuardEffectPayload;
 import org.gwfx.universaltool.network.ModPacketHandler;
 import org.gwfx.universaltool.network.OpenSkillScreenPayload;
@@ -39,6 +40,12 @@ public final class ClientPayloadHandlers {
         ModPacketHandler.registerClientHandler(SyncSkillDataPayload.TYPE, ClientPayloadHandlers::handleSyncSkillData);
         ModPacketHandler.registerClientHandler(OpenSkillScreenPayload.TYPE, ClientPayloadHandlers::handleOpenSkillScreen);
         ModPacketHandler.registerClientHandler(WormholeLiveVistaPayload.TYPE, ClientPayloadHandlers::handleWormholeLiveVista);
+        ModPacketHandler.registerClientHandler(NaiwaLaughSoundPayload.TYPE, ClientPayloadHandlers::handleNaiwaLaughSound);
+    }
+
+    public static void handleNaiwaLaughSound(NaiwaLaughSoundPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> NaiwaLaughSoundPlayer.handle(
+                payload.entityId(), payload.durationTicks(), payload.stop()));
     }
 
     public static void handleWormholeLiveVista(WormholeLiveVistaPayload payload, IPayloadContext context) {

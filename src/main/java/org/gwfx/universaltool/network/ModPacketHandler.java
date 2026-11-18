@@ -12,6 +12,9 @@ import org.gwfx.universaltool.klein.KleinDrawerPayload;
 import org.gwfx.universaltool.klein.KleinOpenPayload;
 import org.gwfx.universaltool.klein.KleinRenamePayload;
 import org.gwfx.universaltool.klein.KleinSyncPayload;
+import org.gwfx.universaltool.naiwa.DidiOrderPayload;
+import org.gwfx.universaltool.naiwa.NaiwaLaughSoundPayload;
+import org.gwfx.universaltool.wheelchair.WheelchairInputPayload;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,7 +39,7 @@ public final class ModPacketHandler {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("14");
+        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("16");
 
         // 客户端发往服务端
         registrar.playToServer(SaveWaypointPayload.TYPE, SaveWaypointPayload.STREAM_CODEC, SaveWaypointPayload::handle);
@@ -66,6 +69,10 @@ public final class ModPacketHandler {
         registrar.playToServer(org.gwfx.universaltool.lottery.LotteryRollActionPayload.TYPE,
                 org.gwfx.universaltool.lottery.LotteryRollActionPayload.STREAM_CODEC,
                 org.gwfx.universaltool.lottery.LotteryRollActionPayload::handle);
+        registrar.playToServer(WheelchairInputPayload.TYPE, WheelchairInputPayload.STREAM_CODEC,
+                WheelchairInputPayload::handle);
+        registrar.playToServer(DidiOrderPayload.TYPE, DidiOrderPayload.STREAM_CODEC,
+                DidiOrderPayload::handle);
 
         // 服务端发往客户端 (dispatched to ClientPayloadHandlers registered on client setup)
         registrar.playToClient(OreSightPayload.TYPE, OreSightPayload.STREAM_CODEC,
@@ -88,6 +95,8 @@ public final class ModPacketHandler {
                 dispatchClient(OpenSkillScreenPayload.TYPE));
         registrar.playToClient(WormholeLiveVistaPayload.TYPE, WormholeLiveVistaPayload.STREAM_CODEC,
                 dispatchClient(WormholeLiveVistaPayload.TYPE));
+        registrar.playToClient(NaiwaLaughSoundPayload.TYPE, NaiwaLaughSoundPayload.STREAM_CODEC,
+                dispatchClient(NaiwaLaughSoundPayload.TYPE));
         registrar.playToClient(KleinSyncPayload.TYPE, KleinSyncPayload.STREAM_CODEC, KleinSyncPayload::handle);
     }
 }

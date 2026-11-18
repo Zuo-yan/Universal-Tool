@@ -8,5 +8,15 @@
         "stream": false
       }
     ]
+  },
+  "entity.naiwa.laugh": {
+    "category": "neutral",
+    "subtitle": "subtitles.universal_tool.entity.naiwa.laugh",
+    "sounds": [
+      {
+        "name": "universal_tool:entity/naiwa_laugh",
+        "stream": true
+      }
+    ]
   }
 }

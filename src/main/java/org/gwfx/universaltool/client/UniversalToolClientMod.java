@@ -14,6 +14,7 @@ import net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
+import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.init.ModBlockEntities;
 import org.gwfx.universaltool.init.ModEntities;
@@ -90,6 +91,16 @@ public final class UniversalToolClientMod {
                 LightningSpearRenderer::new);
         event.registerEntityRenderer(ModEntities.WORMHOLE.get(),
                 WormholeRenderer::new);
+        event.registerEntityRenderer(ModEntities.ALL_TERRAIN_WHEELCHAIR.get(),
+                AllTerrainWheelchairRenderer::new);
+        event.registerEntityRenderer(ModEntities.NAIWA.get(),
+                NaiwaRenderer::new);
+    }
+
+    @SubscribeEvent
+    public static void registerClientExtensions(RegisterClientExtensionsEvent event) {
+        event.registerItem(WheelchairItemRenderer.WheelchairItemExtensions.INSTANCE,
+                ModItems.ALL_TERRAIN_WHEELCHAIR.get());
     }
 
     @SubscribeEvent
