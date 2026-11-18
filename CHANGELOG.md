@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.9.34 - 2026-11-18
+
+- Rebuilt the Klein Bottle GUI with high-contrast light surfaces and a dedicated tools dock beside the warehouse. Search, storage and all three workstations remain accessible together.
+- Added a workstation slide transition, animated focus and hover states, inventory transfer pulses, and ready-output effects. Added a clear-search control and an explicit pickup-deposit toggle.
+
+## 1.9.33 - 2026-11-18
+
+- Redesigned the Klein Bottle terminal with a mint-accented graphite interface, quieter slots, and short transitions for search focus, drawer opening, and quick-deposit feedback.
+- Changed the default Klein Bottle and skill-wheel keys to B and J. Moved the bundled phone's camera exit to Z and reader paging to [ and ]. Existing installations migrate the affected defaults where they collide.
+
+## 1.9.32 - 2026-11-18
+
+- **Gulf GT Sports Car (`universal_tool:gulf_gt_car`)**:
+  - Added the two-seater Gulf GT Sports Car entity (`SportsCarEntity`), placement item (`SportsCarItem`), and 12-slot Universal Polymerizer recipe (`gulf_gt_car_polymerize`).
+  - Implemented mouse-aim steering with A/D assist and reverse steering, handbrake drifting (`Space`), auto-recharging nitro boost (`Ctrl`, accelerated recharge while drifting), 1-block auto step climbing (`maxUpStep = 1.05F`), four-wheel terrain pitch/roll alignment, and proximity/mount-triggered automatic welcome doors (`doorOpenProgress` with door swing sound).
+  - Added full 3D pre-baked entity & item mesh rendering (`SportsCarModelData`, `SportsCarRenderer`, `SportsCarItemRenderer`) with second-order spring suspension, steering/spinning wheels, linked steering wheel, smart auto headlights & brake/reverse taillights, translucent glass rendering, nitro exhaust plumes, drift/exhaust particles, 7-block third-person & cockpit camera framing, and speed/drift/nitro dynamic mono Ogg Vorbis audio (`SportsCarSoundController`).
+
+## 1.9.31 - 2026-11-18
+
+- Added two steerable rear nozzles to the All-Terrain Wheelchair. Hold jump to sustain lift for up to 0.8 seconds. The chair now floats and drives on lava. Removed the decorative yellow lever.
+- Didi Daida now costs 32 emeralds in the MCPhone store. Two-minute orders cost 8 emeralds for one Naiwa or 20 for three. Each player can have one active order with one squad-wide ultimate.
+- Existing single-player installations carry over. Server administrators can grant access to existing players with `/ut didi grant <player>`.
+
 ## 1.9.16 - 2026-11-13
 - **Corridor Starfield Accents & Instant Wormhole Closure on Entry**:
   - Added a 3D twinkling cosmic starfield (`seedStarfield` + ongoing outer `END_ROD` / `ENCHANT` / `PORTAL` starlight particles) surrounding the transparent wormhole corridor without obstructing the forward destination vista.

@@ -18,6 +18,7 @@ import org.gwfx.universaltool.phoenix.DnaSampleItem;
 import org.gwfx.universaltool.phoenix.DnaSyringeItem;
 import org.gwfx.universaltool.phoenix.NutrientSolutionItem;
 import org.gwfx.universaltool.klein.KleinBottleItem;
+import org.gwfx.universaltool.sportscar.SportsCarItem;
 import org.gwfx.universaltool.wheelchair.AllTerrainWheelchairItem;
 
 public class ModItems {
@@ -98,6 +99,10 @@ public class ModItems {
     // 全地形轮椅 (Roadster 反重力攀爬载具)
     public static final DeferredItem<AllTerrainWheelchairItem> ALL_TERRAIN_WHEELCHAIR = ITEMS.register("all_terrain_wheelchair",
             () -> new AllTerrainWheelchairItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC).fireResistant()));
+
+    // 海湾 GT 跑车
+    public static final DeferredItem<SportsCarItem> GULF_GT_CAR = ITEMS.register("gulf_gt_car",
+            () -> new SportsCarItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC).fireResistant()));
 
     // 奶蛙刷怪蛋 (滴滴代打保镖)
     public static final DeferredItem<DeferredSpawnEggItem> NAIWA_SPAWN_EGG = ITEMS.register("naiwa_spawn_egg",

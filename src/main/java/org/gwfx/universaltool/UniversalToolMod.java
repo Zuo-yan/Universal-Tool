@@ -51,6 +51,7 @@ public class UniversalToolMod {
                 event.register(org.gwfx.universaltool.lottery.LotteryValuatorGameTests.class);
                 event.register(org.gwfx.universaltool.wheelchair.AllTerrainWheelchairGameTests.class);
                 event.register(org.gwfx.universaltool.naiwa.NaiwaGameTests.class);
+                event.register(org.gwfx.universaltool.sportscar.SportsCarGameTests.class);
             });
         }
         ModAttachments.register(modEventBus);

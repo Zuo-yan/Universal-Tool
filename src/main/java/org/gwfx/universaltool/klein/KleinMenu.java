@@ -41,13 +41,14 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.init.ModMenuTypes;
 
 public final class KleinMenu extends AbstractContainerMenu {
-    public static final int GRID_X = 8, GRID_Y = 46, PLAYER_X = 9, PLAYER_Y = 154, HOTBAR_Y = 213;
+    public static final int GRID_X = 8, GRID_Y = 49, PLAYER_X = 9, PLAYER_Y = 158, HOTBAR_Y = 216;
     public static final int VISIBLE_ROWS = 5;
-    public static final int DRAWER_WIDTH = 118, DRAWER_HEIGHT = 88;
-    public static final int DRAWER_X = -122, DRAWER_Y = 74;
-    public static final int DRAWER_GRID_X = 11, DRAWER_GRID_Y = 26, DRAWER_SLOT_STEP = 18;
-    public static final int DRAWER_RESULT_X = 89, DRAWER_RESULT_Y = 44;
-    public static final int ANVIL_LEFT_X = 11, ANVIL_RIGHT_X = 50;
+    public static final int DRAWER_WIDTH = 116, DRAWER_HEIGHT = 105;
+    public static final int DRAWER_X = 195, DRAWER_Y = 105;
+    public static final int DRAWER_GRID_X = 9, DRAWER_GRID_Y = 31, DRAWER_SLOT_STEP = 18;
+    public static final int DRAWER_RESULT_X = 89, DRAWER_RESULT_Y = 49;
+    public static final int ANVIL_LEFT_X = 9, ANVIL_RIGHT_X = 47;
+    public static final int SMELT_X = 49, SMELT_INPUT_Y = 29, SMELT_OUTPUT_Y = 74;
 
     public static final int CRAFT_RESULT_SLOT = 36;
     public static final int CRAFT_GRID_START = 37;
@@ -127,8 +128,8 @@ public final class KleinMenu extends AbstractContainerMenu {
             addSlot(new DrawerSlot(craftSlots, col + row * 3, DRAWER_X + DRAWER_GRID_X + 1 + col * DRAWER_SLOT_STEP,
                     DRAWER_Y + DRAWER_GRID_Y + 1 + row * DRAWER_SLOT_STEP, DRAWER_CRAFTING));
         }
-        addSlot(new DrawerSlot(smeltInput, 0, DRAWER_X + 51, DRAWER_Y + 25, DRAWER_SMELTING));
-        addSlot(new OutputSlot(smeltOutput, 0, DRAWER_X + 51, DRAWER_Y + 62, DRAWER_SMELTING));
+        addSlot(new DrawerSlot(smeltInput, 0, DRAWER_X + SMELT_X + 1, DRAWER_Y + SMELT_INPUT_Y + 1, DRAWER_SMELTING));
+        addSlot(new OutputSlot(smeltOutput, 0, DRAWER_X + SMELT_X + 1, DRAWER_Y + SMELT_OUTPUT_Y + 1, DRAWER_SMELTING));
         addSlot(new DrawerSlot(anvilLeft, 0, DRAWER_X + ANVIL_LEFT_X + 1,
                 DRAWER_Y + DRAWER_RESULT_Y + 1, DRAWER_ANVIL));
         addSlot(new DrawerSlot(anvilRight, 0, DRAWER_X + ANVIL_RIGHT_X + 1,

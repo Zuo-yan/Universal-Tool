@@ -19,7 +19,7 @@ import org.lwjgl.glfw.GLFW;
 @EventBusSubscriber(modid = UniversalToolMod.MODID, value = Dist.CLIENT)
 public final class KleinKeybind {
     private static final KeyMapping OPEN = new KeyMapping("key.universal_tool.klein.open",
-            KeyConflictContext.UNIVERSAL, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, "key.categories.universal_tool");
+            KeyConflictContext.UNIVERSAL, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, "key.categories.universal_tool");
 
     public static net.minecraft.network.chat.Component getOpenKeyMessage() {
         return OPEN.getTranslatedKeyMessage();
@@ -34,7 +34,8 @@ public final class KleinKeybind {
     }
 
     @SubscribeEvent public static void keyInInventory(ScreenEvent.KeyPressed.Pre event) {
-        if (event.getScreen() instanceof InventoryScreen && OPEN.matches(event.getKeyCode(), event.getScanCode())) {
+        if (event.getScreen() instanceof InventoryScreen
+                && OPEN.isActiveAndMatches(InputConstants.getKey(event.getKeyCode(), event.getScanCode()))) {
             PacketDistributor.sendToServer(KleinOpenPayload.INSTANCE);
             event.setCanceled(true);
         }

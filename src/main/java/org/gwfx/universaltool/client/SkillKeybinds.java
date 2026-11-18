@@ -16,7 +16,7 @@ public final class SkillKeybinds {
             "key.universal_tool.skills.select",
             KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_V,
+            GLFW.GLFW_KEY_J,
             "key.categories.universal_tool");
     public static final KeyMapping CAST = new KeyMapping(
             "key.universal_tool.skills.cast",

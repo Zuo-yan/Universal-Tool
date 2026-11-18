@@ -12,6 +12,7 @@ import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
+import org.joml.Quaternionf;
 
 /**
  * 3D item renderer for {@code universal_tool:all_terrain_wheelchair} across GUI, ground, item frame, and hand views.
@@ -62,7 +63,7 @@ public final class WheelchairItemRenderer extends BlockEntityWithoutLevelRendere
                 true,
                 stack.hasFoil());
         model.render(poseStack, consumer, packedLight, packedOverlay,
-                0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F);
+                0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, new Quaternionf());
         poseStack.popPose();
     }
 

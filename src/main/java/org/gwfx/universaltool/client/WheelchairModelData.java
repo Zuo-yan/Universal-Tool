@@ -22,7 +22,7 @@ import java.util.Map;
 
 /**
  * Lazily loads {@code assets/universal_tool/models/entity/all_terrain_wheelchair.json}
- * and pre-bakes all 593 cubes (with per-cube Blockbench pivot rotations and UV scaling)
+ * and pre-bakes the cubes (with per-cube Blockbench pivot rotations and UV scaling)
  * into part-local quad batches for fast entity and 3D item rendering.
  */
 public final class WheelchairModelData {
@@ -46,19 +46,22 @@ public final class WheelchairModelData {
     private final BakedCaster casterLeft;
     private final BakedCaster casterRight;
     private final BakedPart joystick;
+    private final List<Nozzle> nozzles;
 
     private WheelchairModelData(BakedPart chassis,
                                 BakedPart wheelLeft,
                                 BakedPart wheelRight,
                                 BakedCaster casterLeft,
                                 BakedCaster casterRight,
-                                BakedPart joystick) {
+                                BakedPart joystick,
+                                List<Nozzle> nozzles) {
         this.chassis = chassis;
         this.wheelLeft = wheelLeft;
         this.wheelRight = wheelRight;
         this.casterLeft = casterLeft;
         this.casterRight = casterRight;
         this.joystick = joystick;
+        this.nozzles = nozzles;
     }
 
     /**
@@ -97,7 +100,8 @@ public final class WheelchairModelData {
                        float casterYaw,
                        float casterSpin,
                        float joystickPitch,
-                       float joystickRoll) {
+                       float joystickRoll,
+                       Quaternionf nozzleRotation) {
         Vector3f tmpPos = new Vector3f();
         Vector3f tmpNorm = new Vector3f();
 
@@ -107,6 +111,28 @@ public final class WheelchairModelData {
         renderCaster(poseStack, consumer, casterLeft, casterYaw, casterSpin, packedLight, packedOverlay, tmpPos, tmpNorm);
         renderCaster(poseStack, consumer, casterRight, casterYaw, casterSpin, packedLight, packedOverlay, tmpPos, tmpNorm);
         renderPart(poseStack, consumer, joystick, joystickPitch, 0.0F, joystickRoll, packedLight, packedOverlay, tmpPos, tmpNorm);
+        for (Nozzle nozzle : nozzles) {
+            poseStack.pushPose();
+            nozzle.applyPose(poseStack, nozzleRotation);
+            emitQuads(poseStack.last(), consumer, nozzle.geometry.quads, packedLight, packedOverlay, tmpPos, tmpNorm);
+            poseStack.popPose();
+        }
+    }
+
+    List<Nozzle> nozzles() {
+        return nozzles;
+    }
+
+    record Nozzle(BakedPart geometry, float outletZ) {
+        void applyPose(PoseStack stack, Quaternionf rotation) {
+            stack.translate(geometry.originX, geometry.originY, geometry.originZ);
+            stack.mulPose(rotation);
+        }
+
+        Vector3f outlet(Quaternionf rotation) {
+            return rotation.transform(new Vector3f(0.0F, 0.0F, outletZ))
+                    .add(geometry.originX, geometry.originY, geometry.originZ);
+        }
     }
 
     private static void renderPart(PoseStack poseStack,
@@ -238,7 +264,16 @@ public final class WheelchairModelData {
             BakedCaster casterRight = bakeCaster(parts.getAsJsonObject("caster_right"), uvRefW, uvRefH);
             BakedPart joystick = bakePart(parts.getAsJsonObject("joystick"), uvRefW, uvRefH);
 
-            return new WheelchairModelData(chassis, wheelLeft, wheelRight, casterLeft, casterRight, joystick);
+            List<Nozzle> nozzles = new ArrayList<>(2);
+            for (String name : List.of("nozzle_left", "nozzle_right")) {
+                JsonObject part = parts.getAsJsonObject(name);
+                if (part != null) {
+                    nozzles.add(new Nozzle(bakePart(part, uvRefW, uvRefH),
+                            part.get("outlet_z").getAsFloat() / UNITS_PER_BLOCK));
+                }
+            }
+            return new WheelchairModelData(chassis, wheelLeft, wheelRight, casterLeft, casterRight,
+                    joystick, List.copyOf(nozzles));
         } catch (Exception e) {
             UniversalToolMod.LOGGER.error("Failed to load All-Terrain Wheelchair model from {}", MODEL_LOCATION, e);
             return null;

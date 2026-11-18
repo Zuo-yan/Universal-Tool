@@ -30,7 +30,6 @@ import net.minecraft.world.entity.vehicle.DismountHelper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -77,6 +76,8 @@ public class AllTerrainWheelchairEntity extends Entity {
             SynchedEntityData.defineId(AllTerrainWheelchairEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Boolean> DATA_BOOSTING =
             SynchedEntityData.defineId(AllTerrainWheelchairEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> DATA_JUMP_EXHAUST =
+            SynchedEntityData.defineId(AllTerrainWheelchairEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Float> DATA_STEER =
             SynchedEntityData.defineId(AllTerrainWheelchairEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Float> DATA_THROTTLE =
@@ -93,6 +94,9 @@ public class AllTerrainWheelchairEntity extends Entity {
     public static final double SUPPORT_CHECK_DISTANCE = 0.40D;
     public static final double JUMP_NORMAL_IMPULSE = 0.62D;
     public static final double JUMP_FORWARD_IMPULSE = 0.35D;
+    private static final double JET_LIFT_ACCELERATION = 0.11D;
+    private static final double JET_CLIMB_SPEED = 0.42D;
+    private static final double LAVA_RIDE_DEPTH = 0.16D;
     public static final float RAM_DAMAGE = 12.0F;
     public static final double RAM_INFLATE = 0.65D;
     public static final double RAM_KNOCKBACK_FORWARD = 1.4D;
@@ -107,8 +111,7 @@ public class AllTerrainWheelchairEntity extends Entity {
     // Server input state
     private float serverThrottle;
     private float serverSteer;
-    private boolean serverJumping;
-    private boolean pendingServerJump;
+    private final WheelchairJump jump = new WheelchairJump();
     private boolean serverBoosting;
     private boolean prevServerBoostingActive;
 
@@ -164,7 +167,8 @@ public class AllTerrainWheelchairEntity extends Entity {
             DamageSource source = event.getSource();
             if (source.is(DamageTypes.IN_WALL)
                     || source.is(DamageTypes.FALL)
-                    || source.is(DamageTypes.FLY_INTO_WALL)) {
+                    || source.is(DamageTypes.FLY_INTO_WALL)
+                    || source.is(DamageTypes.LAVA)) {
                 event.setCanceled(true);
             }
         }
@@ -175,6 +179,7 @@ public class AllTerrainWheelchairEntity extends Entity {
         builder.define(DATA_ATTACHED_FACE, Direction.DOWN);
         builder.define(DATA_SLOPE_PITCH, 0.0F);
         builder.define(DATA_BOOSTING, false);
+        builder.define(DATA_JUMP_EXHAUST, -1);
         builder.define(DATA_STEER, 0.0F);
         builder.define(DATA_THROTTLE, 0.0F);
         builder.define(DATA_WHEELCHAIR_YAW, 0.0F);
@@ -245,13 +250,23 @@ public class AllTerrainWheelchairEntity extends Entity {
     }
 
     public boolean isBoosting() {
+        if (getJumpExhaust() != null) {
+            return false;
+        }
         if (this.entityData.get(DATA_BOOSTING)) {
             return true;
         }
         return level().isClientSide
                 && this.clientInputTtl > 0
+                && !this.clientJumping
                 && this.clientBoosting
                 && Math.abs(this.clientThrottle) > 0.05F;
+    }
+
+    @Nullable
+    public Direction getJumpExhaust() {
+        int direction = this.entityData.get(DATA_JUMP_EXHAUST);
+        return direction < 0 ? null : Direction.from3DDataValue(direction);
     }
 
     public void applyClientInput(float throttle, float steer, boolean jumping, boolean boosting) {
@@ -265,10 +280,7 @@ public class AllTerrainWheelchairEntity extends Entity {
     public void setServerInput(float throttle, float steer, boolean jumping, boolean boosting) {
         this.serverThrottle = sanitizeUnitAxis(throttle);
         this.serverSteer = sanitizeUnitAxis(steer);
-        this.serverJumping = jumping;
-        if (jumping) {
-            this.pendingServerJump = true;
-        }
+        this.jump.input(jumping);
         this.serverBoosting = boosting;
     }
 
@@ -451,9 +463,6 @@ public class AllTerrainWheelchairEntity extends Entity {
             this.reapplyPosition();
         }
 
-        if (isBoosting() && Math.abs(getEffectiveThrottle()) > 0.05F) {
-            spawnThrusterParticlesClient();
-        }
     }
 
     private void tickServer() {
@@ -461,10 +470,15 @@ public class AllTerrainWheelchairEntity extends Entity {
         float yaw = getWheelchairYaw();
         float throttle = this.serverThrottle;
         float steer = this.serverSteer;
-        boolean boostingInput = this.serverBoosting;
-        boolean boostingActive = boostingInput && Math.abs(throttle) > 0.05F;
-        boolean wantJump = this.serverJumping || this.pendingServerJump;
-        this.pendingServerJump = false;
+        boolean supported = hasSurfaceSupport(face);
+        boolean inWater = isInWater();
+        boolean onLava = face == Direction.DOWN && isInLava();
+        boolean canJumpFromFluid = inWater || onLava;
+        WheelchairJump.Thrust thrust = jump.step(
+                detachCooldownTicks == 0 && jumpCooldownTicks == 0 && (supported || onGround() || canJumpFromFluid),
+                face);
+        boolean boostingActive = !thrust.active() && serverBoosting && Math.abs(throttle) > 0.05F;
+        this.entityData.set(DATA_JUMP_EXHAUST, thrust.active() ? thrust.exhaust().get3DDataValue() : -1);
 
         if (boostingActive && !this.prevServerBoostingActive) {
             if (getFirstPassenger() instanceof ServerPlayer player) {
@@ -487,11 +501,9 @@ public class AllTerrainWheelchairEntity extends Entity {
 
         Vec3 normal = computeNormal(face);
         Vec3 forward = computeForward(face, yaw);
-        boolean supported = hasSurfaceSupport(face);
-        boolean inWater = isInWater();
 
         // Jump action
-        if (wantJump && this.jumpCooldownTicks == 0 && (supported || onGround() || inWater)) {
+        if (thrust.launch()) {
             Vec3 launchVel = normal.scale(JUMP_NORMAL_IMPULSE).add(forward.scale(JUMP_FORWARD_IMPULSE));
             setDeltaMovement(launchVel);
             if (face != Direction.DOWN) {
@@ -514,6 +526,9 @@ public class AllTerrainWheelchairEntity extends Entity {
         // Compute velocity in current tangent frame
         Vec3 vel = getDeltaMovement();
         double normalSpeed = vel.dot(normal);
+        if (thrust.lift()) {
+            normalSpeed = Math.max(normalSpeed, Math.min(JET_CLIMB_SPEED, normalSpeed + JET_LIFT_ACCELERATION));
+        }
         Vec3 tangentVel = vel.subtract(normal.scale(normalSpeed));
         double maxSpeed = boostingActive ? BOOST_MAX_SPEED : BASE_MAX_SPEED;
 
@@ -525,7 +540,7 @@ public class AllTerrainWheelchairEntity extends Entity {
             double newFwd = Mth.lerp(accelFactor, curFwd, throttle * maxSpeed);
             tangentVel = forward.scale(newFwd).add(lateral.scale(0.25D));
         } else {
-            double damping = (supported || onGround() || inWater) ? 0.65D : 0.96D;
+            double damping = (supported || onGround() || canJumpFromFluid) ? 0.65D : 0.96D;
             tangentVel = tangentVel.scale(damping);
             if (tangentVel.lengthSqr() < 2.5E-5D) {
                 tangentVel = Vec3.ZERO;
@@ -533,8 +548,15 @@ public class AllTerrainWheelchairEntity extends Entity {
         }
 
         // Normal force (magnetic downforce vs buoyancy vs gravity)
-        if (this.detachCooldownTicks > 0) {
+        if (this.detachCooldownTicks > 0 || thrust.active()) {
             normalSpeed -= AIR_GRAVITY;
+        } else if (onLava) {
+            // Regulate immersion so the wheels stay at the lava surface and the seat stays above it.
+            double lavaHeight = getFluidHeight(FluidTags.LAVA);
+            normalSpeed = Mth.clamp((lavaHeight - LAVA_RIDE_DEPTH) * 0.55D, -0.12D, 0.35D);
+            if (getFirstPassenger() instanceof LivingEntity rider && rider.isInLava()) {
+                rider.clearFire();
+            }
         } else if (supported) {
             normalSpeed = -DOWNFORCE;
         } else if (inWater && face == Direction.DOWN) {
@@ -564,7 +586,7 @@ public class AllTerrainWheelchairEntity extends Entity {
 
         // Track 1-block step-up slope pitch on floor
         boolean steppedUp = false;
-        if (face == Direction.DOWN && this.detachCooldownTicks == 0
+        if (face == Direction.DOWN && this.detachCooldownTicks == 0 && !thrust.active() && !onLava
                 && actualDelta.y > 0.20D && normalSpeed <= 0.05D) {
             steppedUp = true;
             float pitch = throttle < -0.05F ? 35.0F : -35.0F;
@@ -583,7 +605,8 @@ public class AllTerrainWheelchairEntity extends Entity {
 
         // Concave surface climb check (Floor -> Wall -> Ceiling, Wall -> Wall, Ceiling -> Wall)
         boolean transitioned = false;
-        if (!steppedUp && this.detachCooldownTicks == 0 && travelDir != null && Math.abs(throttle) > 0.05F) {
+        if (!steppedUp && this.detachCooldownTicks == 0 && !thrust.active()
+                && travelDir != null && Math.abs(throttle) > 0.05F) {
             double desiredFwdDist = tangentVel.dot(travelDir);
             double actualFwdDist = actualDelta.dot(travelDir);
             if (desiredFwdDist > 0.03D && actualFwdDist < desiredFwdDist * 0.85D) {
@@ -810,31 +833,6 @@ public class AllTerrainWheelchairEntity extends Entity {
         }
     }
 
-    private void spawnThrusterParticlesClient() {
-        Vec3 center = getWheelchairCenter(1.0F);
-        Quaternionf orient = getRenderOrientation(1.0F);
-        Vector3f exhaustDir = new Vector3f(0.0F, 0.0F, 1.0F);
-        orient.transform(exhaustDir);
-
-        for (float side : new float[]{-0.24F, 0.24F}) {
-            Vector3f nozzleLocal = new Vector3f(side, -0.34F, 0.58F);
-            orient.transform(nozzleLocal);
-            double px = center.x + nozzleLocal.x;
-            double py = center.y + nozzleLocal.y;
-            double pz = center.z + nozzleLocal.z;
-
-            double vx = exhaustDir.x * 0.28D + (this.random.nextDouble() - 0.5D) * 0.04D;
-            double vy = exhaustDir.y * 0.28D + (this.random.nextDouble() - 0.5D) * 0.04D;
-            double vz = exhaustDir.z * 0.28D + (this.random.nextDouble() - 0.5D) * 0.04D;
-
-            level().addParticle(ParticleTypes.SOUL_FIRE_FLAME, px, py, pz, vx, vy, vz);
-            if ((this.tickCount & 1) == 0) {
-                level().addParticle(ParticleTypes.END_ROD, px, py, pz, vx * 0.7D, vy * 0.7D, vz * 0.7D);
-            }
-            level().addParticle(ParticleTypes.ELECTRIC_SPARK, px, py, pz, vx * 1.1D, vy * 1.1D, vz * 1.1D);
-        }
-    }
-
     private void updateOrientationTracking() {
         Direction face = getAttachedFace();
         float yaw = getWheelchairYaw();
@@ -995,14 +993,14 @@ public class AllTerrainWheelchairEntity extends Entity {
         if (getPassengers().isEmpty()) {
             this.serverThrottle = 0.0F;
             this.serverSteer = 0.0F;
-            this.serverJumping = false;
-            this.pendingServerJump = false;
+            this.jump.reset();
             this.serverBoosting = false;
             this.prevServerBoostingActive = false;
             if (!level().isClientSide) {
                 this.entityData.set(DATA_THROTTLE, 0.0F);
                 this.entityData.set(DATA_STEER, 0.0F);
                 this.entityData.set(DATA_BOOSTING, false);
+                this.entityData.set(DATA_JUMP_EXHAUST, -1);
             }
         }
     }

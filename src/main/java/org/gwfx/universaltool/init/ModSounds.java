@@ -21,6 +21,27 @@ public final class ModSounds {
                     ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
                             "entity.naiwa.laugh")));
 
+    // 海湾 GT 跑车音效
+    public static final DeferredHolder<SoundEvent, SoundEvent> SPORTS_CAR_ENGINE =
+            SOUNDS.register("sports_car_engine", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
+                            "sports_car_engine")));
+
+    public static final DeferredHolder<SoundEvent, SoundEvent> SPORTS_CAR_DRIFT =
+            SOUNDS.register("sports_car_drift", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
+                            "sports_car_drift")));
+
+    public static final DeferredHolder<SoundEvent, SoundEvent> SPORTS_CAR_NITRO =
+            SOUNDS.register("sports_car_nitro", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
+                            "sports_car_nitro")));
+
+    public static final DeferredHolder<SoundEvent, SoundEvent> SPORTS_CAR_DOOR =
+            SOUNDS.register("sports_car_door", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
+                            "sports_car_door")));
+
     private ModSounds() {
     }
 }

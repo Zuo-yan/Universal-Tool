@@ -5,6 +5,7 @@ import com.november.mcphone.api.client.ui.IPhonePage;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.naiwa.DidiAppPurchase;
 
 /**
  * MCphone App Store entry for "滴滴代打" (Didi Daida), allowing players to summon
@@ -12,8 +13,6 @@ import org.gwfx.universaltool.UniversalToolMod;
  */
 public final class DidiDaidaApp implements IPhoneApp {
 
-    private static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(
-            UniversalToolMod.MODID, "didi_daida");
     private static final ResourceLocation ICON = ResourceLocation.fromNamespaceAndPath(
             UniversalToolMod.MODID, "textures/app/didi_daida.png");
 
@@ -22,7 +21,7 @@ public final class DidiDaidaApp implements IPhoneApp {
 
     @Override
     public ResourceLocation getId() {
-        return ID;
+        return DidiAppPurchase.APP_ID;
     }
 
     @Override
@@ -42,7 +41,7 @@ public final class DidiDaidaApp implements IPhoneApp {
 
     @Override
     public String getVersion() {
-        return "1.0.0";
+        return "1.1.0";
     }
 
     @Override

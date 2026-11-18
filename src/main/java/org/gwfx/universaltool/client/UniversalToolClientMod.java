@@ -3,6 +3,7 @@ package org.gwfx.universaltool.client;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.minecraft.world.level.Level;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -10,12 +11,16 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.client.sportscar.SportsCarItemRenderer;
+import org.gwfx.universaltool.client.sportscar.SportsCarModelData;
+import org.gwfx.universaltool.client.sportscar.SportsCarRenderer;
 import org.gwfx.universaltool.init.ModBlockEntities;
 import org.gwfx.universaltool.init.ModEntities;
 import org.gwfx.universaltool.init.ModItems;
@@ -95,12 +100,22 @@ public final class UniversalToolClientMod {
                 AllTerrainWheelchairRenderer::new);
         event.registerEntityRenderer(ModEntities.NAIWA.get(),
                 NaiwaRenderer::new);
+        event.registerEntityRenderer(ModEntities.GULF_GT_CAR.get(),
+                SportsCarRenderer::new);
     }
 
     @SubscribeEvent
     public static void registerClientExtensions(RegisterClientExtensionsEvent event) {
         event.registerItem(WheelchairItemRenderer.WheelchairItemExtensions.INSTANCE,
                 ModItems.ALL_TERRAIN_WHEELCHAIR.get());
+        event.registerItem(SportsCarItemRenderer.SportsCarItemExtensions.INSTANCE,
+                ModItems.GULF_GT_CAR.get());
+    }
+
+    @SubscribeEvent
+    public static void registerReloadListeners(RegisterClientReloadListenersEvent event) {
+        // 资源包重载时清理海湾 GT 跑车预烘焙缓存，确保模型与贴图变更即时生效
+        event.registerReloadListener((ResourceManagerReloadListener) resourceManager -> SportsCarModelData.invalidate());
     }
 
     @SubscribeEvent

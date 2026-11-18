@@ -2,6 +2,8 @@ package org.gwfx.universaltool.naiwa;
 
 import com.mojang.authlib.GameProfile;
 import com.november.mcphone.api.client.app.IPhoneApp;
+import com.november.mcphone.core.PhonePlayerData;
+import com.november.mcphone.feature.store.AppPriceRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
@@ -21,6 +23,8 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -45,37 +49,52 @@ public final class NaiwaGameTests {
     }
 
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void didiOrderSummonOneAndThreeSpawnsOwnedNaiwas(GameTestHelper helper) {
+    public static void didiOrdersChargeOnlySuccessfulPaidDispatches(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        BlockPos center = helper.absolutePos(new BlockPos(1, 1, 1));
-        for (int x = 0; x <= 2; x++) {
-            for (int z = 0; z <= 2; z++) {
-                level.setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 1, z)), Blocks.STONE.defaultBlockState());
-            }
-        }
-
+        BlockPos center = helper.absolutePos(new BlockPos(1, 12, 1));
         ServerPlayer player = mockPlayer(level.getServer(), level, "didi-summon-test");
-        player.setPos(center.getX() + 0.5D, center.getY() + 1.0D, center.getZ() + 0.5D);
+        player.setPos(center.getX() + 0.5, center.getY(), center.getZ() + 0.5);
+        player.getInventory().setItem(0, new ItemStack(Items.EMERALD, 28));
 
-        DidiOrderPayload.executeOrder(player, DidiOrderPayload.ACTION_SUMMON_ONE);
-        List<NaiwaEntity> afterOne = findOwned(level, player, 24.0D);
-        helper.assertTrue(afterOne.size() == 1,
-                "SUMMON_ONE must spawn 1 owned NaiwaEntity, got " + afterOne.size());
-        helper.assertTrue(afterOne.get(0).isLaughing(),
-                "Newly airdropped Naiwa must start with debut laugh");
+        DidiStatusPayload locked = order(player, DidiOrderPayload.ACTION_SUMMON_ONE);
+        helper.assertTrue(locked.result().equals("purchase_required") && emeralds(player) == 28,
+                "A player without the app must not place a paid order");
+        grantDidiAccess(player);
 
-        DidiOrderPayload.executeOrder(player, DidiOrderPayload.ACTION_SUMMON_THREE);
-        List<NaiwaEntity> afterThree = findOwned(level, player, 24.0D);
-        helper.assertTrue(afterThree.size() == 4,
-                "SUMMON_THREE must spawn 3 more owned NaiwaEntitys (total 4), got " + afterThree.size());
-
-        for (NaiwaEntity n : afterThree) {
-            helper.assertTrue(player.getUUID().equals(n.getOwnerUuid()),
-                    "Every summoned Naiwa must record owner UUID");
-            helper.assertTrue(n.getOrderMode() == NaiwaEntity.MODE_FOLLOW,
-                    "Default order mode must be MODE_FOLLOW");
-            n.discard();
+        BlockPos drop = BlockPos.containing(player.getX(), player.getY(), player.getZ() + 3);
+        for (int height = 0; height <= 8; height++) {
+            level.setBlockAndUpdate(drop.above(height), Blocks.STONE.defaultBlockState());
         }
+        DidiStatusPayload failed = order(player, DidiOrderPayload.ACTION_SUMMON_ONE);
+        helper.assertTrue(failed.result().equals("dispatch_failed") && emeralds(player) == 28,
+                "A blocked drop site must leave the player's emeralds and order unchanged");
+        for (int height = 0; height <= 8; height++) {
+            level.setBlockAndUpdate(drop.above(height), Blocks.AIR.defaultBlockState());
+        }
+
+        DidiStatusPayload single = order(player, DidiOrderPayload.ACTION_SUMMON_ONE);
+        List<NaiwaEntity> afterOne = findOwned(level, player, 24.0);
+        helper.assertTrue(single.remainingTicks() == DidiOrderBook.DURATION && afterOne.size() == 1
+                        && emeralds(player) == 20 && afterOne.getFirst().isLaughing(),
+                "A single dispatch must charge 8 emeralds and start one two-minute rental: " + single);
+        DidiStatusPayload duplicate = order(player, DidiOrderPayload.ACTION_SUMMON_THREE);
+        helper.assertTrue(duplicate.result().equals("active_order") && emeralds(player) == 20,
+                "A second dispatch must leave the active order and inventory unchanged");
+
+        afterOne.getFirst().die(level.damageSources().generic());
+        helper.assertTrue(order(player, DidiOrderPayload.ACTION_STATUS).remainingTicks() == 0,
+                "The order must end when its last member dies");
+        afterOne.getFirst().discard();
+
+        DidiStatusPayload three = order(player, DidiOrderPayload.ACTION_SUMMON_THREE);
+        List<NaiwaEntity> squad = findOwned(level, player, 24.0);
+        helper.assertTrue(three.squadSize() == 3 && squad.size() == 3 && emeralds(player) == 0,
+                "The squad dispatch must charge 20 emeralds for three owned Naiwa: " + three);
+        order(player, DidiOrderPayload.ACTION_DISMISS_ALL);
+        helper.assertTrue(squad.stream().allMatch(NaiwaEntity::isRemoved) && emeralds(player) == 0,
+                "Closing a completed dispatch must recall the squad without a refund");
+        DidiStatusPayload unaffordable = order(player, DidiOrderPayload.ACTION_SUMMON_ONE);
+        helper.assertTrue(unaffordable.result().equals("cannot_afford"), "An empty inventory must reject a new order");
         helper.succeed();
     }
 
@@ -168,59 +187,57 @@ public final class NaiwaGameTests {
     }
 
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void didiOrderModeToggleUltimateAndDismissAll(GameTestHelper helper) {
+    public static void didiOrdersUseOneUltimateAndPreserveOldNaiwa(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        for (int x = -3; x <= 5; x++) {
-            for (int z = -3; z <= 5; z++) {
-                level.setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 1, z)), Blocks.STONE.defaultBlockState());
-                for (int y = 2; y <= 4; y++) {
-                    level.setBlockAndUpdate(helper.absolutePos(new BlockPos(x, y, z)), Blocks.AIR.defaultBlockState());
-                }
-            }
-        }
-        BlockPos base = helper.absolutePos(new BlockPos(1, 1, 1));
+        BlockPos base = helper.absolutePos(new BlockPos(1, 12, 1));
         ServerPlayer player = mockPlayer(level.getServer(), level, "didi-commands-test");
-        player.setPos(base.getX() + 0.5D, base.getY() + 1.0D, base.getZ() + 0.5D);
+        player.setPos(base.getX() + 0.5, base.getY(), base.getZ() + 0.5);
+        grantDidiAccess(player);
+        player.getInventory().setItem(0, new ItemStack(Items.EMERALD, 20));
 
-        NaiwaEntity n1 = ModEntities.NAIWA.get().create(level);
-        NaiwaEntity n2 = ModEntities.NAIWA.get().create(level);
-        helper.assertTrue(n1 != null && n2 != null, "NaiwaEntity instances must create");
-        n1.setPos(base.getX() + 0.5D, base.getY() + 1.0D, base.getZ() + 0.5D);
-        n2.setPos(base.getX() + 30.5D, base.getY() + 1.0D, base.getZ() + 0.5D);
-        n1.setOwnerUuid(player.getUUID());
-        n2.setOwnerUuid(player.getUUID());
-        n1.setOrderMode(NaiwaEntity.MODE_FOLLOW);
-        n2.setOrderMode(NaiwaEntity.MODE_FOLLOW);
-        level.addFreshEntity(n1);
-        level.addFreshEntity(n2);
+        NaiwaEntity pet = ModEntities.NAIWA.get().create(level);
+        helper.assertTrue(pet != null, "An existing owned Naiwa must instantiate");
+        pet.setPos(player.getX(), player.getY(), player.getZ());
+        pet.setOwnerUuid(player.getUUID());
+        level.addFreshEntity(pet);
 
-        // Toggle to PATROL
-        DidiOrderPayload.executeOrder(player, DidiOrderPayload.ACTION_MODE_PATROL);
-        helper.assertTrue(n1.getOrderMode() == NaiwaEntity.MODE_PATROL
-                        && n2.getOrderMode() == NaiwaEntity.MODE_PATROL,
-                "ACTION_MODE_PATROL must switch all owned Naiwas to MODE_PATROL");
+        DidiStatusPayload dispatch = order(player, DidiOrderPayload.ACTION_SUMMON_THREE);
+        helper.assertTrue(dispatch.squadSize() == 3, "A squad must dispatch: " + dispatch);
+        List<NaiwaEntity> squad = findOwned(level, player, 24.0).stream()
+                .filter(naiwa -> naiwa.getDidiOrderId() != null).toList();
 
-        // Toggle back to FOLLOW (and teleport far n2 closer)
-        DidiOrderPayload.executeOrder(player, DidiOrderPayload.ACTION_MODE_FOLLOW);
-        helper.assertTrue(n1.getOrderMode() == NaiwaEntity.MODE_FOLLOW
-                        && n2.getOrderMode() == NaiwaEntity.MODE_FOLLOW,
-                "ACTION_MODE_FOLLOW must switch all owned Naiwas to MODE_FOLLOW");
-        helper.assertTrue(n2.distanceTo(player) < 12.0D,
-                "ACTION_MODE_FOLLOW must teleport distant Naiwa near owner, dist=" + n2.distanceTo(player));
+        order(player, DidiOrderPayload.ACTION_MODE_PATROL);
+        helper.assertTrue(squad.stream().allMatch(naiwa -> naiwa.getOrderMode() == NaiwaEntity.MODE_PATROL)
+                        && pet.getOrderMode() == NaiwaEntity.MODE_FOLLOW,
+                "Patrol control must target only this order's squad");
+        order(player, DidiOrderPayload.ACTION_MODE_FOLLOW);
+        helper.assertTrue(squad.stream().allMatch(naiwa -> naiwa.getOrderMode() == NaiwaEntity.MODE_FOLLOW),
+                "Follow control must target the whole squad");
 
-        // Ultimate laugh
-        DidiOrderPayload.executeOrder(player, DidiOrderPayload.ACTION_ULTIMATE_LAUGH);
-        helper.assertTrue(n1.isLaughing() && n2.isLaughing(),
-                "ACTION_ULTIMATE_LAUGH must trigger laughing on all owned Naiwas");
+        DidiStatusPayload ultimate = order(player, DidiOrderPayload.ACTION_ULTIMATE_LAUGH);
+        helper.assertTrue(ultimate.ultimateUsed() && squad.stream().allMatch(NaiwaEntity::isSonicCombatActive),
+                "The first ultimate must start the squad's sonic attack");
+        helper.assertTrue(order(player, DidiOrderPayload.ACTION_ULTIMATE_LAUGH).result().equals("ultimate_used"),
+                "An order must reject a second ultimate");
 
-        // Dismiss all
-        DidiOrderPayload.executeOrder(player, DidiOrderPayload.ACTION_DISMISS_ALL);
-        helper.assertTrue(n1.isRemoved() && n2.isRemoved(),
-                "ACTION_DISMISS_ALL must discard all owned Naiwas");
-        helper.assertTrue(findOwned(level, player, 96.0D).isEmpty(),
-                "No owned Naiwas may remain after ACTION_DISMISS_ALL");
-
+        player.die(level.damageSources().generic());
+        helper.assertTrue(squad.stream().allMatch(NaiwaEntity::isRemoved) && pet.isAlive(),
+                "Player death must recall the rented squad and preserve old companions");
+        pet.discard();
         helper.succeed();
+    }
+
+    private static DidiStatusPayload order(ServerPlayer player, int action) {
+        return DidiOrderPayload.executeOrder(player, action);
+    }
+
+    private static int emeralds(ServerPlayer player) {
+        return player.getInventory().countItem(Items.EMERALD);
+    }
+
+    private static void grantDidiAccess(ServerPlayer player) {
+        PhonePlayerData data = PhonePlayerData.of(player);
+        data.setPurchasedApps(data.purchasedApps().with(DidiAppPurchase.APP_ID));
     }
 
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 60)
@@ -250,6 +267,7 @@ public final class NaiwaGameTests {
         }
         helper.assertTrue(didiApp != null,
                 "ServiceLoader.load(IPhoneApp.class) must discover " + didiId);
+        helper.assertTrue(AppPriceRegistry.isPaid(didiId), "Didi must be marked paid by the native MCphone store");
         helper.assertTrue(!didiApp.isPreinstalled(),
                 "DidiDaidaApp must have isPreinstalled() == false (App Store installable)");
         helper.assertTrue(snakeApp != null,

@@ -3,6 +3,7 @@ package org.gwfx.universaltool.client;
 import net.minecraft.core.Direction;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.gwfx.universaltool.naiwa.NaiwaLaughSoundPayload;
+import org.gwfx.universaltool.naiwa.DidiStatusPayload;
 import org.gwfx.universaltool.network.CounterGuardEffectPayload;
 import org.gwfx.universaltool.network.ModPacketHandler;
 import org.gwfx.universaltool.network.OpenSkillScreenPayload;
@@ -41,6 +42,8 @@ public final class ClientPayloadHandlers {
         ModPacketHandler.registerClientHandler(OpenSkillScreenPayload.TYPE, ClientPayloadHandlers::handleOpenSkillScreen);
         ModPacketHandler.registerClientHandler(WormholeLiveVistaPayload.TYPE, ClientPayloadHandlers::handleWormholeLiveVista);
         ModPacketHandler.registerClientHandler(NaiwaLaughSoundPayload.TYPE, ClientPayloadHandlers::handleNaiwaLaughSound);
+        ModPacketHandler.registerClientHandler(DidiStatusPayload.TYPE,
+                (payload, context) -> context.enqueueWork(() -> DidiDaidaPage.receiveStatus(payload)));
     }
 
     public static void handleNaiwaLaughSound(NaiwaLaughSoundPayload payload, IPayloadContext context) {

@@ -13,6 +13,10 @@
     "PersonalHolderSetNamedMixin",
     "PersonalReloadableResourcesMixin"
   ],
+  "client": [
+    "ClientOptionsMixin",
+    "PhoneKeyDefaultsMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

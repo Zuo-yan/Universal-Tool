@@ -82,6 +82,8 @@ public class NaiwaEntity extends PathfinderMob implements OwnableEntity {
     private boolean sonicCombatActive;
     private boolean ultimateMode;
     private boolean pendingAirdropLanding;
+    @Nullable
+    private UUID didiOrderId;
 
     // Client-side animation timer tracking smooth progress within a laugh burst
     private int clientLaughAnimTicks;
@@ -141,6 +143,11 @@ public class NaiwaEntity extends PathfinderMob implements OwnableEntity {
 
     @Override
     public void tick() {
+        if (didiOrderId != null && isAlive() && level() instanceof ServerLevel server
+                && !DidiOrderBook.get(server).isServing(server, this)) {
+            withdrawFromOrder();
+            return;
+        }
         super.tick();
         if (this.level().isClientSide) {
             if (isLaughing()) {
@@ -579,6 +586,9 @@ public class NaiwaEntity extends PathfinderMob implements OwnableEntity {
             tag.putUUID("OwnerUUID", ownerId);
         }
         tag.putInt("OrderMode", getOrderMode());
+        if (didiOrderId != null) {
+            tag.putUUID("DidiOrder", didiOrderId);
+        }
     }
 
     @Override
@@ -592,6 +602,32 @@ public class NaiwaEntity extends PathfinderMob implements OwnableEntity {
         if (tag.contains("OrderMode")) {
             setOrderMode(tag.getInt("OrderMode"));
         }
+        didiOrderId = tag.hasUUID("DidiOrder") ? tag.getUUID("DidiOrder") : null;
+    }
+
+    @Nullable
+    UUID getDidiOrderId() {
+        return didiOrderId;
+    }
+
+    void setDidiOrderId(UUID id) {
+        didiOrderId = id;
+    }
+
+    @Override
+    public boolean canUsePortal(boolean allowPassengers) {
+        return didiOrderId == null && super.canUsePortal(allowPassengers);
+    }
+
+    void withdrawFromOrder() {
+        if (isRemoved()) {
+            return;
+        }
+        if (level() instanceof ServerLevel server) {
+            server.sendParticles(ParticleTypes.CLOUD, getX(), getY() + 0.9, getZ(), 10, 0.45, 0.45, 0.45, 0.05);
+        }
+        stopLaughingSound();
+        discard();
     }
 
     public boolean isLaughing() {

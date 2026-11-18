@@ -379,6 +379,81 @@ public final class AllTerrainWheelchairGameTests {
         helper.succeed();
     }
 
+    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 40)
+    public static void jumpThrustersRespectHoldBudgetAndRelease(GameTestHelper helper) {
+        WheelchairJump jump = new WheelchairJump();
+        jump.input(true);
+        jump.input(false);
+        helper.assertTrue(jump.step(true, Direction.DOWN).launch(), "A quick tap must launch");
+        helper.assertTrue(!jump.step(false, Direction.DOWN).active(), "A tap must not sustain lift");
+
+        jump.input(true);
+        helper.assertTrue(jump.step(true, Direction.UP).exhaust() == Direction.UP,
+                "A ceiling takeoff must exhaust toward the ceiling first");
+        for (int tick = 0; tick < WheelchairJump.SUSTAIN_TICKS; tick++) {
+            WheelchairJump.Thrust thrust = jump.step(false, Direction.DOWN);
+            helper.assertTrue(thrust.active(), "Holding jump must sustain exhaust during the thrust budget");
+            if (tick >= 4) {
+                helper.assertTrue(thrust.lift() && thrust.exhaust() == Direction.DOWN,
+                        "After clearing a ceiling, sustained thrust must lift the chair");
+            }
+        }
+        helper.assertTrue(!jump.step(true, Direction.DOWN).active(), "Holding after landing must not start another jump");
+        jump.input(false);
+        jump.input(true);
+        helper.assertTrue(jump.step(true, Direction.DOWN).launch(), "The next press on a surface must launch");
+        jump.input(false);
+        helper.assertTrue(!jump.step(false, Direction.DOWN).active(), "Releasing jump must stop thrust immediately");
+        jump.input(true);
+        helper.assertTrue(!jump.step(false, Direction.DOWN).active(), "A press in free air must not start another jump");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 90)
+    public static void wheelchairFloatsAndDrivesWithRiderOnLava(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(new BlockPos(1, 12, 1));
+        List<ChunkPos> forced = forceChunksForRegion(level, center.offset(-2, 0, -8), center.offset(2, 0, 3));
+        for (int x = -2; x <= 2; x++) {
+            for (int z = -8; z <= 3; z++) {
+                BlockPos base = center.offset(x, 0, z);
+                level.setBlockAndUpdate(base.below(2), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(base.below(), Blocks.LAVA.defaultBlockState());
+                level.setBlockAndUpdate(base, Blocks.LAVA.defaultBlockState());
+                level.setBlockAndUpdate(base.above(), Blocks.AIR.defaultBlockState());
+            }
+        }
+        AllTerrainWheelchairEntity chair = ModEntities.ALL_TERRAIN_WHEELCHAIR.get().create(level);
+        helper.assertTrue(chair != null && chair.fireImmune(), "The wheelchair must be lava resistant");
+        chair.setPos(center.getX() + 0.5, center.getY() + 0.6, center.getZ() + 0.5);
+        chair.setWheelchairYaw(180.0F);
+        level.addFreshEntity(chair);
+        ServerPlayer rider = mockPlayer(level.getServer(), level, "wheelchair-lava-test");
+        rider.setPos(chair.getX(), chair.getY() + 1.0, chair.getZ());
+        helper.assertTrue(rider.startRiding(chair, true), "The rider must mount the chair");
+        float initialHealth = rider.getHealth();
+
+        helper.runAfterDelay(14, () -> {
+            double startZ = chair.getZ();
+            chair.setServerInput(0.40F, 0.0F, false, false);
+            rider.hurt(level.damageSources().lava(), 4.0F);
+            helper.runAfterDelay(18, () -> {
+                try {
+                    helper.assertTrue(chair.getZ() < startZ - 3.0, "The chair must move across the lava");
+                    helper.assertTrue(chair.getY() > center.getY() + 0.55 && chair.getY() < center.getY() + 1.05,
+                            "The chair must float near the lava surface, actual Y=" + chair.getY());
+                    helper.assertTrue(rider.getVehicle() == chair && rider.getHealth() == initialHealth,
+                            "Lava must not damage or dismount the rider");
+                    helper.succeed();
+                } finally {
+                    rider.stopRiding();
+                    chair.discard();
+                    releaseForcedChunks(level, forced);
+                }
+            });
+        });
+    }
+
     private static List<ChunkPos> forceChunksForRegion(ServerLevel level, BlockPos minPos, BlockPos maxPos) {
         int minCx = SectionPosCoord(minPos.getX());
         int maxCx = SectionPosCoord(maxPos.getX());

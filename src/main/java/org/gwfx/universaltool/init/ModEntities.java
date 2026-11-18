@@ -8,6 +8,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.naiwa.NaiwaEntity;
 import org.gwfx.universaltool.skill.LightningSpearProjectile;
+import org.gwfx.universaltool.sportscar.SportsCarEntity;
 import org.gwfx.universaltool.waypoint.WormholeEntity;
 import org.gwfx.universaltool.wheelchair.AllTerrainWheelchairEntity;
 
@@ -38,6 +39,7 @@ public final class ModEntities {
             () -> EntityType.Builder.<AllTerrainWheelchairEntity>of(
                             AllTerrainWheelchairEntity::new, MobCategory.MISC)
                     .sized(1.1F, 1.25F)
+                    .fireImmune()
                     .clientTrackingRange(10)
                     .updateInterval(1)
                     .build("all_terrain_wheelchair"));
@@ -50,6 +52,16 @@ public final class ModEntities {
                     .clientTrackingRange(10)
                     .updateInterval(2)
                     .build("naiwa"));
+
+    public static final DeferredHolder<EntityType<?>, EntityType<SportsCarEntity>>
+            GULF_GT_CAR = ENTITIES.register("gulf_gt_car",
+            () -> EntityType.Builder.<SportsCarEntity>of(
+                            SportsCarEntity::new, MobCategory.MISC)
+                    .sized(2.2F, 1.55F)
+                    .fireImmune()
+                    .clientTrackingRange(12)
+                    .updateInterval(1)
+                    .build("gulf_gt_car"));
 
     private ModEntities() {
     }

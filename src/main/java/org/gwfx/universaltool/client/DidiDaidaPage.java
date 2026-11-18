@@ -8,22 +8,20 @@ import com.november.mcphone.api.client.ui.PhoneViewport;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
-import net.minecraft.world.entity.player.Player;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.naiwa.DidiAppPurchase;
 import org.gwfx.universaltool.naiwa.DidiOrderPayload;
-import org.gwfx.universaltool.naiwa.NaiwaEntity;
-
-import java.util.List;
+import org.gwfx.universaltool.naiwa.DidiStatusPayload;
 
 /**
- * In-phone UI page for "滴滴代打" (Didi Daida), displaying live nearby owned Naiwa status
- * and one-tap dispatch, follow/patrol mode, belly-laugh ultimate, and recall buttons.
+ * In-phone UI for a player’s Didi order and its server-confirmed status.
  */
 public final class DidiDaidaPage implements IPhonePage {
 
@@ -32,7 +30,10 @@ public final class DidiDaidaPage implements IPhonePage {
 
     private static final int PAD = 5;
     private static final int TOAST_DURATION_TICKS = 50;
-    private static final double QUERY_RADIUS = 96.0D;
+    private static final int STATUS_INTERVAL_TICKS = 20;
+    private static ClientLevel statusLevel;
+    private static DidiStatusPayload latestStatus;
+    private static DidiStatusPayload latestResult;
 
     // Didi orange/gold accent palette layered smoothly over MCphone's PhoneStyle
     private static final int DIDI_ORANGE = 0xFFE8741E;
@@ -56,10 +57,9 @@ public final class DidiDaidaPage implements IPhonePage {
     private int layoutW;
     private int layoutH;
 
-    private int nearbyCount;
-    private int followCount;
-    private int patrolCount;
-    private int laughingCount;
+    private DidiStatusPayload status;
+    private DidiStatusPayload seenResult;
+    private int statusTicks;
 
     private Component toastMessage;
     private int toastTicks;
@@ -72,7 +72,26 @@ public final class DidiDaidaPage implements IPhonePage {
 
     @Override
     public void onOpen() {
-        refreshNearbyStatus();
+        status = null;
+        seenResult = latestResult;
+        requestStatus();
+    }
+
+    static void receiveStatus(DidiStatusPayload payload) {
+        ClientLevel level = Minecraft.getInstance().level;
+        if (statusLevel != level) {
+            statusLevel = level;
+            latestResult = null;
+        }
+        latestStatus = payload;
+        if (!payload.result().isEmpty()) {
+            latestResult = payload;
+        }
+    }
+
+    private void requestStatus() {
+        PacketDistributor.sendToServer(new DidiOrderPayload(DidiOrderPayload.ACTION_STATUS));
+        statusTicks = STATUS_INTERVAL_TICKS;
     }
 
     @Override
@@ -82,7 +101,19 @@ public final class DidiDaidaPage implements IPhonePage {
 
     @Override
     public void tick() {
-        refreshNearbyStatus();
+        if (--statusTicks <= 0) {
+            requestStatus();
+        }
+        if (Minecraft.getInstance().level == statusLevel) {
+            status = latestStatus;
+            if (latestResult != null && latestResult != seenResult) {
+                seenResult = latestResult;
+                toastMessage = latestResult.resultMessage();
+                toastTicks = TOAST_DURATION_TICKS;
+            }
+        } else {
+            status = null;
+        }
         if (toastTicks > 0) {
             toastTicks--;
             if (toastTicks == 0) {
@@ -115,45 +146,38 @@ public final class DidiDaidaPage implements IPhonePage {
             drawScaledLeftText(g, font, title, innerX + 20, curY + 5, innerW - 23, DIDI_TEXT_LIGHT, true);
             curY += 21;
 
-            // ---- Live Status Card ----
+            boolean active = status != null && status.remainingTicks() > 0;
             g.fill(innerX, curY, innerX + innerW, curY + 22, DIDI_CARD_BG);
-            g.fill(innerX, curY, innerX + 2, curY + 22, nearbyCount > 0 ? DIDI_CYAN : style.subtleColor());
+            g.fill(innerX, curY, innerX + 2, curY + 22, active ? DIDI_CYAN : style.subtleColor());
+            Component orderLabel = Component.translatable(status == null ? "gui.universal_tool.didi.loading"
+                    : active ? "gui.universal_tool.didi.in_service" : "gui.universal_tool.didi.no_order",
+                    active ? status.squadSize() : 0);
+            drawScaledLeftText(g, font, orderLabel.getString(), innerX + 5, curY + 2, innerW - 8,
+                    active ? style.titleColor() : style.subtleColor(), false);
+            if (active) {
+                int seconds = (status.remainingTicks() + 19) / 20;
+                String time = String.format(java.util.Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
+                Component remaining = Component.translatable("gui.universal_tool.didi.time_remaining", time);
+                drawScaledLeftText(g, font, remaining.getString(), innerX + 5, curY + 12, innerW - 8,
+                        style.accentColor(), false);
+            }
 
-            String countStr = Component.translatable("gui.universal_tool.didi.nearby_count", nearbyCount).getString();
-            drawScaledLeftText(g, font, countStr, innerX + 5, curY + 2, innerW - 8,
-                    nearbyCount > 0 ? style.titleColor() : style.subtleColor(), false);
-
-            Component modeComp = resolveStatusComponent();
-            int modeColor = laughingCount > 0 ? DIDI_TEXT_GOLD
-                    : (nearbyCount > 0 ? style.accentColor() : style.subtleColor());
-            drawScaledLeftText(g, font, modeComp.getString(), innerX + 5, curY + 12, innerW - 8, modeColor, false);
-
-            // ---- Action Buttons ----
             renderButton(canvas, buttons[DidiOrderPayload.ACTION_SUMMON_ONE],
-                    Component.translatable("gui.universal_tool.didi.btn.summon_one").getString(),
+                    Component.translatable("gui.universal_tool.didi.btn.summon_one", DidiAppPurchase.SINGLE_PRICE).getString(),
                     DIDI_ORANGE, DIDI_ORANGE_HOVER, DIDI_ULT_BORDER, DIDI_TEXT_LIGHT, true);
-
             renderButton(canvas, buttons[DidiOrderPayload.ACTION_SUMMON_THREE],
-                    Component.translatable("gui.universal_tool.didi.btn.summon_three").getString(),
+                    Component.translatable("gui.universal_tool.didi.btn.summon_three", DidiAppPurchase.SQUAD_PRICE).getString(),
                     DIDI_GOLD, DIDI_GOLD_HOVER, DIDI_ULT_BORDER, DIDI_TEXT_LIGHT, true);
-
-            boolean followActive = nearbyCount > 0 && followCount >= patrolCount;
-            boolean patrolActive = nearbyCount > 0 && patrolCount > followCount;
-
             renderButton(canvas, buttons[DidiOrderPayload.ACTION_MODE_FOLLOW],
                     Component.translatable("gui.universal_tool.didi.btn.follow").getString(),
-                    style.buttonColor(), style.buttonHoverColor(),
-                    followActive ? DIDI_CYAN : 0x44FFFFFF,
-                    followActive ? DIDI_CYAN : style.bodyColor(), false);
-
+                    style.buttonColor(), style.buttonHoverColor(), 0x44FFFFFF, style.bodyColor(), false);
             renderButton(canvas, buttons[DidiOrderPayload.ACTION_MODE_PATROL],
                     Component.translatable("gui.universal_tool.didi.btn.patrol").getString(),
-                    style.buttonColor(), style.buttonHoverColor(),
-                    patrolActive ? DIDI_CYAN : 0x44FFFFFF,
-                    patrolActive ? DIDI_CYAN : style.bodyColor(), false);
+                    style.buttonColor(), style.buttonHoverColor(), 0x44FFFFFF, style.bodyColor(), false);
 
             renderButton(canvas, buttons[DidiOrderPayload.ACTION_ULTIMATE_LAUGH],
-                    Component.translatable("gui.universal_tool.didi.btn.ultimate").getString(),
+                    Component.translatable(active && status.ultimateUsed()
+                            ? "gui.universal_tool.didi.btn.ultimate_used" : "gui.universal_tool.didi.btn.ultimate").getString(),
                     DIDI_ULT_BG, DIDI_ULT_HOVER, DIDI_ULT_BORDER, DIDI_TEXT_GOLD, true);
 
             renderButton(canvas, buttons[DidiOrderPayload.ACTION_DISMISS_ALL],
@@ -193,72 +217,6 @@ public final class DidiDaidaPage implements IPhonePage {
         PacketDistributor.sendToServer(new DidiOrderPayload(action));
         Minecraft.getInstance().getSoundManager().play(
                 SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-        toastMessage = switch (action) {
-            case DidiOrderPayload.ACTION_SUMMON_ONE ->
-                    Component.translatable("gui.universal_tool.didi.toast.summon_one");
-            case DidiOrderPayload.ACTION_SUMMON_THREE ->
-                    Component.translatable("gui.universal_tool.didi.toast.summon_three");
-            case DidiOrderPayload.ACTION_MODE_FOLLOW ->
-                    Component.translatable("gui.universal_tool.didi.toast.follow");
-            case DidiOrderPayload.ACTION_MODE_PATROL ->
-                    Component.translatable("gui.universal_tool.didi.toast.patrol");
-            case DidiOrderPayload.ACTION_ULTIMATE_LAUGH ->
-                    Component.translatable("gui.universal_tool.didi.toast.ultimate");
-            case DidiOrderPayload.ACTION_DISMISS_ALL ->
-                    Component.translatable("gui.universal_tool.didi.toast.dismiss");
-            default -> null;
-        };
-        toastTicks = TOAST_DURATION_TICKS;
-    }
-
-    private void refreshNearbyStatus() {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null) {
-            nearbyCount = 0;
-            followCount = 0;
-            patrolCount = 0;
-            laughingCount = 0;
-            return;
-        }
-        Player player = mc.player;
-        List<NaiwaEntity> list = mc.level.getEntitiesOfClass(
-                NaiwaEntity.class,
-                player.getBoundingBox().inflate(QUERY_RADIUS),
-                e -> e.isAlive() && player.getUUID().equals(e.getOwnerUuid()));
-
-        int follow = 0;
-        int patrol = 0;
-        int laughing = 0;
-        for (NaiwaEntity naiwa : list) {
-            if (naiwa.getOrderMode() == NaiwaEntity.MODE_PATROL) {
-                patrol++;
-            } else {
-                follow++;
-            }
-            if (naiwa.isLaughing()) {
-                laughing++;
-            }
-        }
-        nearbyCount = list.size();
-        followCount = follow;
-        patrolCount = patrol;
-        laughingCount = laughing;
-    }
-
-    private Component resolveStatusComponent() {
-        if (nearbyCount <= 0) {
-            return Component.translatable("gui.universal_tool.didi.status_idle");
-        }
-        if (laughingCount > 0) {
-            return Component.translatable("gui.universal_tool.didi.status_laughing");
-        }
-        if (followCount > 0 && patrolCount > 0) {
-            return Component.translatable("gui.universal_tool.didi.status_mixed", followCount, patrolCount);
-        }
-        if (patrolCount > 0) {
-            return Component.translatable("gui.universal_tool.didi.status_patrol");
-        }
-        return Component.translatable("gui.universal_tool.didi.status_follow");
     }
 
     private void updateLayout(int x, int y, int w, int h) {

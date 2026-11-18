@@ -13,7 +13,9 @@ import org.gwfx.universaltool.klein.KleinOpenPayload;
 import org.gwfx.universaltool.klein.KleinRenamePayload;
 import org.gwfx.universaltool.klein.KleinSyncPayload;
 import org.gwfx.universaltool.naiwa.DidiOrderPayload;
+import org.gwfx.universaltool.naiwa.DidiStatusPayload;
 import org.gwfx.universaltool.naiwa.NaiwaLaughSoundPayload;
+import org.gwfx.universaltool.sportscar.SportsCarInputPayload;
 import org.gwfx.universaltool.wheelchair.WheelchairInputPayload;
 
 import java.util.Map;
@@ -39,7 +41,7 @@ public final class ModPacketHandler {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("16");
+        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("18");
 
         // 客户端发往服务端
         registrar.playToServer(SaveWaypointPayload.TYPE, SaveWaypointPayload.STREAM_CODEC, SaveWaypointPayload::handle);
@@ -71,6 +73,8 @@ public final class ModPacketHandler {
                 org.gwfx.universaltool.lottery.LotteryRollActionPayload::handle);
         registrar.playToServer(WheelchairInputPayload.TYPE, WheelchairInputPayload.STREAM_CODEC,
                 WheelchairInputPayload::handle);
+        registrar.playToServer(SportsCarInputPayload.TYPE, SportsCarInputPayload.STREAM_CODEC,
+                SportsCarInputPayload::handle);
         registrar.playToServer(DidiOrderPayload.TYPE, DidiOrderPayload.STREAM_CODEC,
                 DidiOrderPayload::handle);
 
@@ -97,6 +101,8 @@ public final class ModPacketHandler {
                 dispatchClient(WormholeLiveVistaPayload.TYPE));
         registrar.playToClient(NaiwaLaughSoundPayload.TYPE, NaiwaLaughSoundPayload.STREAM_CODEC,
                 dispatchClient(NaiwaLaughSoundPayload.TYPE));
+        registrar.playToClient(DidiStatusPayload.TYPE, DidiStatusPayload.STREAM_CODEC,
+                dispatchClient(DidiStatusPayload.TYPE));
         registrar.playToClient(KleinSyncPayload.TYPE, KleinSyncPayload.STREAM_CODEC, KleinSyncPayload::handle);
     }
 }

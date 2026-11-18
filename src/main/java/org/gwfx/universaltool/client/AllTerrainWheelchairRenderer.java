@@ -2,6 +2,7 @@ package org.gwfx.universaltool.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -11,13 +12,22 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
+import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.wheelchair.AllTerrainWheelchairEntity;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 /**
  * Renders the All-Terrain Wheelchair entity oriented via {@link AllTerrainWheelchairEntity#getRenderOrientation(float)},
  * with articulated wheels, swiveling front casters, animated joystick, and SpaceX boost thruster plumes.
  */
+@EventBusSubscriber(modid = UniversalToolMod.MODID, value = Dist.CLIENT)
 public final class AllTerrainWheelchairRenderer extends EntityRenderer<AllTerrainWheelchairEntity> {
 
     // Bright near-white swatch (tile 3,0) in all_terrain_wheelchair.png for additive emissive tinting.
@@ -53,7 +63,9 @@ public final class AllTerrainWheelchairRenderer extends EntityRenderer<AllTerrai
         // Center pivot matches AllTerrainWheelchairEntity#getWheelchairCenter (entity origin + half BbHeight).
         float halfHeight = entity.getBbHeight() * 0.5F;
         poseStack.translate(0.0F, halfHeight, 0.0F);
-        poseStack.mulPose(entity.getRenderOrientation(partialTick));
+        Quaternionf orientation = entity.getRenderOrientation(partialTick);
+        Quaternionf nozzleRotation = nozzleRotation(entity, orientation);
+        poseStack.mulPose(orientation);
 
         poseStack.pushPose();
         // Shift model base (Y=0) down by halfHeight (-0.625) so tyres sit flush on attached surface.
@@ -70,48 +82,85 @@ public final class AllTerrainWheelchairRenderer extends EntityRenderer<AllTerrai
                 entity.getCasterYaw(partialTick),
                 -entity.getCasterSpin(partialTick),
                 -entity.getJoystickPitch(partialTick),
-                entity.getJoystickRoll(partialTick)
+                entity.getJoystickRoll(partialTick),
+                nozzleRotation
         );
-        poseStack.popPose();
-
-        if (entity.isBoosting()) {
-            renderSpaceXThrusters(entity, partialTick, poseStack, bufferSource);
+        if (hasExhaust(entity)) {
+            renderThrusterPlumes(entity, partialTick, poseStack, bufferSource, model, nozzleRotation);
         }
+        poseStack.popPose();
 
         poseStack.popPose();
         super.render(entity, entityYaw, partialTick, poseStack, bufferSource, packedLight);
     }
 
-    private static void renderSpaceXThrusters(AllTerrainWheelchairEntity entity,
-                                              float partialTick,
-                                              PoseStack poseStack,
-                                              MultiBufferSource bufferSource) {
+    private static boolean hasExhaust(AllTerrainWheelchairEntity entity) {
+        return entity.getJumpExhaust() != null || entity.isBoosting();
+    }
+
+    private static Quaternionf nozzleRotation(AllTerrainWheelchairEntity entity, Quaternionf orientation) {
+        Direction exhaust = entity.getJumpExhaust();
+        if (exhaust == null) {
+            return new Quaternionf();
+        }
+        Vector3f local = orientation.transformInverse(new Vector3f(exhaust.getStepX(), exhaust.getStepY(), exhaust.getStepZ()));
+        return new Quaternionf().rotationTo(0.0F, 0.0F, 1.0F, local.x, local.y, local.z);
+    }
+
+    @SubscribeEvent
+    public static void onEntityTick(EntityTickEvent.Post event) {
+        if (!(event.getEntity() instanceof AllTerrainWheelchairEntity chair)
+                || !chair.level().isClientSide || !hasExhaust(chair)) {
+            return;
+        }
+        WheelchairModelData model = WheelchairModelData.getOrLoad();
+        if (model == null) {
+            return;
+        }
+        Quaternionf orientation = chair.getRenderOrientation(1.0F);
+        Quaternionf nozzleRotation = nozzleRotation(chair, orientation);
+        Vector3f velocity = orientation.transform(nozzleRotation.transform(new Vector3f(0, 0, 0.28F)));
+        Vec3 center = chair.getWheelchairCenter(1.0F);
+        for (WheelchairModelData.Nozzle nozzle : model.nozzles()) {
+            Vector3f outlet = nozzle.outlet(nozzleRotation).sub(0.0F, chair.getBbHeight() * 0.5F, 0.0F);
+            orientation.transform(outlet);
+            double x = center.x + outlet.x;
+            double y = center.y + outlet.y;
+            double z = center.z + outlet.z;
+            chair.level().addParticle(ParticleTypes.SOUL_FIRE_FLAME, x, y, z, velocity.x, velocity.y, velocity.z);
+            chair.level().addParticle(ParticleTypes.ELECTRIC_SPARK, x, y, z,
+                    velocity.x * 1.1, velocity.y * 1.1, velocity.z * 1.1);
+        }
+    }
+
+    private static void renderThrusterPlumes(AllTerrainWheelchairEntity entity, float partialTick,
+                                             PoseStack poseStack, MultiBufferSource bufferSource,
+                                             WheelchairModelData model, Quaternionf nozzleRotation) {
         float time = entity.tickCount + partialTick;
         VertexConsumer flameBuffer = bufferSource.getBuffer(RenderType.eyes(WheelchairModelData.TEXTURE));
-        Matrix4f mat = poseStack.last().pose();
-        PoseStack.Pose pose = poseStack.last();
-
-        float baseY = -0.34F;
-        float startZ = 0.48F;
-
-        for (int idx = 0; idx < 2; idx++) {
-            float sideX = idx == 0 ? -0.24F : 0.24F;
-            float flicker = 0.88F + 0.14F * Mth.sin(time * 2.1F + idx * 1.7F)
-                    + 0.07F * Mth.cos(time * 3.7F + idx);
-            float outerLen = 0.92F * flicker;
-            float innerLen = 0.54F * flicker;
+        float power = entity.getJumpExhaust() == null ? 1.0F : 0.65F;
+        int index = 0;
+        for (WheelchairModelData.Nozzle nozzle : model.nozzles()) {
+            poseStack.pushPose();
+            nozzle.applyPose(poseStack, nozzleRotation);
+            PoseStack.Pose pose = poseStack.last();
+            Matrix4f mat = pose.pose();
+            float startZ = nozzle.outletZ();
+            float flicker = power * (0.88F + 0.14F * Mth.sin(time * 2.1F + index++ * 1.7F)
+                    + 0.07F * Mth.cos(time * 3.7F));
 
             // Outer glowing cobalt-cyan exhaust plume (crossed diagonal planes for 360-degree visibility)
-            emitCrossedPlume(mat, pose, flameBuffer, sideX, baseY, startZ, outerLen,
-                    0.115F, 0.022F,
+            emitCrossedPlume(mat, pose, flameBuffer, 0.0F, 0.0F, startZ, 0.92F * flicker,
+                    0.075F, 0.022F,
                     70, 200, 255, 220,
                     30, 125, 255, 35);
 
             // Inner white-hot SpaceX Mach core
-            emitCrossedPlume(mat, pose, flameBuffer, sideX, baseY, startZ - 0.02F, innerLen,
-                    0.062F, 0.012F,
+            emitCrossedPlume(mat, pose, flameBuffer, 0.0F, 0.0F, startZ, 0.54F * flicker,
+                    0.048F, 0.012F,
                     235, 250, 255, 255,
                     135, 225, 255, 175);
+            poseStack.popPose();
         }
     }
 

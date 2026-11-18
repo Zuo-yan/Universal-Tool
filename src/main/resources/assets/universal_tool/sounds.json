@@ -18,5 +18,45 @@
         "stream": true
       }
     ]
+  },
+  "sports_car_engine": {
+    "category": "neutral",
+    "subtitle": "subtitles.universal_tool.sports_car_engine",
+    "sounds": [
+      {
+        "name": "universal_tool:entity/sports_car_engine",
+        "stream": false
+      }
+    ]
+  },
+  "sports_car_drift": {
+    "category": "neutral",
+    "subtitle": "subtitles.universal_tool.sports_car_drift",
+    "sounds": [
+      {
+        "name": "universal_tool:entity/sports_car_drift",
+        "stream": false
+      }
+    ]
+  },
+  "sports_car_nitro": {
+    "category": "neutral",
+    "subtitle": "subtitles.universal_tool.sports_car_nitro",
+    "sounds": [
+      {
+        "name": "universal_tool:entity/sports_car_nitro",
+        "stream": false
+      }
+    ]
+  },
+  "sports_car_door": {
+    "category": "neutral",
+    "subtitle": "subtitles.universal_tool.sports_car_door",
+    "sounds": [
+      {
+        "name": "universal_tool:entity/sports_car_door",
+        "stream": false
+      }
+    ]
   }
 }
