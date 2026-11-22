@@ -191,6 +191,81 @@ def generate_door() -> np.ndarray:
     return mix * 0.78
 
 
+def generate_morph() -> np.ndarray:
+    """0.55s crisp sci-fi + mechanical wheel retraction & hydrofoil deploy sound."""
+    duration = 0.55
+    n = int(round(duration * SAMPLE_RATE))
+    t = np.arange(n) / SAMPLE_RATE
+    rng = np.random.default_rng(505)
+
+    # 1. Smooth hydraulic servo frequency sweep (145 Hz -> 510 Hz -> 380 Hz) with gentle 2x overtone
+    servo_freq = 145.0 + 365.0 * np.sin(np.pi * np.minimum(1.0, t / 0.36)) ** 1.2
+    servo_phase = 2.0 * np.pi * np.cumsum(servo_freq) / SAMPLE_RATE
+    servo_env = np.sin(np.pi * np.minimum(1.0, t / 0.42)) ** 0.8 * (t < 0.44)
+    servo = (0.55 * np.sin(servo_phase) + 0.20 * np.sin(2.0 * servo_phase + 0.4)) * servo_env
+
+    # 2. Mechanical latch clacks (wheel fold at 0.24s + hydrofoil lock at 0.38s)
+    t_latch1 = np.maximum(0.0, t - 0.24)
+    active1 = (t >= 0.24).astype(np.float64)
+    latch1 = (
+        0.38 * np.sin(2.0 * np.pi * 540.0 * t_latch1) * np.exp(-t_latch1 / 0.018)
+        + 0.24 * np.sin(2.0 * np.pi * 1360.0 * t_latch1) * np.exp(-t_latch1 / 0.010)
+        + 0.20 * rng.standard_normal(n) * np.exp(-t_latch1 / 0.005)
+    ) * active1
+
+    t_latch2 = np.maximum(0.0, t - 0.38)
+    active2 = (t >= 0.38).astype(np.float64)
+    latch2 = (
+        0.42 * np.sin(2.0 * np.pi * 420.0 * t_latch2) * np.exp(-t_latch2 / 0.022)
+        + 0.28 * np.sin(2.0 * np.pi * 1680.0 * t_latch2) * np.exp(-t_latch2 / 0.012)
+        + 0.18 * rng.standard_normal(n) * np.exp(-t_latch2 / 0.006)
+    ) * active2
+
+    # 3. Pneumatic air-cushion startup shimmer (band-limited airflow swelling at 0.18s..0.52s)
+    air_noise = periodic_band_noise(n, 750.0, 3400.0, rng, slope=-0.35)
+    air_env = np.exp(-((t - 0.34) / 0.11) ** 2) * 0.32
+    air_cushion = air_noise * air_env
+
+    # Smooth fade-in (3ms) and tail fade-out (55ms)
+    env = np.ones(n, dtype=np.float64)
+    fade_in = int(0.003 * SAMPLE_RATE)
+    fade_out = int(0.055 * SAMPLE_RATE)
+    env[:fade_in] = np.linspace(0.0, 1.0, fade_in)
+    env[-fade_out:] = np.linspace(1.0, 0.0, fade_out)
+
+    mix = np.tanh((servo + latch1 + latch2 + air_cushion) * 0.95) * env
+    mix -= np.mean(mix)
+    mix /= np.max(np.abs(mix))
+    return mix * 0.74
+
+
+def generate_water_glide() -> np.ndarray:
+    """1.40s seamless hull/hydrofoil water slicing + splash wash loop."""
+    duration = 1.40
+    n = int(round(duration * SAMPLE_RATE))
+    t = np.arange(n) / SAMPLE_RATE
+    rng = np.random.default_rng(606)
+
+    # Low-frequency hull water wave resonance (65-240 Hz)
+    wave_low = periodic_band_noise(n, 65.0, 240.0, rng, slope=-0.35) * 0.44
+    # Mid-band rushing water wake / hydroplane slice (260-1450 Hz)
+    wake_mid = periodic_band_noise(n, 260.0, 1450.0, rng, slope=-0.25) * 0.52
+    # Silky high-frequency spray / foam hiss (1500-4800 Hz)
+    spray_high = periodic_band_noise(n, 1500.0, 4800.0, rng, slope=-0.65) * 0.24
+
+    # Exact integer-cycle gentle wave modulation (2 cycles & 3 cycles in 1.40s)
+    f_mod1 = 2.0 / duration
+    f_mod2 = 3.0 / duration
+    mod_low = 0.86 + 0.14 * np.sin(2.0 * np.pi * f_mod1 * t + 0.4)
+    mod_spray = 0.82 + 0.12 * np.sin(2.0 * np.pi * f_mod2 * t + 1.2) + 0.06 * np.sin(2.0 * np.pi * f_mod1 * t)
+
+    mix = wave_low * mod_low + (wake_mid + spray_high) * mod_spray
+    mix = np.tanh(mix * 0.95)
+    mix -= np.mean(mix)
+    mix /= np.max(np.abs(mix))
+    return mix * 0.68
+
+
 def verify_ogg(path: Path, ffmpeg_exe: str, check_loop: bool) -> None:
     probe = subprocess.run([ffmpeg_exe, "-i", str(path)], capture_output=True, text=True)
     stream_lines = [ln.strip() for ln in probe.stderr.splitlines() if "Audio:" in ln or "Duration:" in ln]
@@ -226,6 +301,8 @@ def main() -> None:
         ("sports_car_drift.ogg", generate_drift(), True),
         ("sports_car_nitro.ogg", generate_nitro(), True),
         ("sports_car_door.ogg", generate_door(), False),
+        ("sports_car_morph.ogg", generate_morph(), False),
+        ("sports_car_water_glide.ogg", generate_water_glide(), True),
     ]
     for filename, samples, is_loop in jobs:
         out_path = OUT_DIR / filename

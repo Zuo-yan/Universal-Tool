@@ -13,6 +13,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.TicketType;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.util.Mth;
@@ -39,22 +40,26 @@ import org.gwfx.universaltool.recipe.PolymerizerRecipe;
 import org.gwfx.universaltool.recipe.PolymerizerRecipeInput;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 /**
  * 海湾 GT 跑车服务端 GameTest 测试集：
  * 覆盖聚合器配方、物品放置、双座乘员与安全下车、鼠标转向+油门前进、
- * 倒车与反向转向、手刹漂移+氮气加速与回充、自动迎宾门开合、1格台阶攀爬以及空载回收。
+ * 倒车与反向转向、手刹漂移+氮气加速与回充、自动迎宾门开合、1格台阶攀爬、空载回收以及水陆两栖变形滑行。
  */
 @PrefixGameTestTemplate(false)
 public final class SportsCarGameTests {
 
     private static final ResourceLocation SPORTS_CAR_RECIPE_ID =
             ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "gulf_gt_car_polymerize");
+    private static final TicketType<ChunkPos> SPORTS_CAR_TEST_TICKET =
+            TicketType.create("universal_tool_sports_car_test", Comparator.comparingLong(ChunkPos::toLong));
+    private static final Map<Long, Integer> FORCED_CHUNK_REFS = new HashMap<>();
 
     private SportsCarGameTests() {
     }
@@ -106,13 +111,13 @@ public final class SportsCarGameTests {
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 80)
     public static void itemPlacementDualSeatAndSafeDismount(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        BlockPos origin = helper.absolutePos(new BlockPos(-3, 12, -3));
-        BlockPos maxCorner = helper.absolutePos(new BlockPos(5, 15, 5));
+        BlockPos origin = helper.absolutePos(new BlockPos(-3, 22, -3));
+        BlockPos maxCorner = helper.absolutePos(new BlockPos(5, 25, 5));
         List<ChunkPos> forced = forceChunksForRegion(level, origin, maxCorner);
 
         try {
-            buildFlatPlatform(level, helper, -3, 5, 12, -3, 5);
-            BlockPos centerFloor = helper.absolutePos(new BlockPos(1, 12, 1));
+            buildFlatPlatform(level, helper, -3, 5, 22, -3, 5);
+            BlockPos centerFloor = helper.absolutePos(new BlockPos(1, 22, 1));
 
             ServerPlayer driver = mockPlayer(level.getServer(), level, "car-driver");
             driver.setYRot(180.0F); // 面朝 -Z
@@ -139,7 +144,7 @@ public final class SportsCarGameTests {
                     "Placed car yaw must match player yaw 180, got " + car.getCarYaw());
 
             // 碰撞阻挡测试：紧贴实体箱放阻挡方块时不得生成第二辆车
-            BlockPos blockedFloor = helper.absolutePos(new BlockPos(4, 12, 4));
+            BlockPos blockedFloor = helper.absolutePos(new BlockPos(4, 22, 4));
             level.setBlockAndUpdate(blockedFloor.above(), Blocks.STONE.defaultBlockState());
             ItemStack blockedStack = new ItemStack(ModItems.GULF_GT_CAR.get());
             driver.setItemInHand(InteractionHand.MAIN_HAND, blockedStack);
@@ -200,14 +205,14 @@ public final class SportsCarGameTests {
         ServerLevel level = helper.getLevel();
         List<ChunkPos> forced = forceChunksForRegion(
                 level,
-                helper.absolutePos(new BlockPos(-10, 12, -16)),
-                helper.absolutePos(new BlockPos(8, 15, 14))
+                helper.absolutePos(new BlockPos(-10, 32, -16)),
+                helper.absolutePos(new BlockPos(8, 35, 14))
         );
-        buildFlatPlatform(level, helper, -10, 8, 12, -16, 14);
+        buildFlatPlatform(level, helper, -10, 8, 32, -16, 14);
 
         SportsCarEntity car = ModEntities.GULF_GT_CAR.get().create(level);
         helper.assertTrue(car != null, "SportsCarEntity must instantiate");
-        Vec3 start = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 13, 10)));
+        Vec3 start = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 33, 10)));
         car.setPos(start.x, start.y, start.z);
         car.setCarYaw(180.0F);
         level.addFreshEntity(car);
@@ -258,14 +263,14 @@ public final class SportsCarGameTests {
         ServerLevel level = helper.getLevel();
         List<ChunkPos> forced = forceChunksForRegion(
                 level,
-                helper.absolutePos(new BlockPos(-6, 12, -4)),
-                helper.absolutePos(new BlockPos(8, 15, 16))
+                helper.absolutePos(new BlockPos(-6, 42, -4)),
+                helper.absolutePos(new BlockPos(8, 45, 16))
         );
-        buildFlatPlatform(level, helper, -6, 8, 12, -4, 16);
+        buildFlatPlatform(level, helper, -6, 8, 42, -4, 16);
 
         SportsCarEntity car = ModEntities.GULF_GT_CAR.get().create(level);
         helper.assertTrue(car != null, "SportsCarEntity must instantiate");
-        Vec3 start = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 13, 2)));
+        Vec3 start = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 43, 2)));
         car.setPos(start.x, start.y, start.z);
         car.setCarYaw(180.0F);
         level.addFreshEntity(car);
@@ -295,14 +300,14 @@ public final class SportsCarGameTests {
         ServerLevel level = helper.getLevel();
         List<ChunkPos> forced = forceChunksForRegion(
                 level,
-                helper.absolutePos(new BlockPos(-14, 12, -26)),
-                helper.absolutePos(new BlockPos(12, 15, 14))
+                helper.absolutePos(new BlockPos(-14, 52, -26)),
+                helper.absolutePos(new BlockPos(12, 55, 14))
         );
-        buildFlatPlatform(level, helper, -14, 12, 12, -26, 14);
+        buildFlatPlatform(level, helper, -14, 12, 52, -26, 14);
 
         SportsCarEntity car = ModEntities.GULF_GT_CAR.get().create(level);
         helper.assertTrue(car != null, "SportsCarEntity must instantiate");
-        Vec3 start = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 13, 10)));
+        Vec3 start = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 53, 10)));
         car.setPos(start.x, start.y, start.z);
         car.setCarYaw(180.0F);
         level.addFreshEntity(car);
@@ -358,14 +363,14 @@ public final class SportsCarGameTests {
         ServerLevel level = helper.getLevel();
         List<ChunkPos> forced = forceChunksForRegion(
                 level,
-                helper.absolutePos(new BlockPos(-4, 12, -10)),
-                helper.absolutePos(new BlockPos(8, 15, 8))
+                helper.absolutePos(new BlockPos(-4, 62, -10)),
+                helper.absolutePos(new BlockPos(8, 65, 8))
         );
-        buildFlatPlatform(level, helper, -4, 8, 12, -10, 8);
+        buildFlatPlatform(level, helper, -4, 8, 62, -10, 8);
 
         SportsCarEntity car = ModEntities.GULF_GT_CAR.get().create(level);
         helper.assertTrue(car != null, "SportsCarEntity must instantiate");
-        Vec3 carPos = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(2, 13, 3)));
+        Vec3 carPos = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(2, 63, 3)));
         car.setPos(carPos.x, carPos.y, carPos.z);
         car.setCarYaw(180.0F);
         level.addFreshEntity(car);
@@ -411,20 +416,20 @@ public final class SportsCarGameTests {
         ServerLevel level = helper.getLevel();
         List<ChunkPos> forced = forceChunksForRegion(
                 level,
-                helper.absolutePos(new BlockPos(-2, 12, -2)),
-                helper.absolutePos(new BlockPos(4, 16, 13))
+                helper.absolutePos(new BlockPos(-2, 72, -2)),
+                helper.absolutePos(new BlockPos(4, 76, 13))
         );
-        // 底层跑道 y=12，z=0..4 额外堆高 1 格台阶 (y=13 实心石块，顶面 y=14)
-        buildFlatPlatform(level, helper, -2, 4, 12, -2, 13);
+        // 底层跑道 y=72，z=0..4 额外堆高 1 格台阶 (y=73 实心石块，顶面 y=74)
+        buildFlatPlatform(level, helper, -2, 4, 72, -2, 13);
         for (int x = -2; x <= 4; x++) {
             for (int z = -2; z <= 4; z++) {
-                level.setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 13, z)), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 73, z)), Blocks.STONE.defaultBlockState());
             }
         }
 
         SportsCarEntity car = ModEntities.GULF_GT_CAR.get().create(level);
         helper.assertTrue(car != null, "SportsCarEntity must instantiate");
-        Vec3 start = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 13, 10)));
+        Vec3 start = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 73, 10)));
         car.setPos(start.x, start.y, start.z);
         car.setCarYaw(180.0F);
         level.addFreshEntity(car);
@@ -470,12 +475,12 @@ public final class SportsCarGameTests {
         ServerLevel level = helper.getLevel();
         List<ChunkPos> forced = forceChunksForRegion(
                 level,
-                helper.absolutePos(new BlockPos(-1, 12, -1)),
-                helper.absolutePos(new BlockPos(3, 15, 3))
+                helper.absolutePos(new BlockPos(-1, 82, -1)),
+                helper.absolutePos(new BlockPos(3, 85, 3))
         );
         try {
-            buildFlatPlatform(level, helper, -1, 3, 12, -1, 3);
-            Vec3 center = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 13, 1)));
+            buildFlatPlatform(level, helper, -1, 3, 82, -1, 3);
+            Vec3 center = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 83, 1)));
 
             ServerPlayer player = mockPlayer(level.getServer(), level, "car-pickup-test");
             player.setPos(center.x, center.y, center.z);
@@ -527,6 +532,185 @@ public final class SportsCarGameTests {
         }
     }
 
+    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 180)
+    public static void amphibiousWaterMorphGlideDriftNitroAndShoreExit(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        List<ChunkPos> forced = forceChunksForRegion(
+                level,
+                helper.absolutePos(new BlockPos(-10, 90, -45)),
+                helper.absolutePos(new BlockPos(12, 96, 15))
+        );
+
+        // 建造独立高台水陆测试池（y=90..95，与其他测试彻底空间隔离）：
+        // - 底部 y=90 全石板
+        // - 起跑陆地平台 z=6..13 (y=91..92 石块，顶面 y=93.0)
+        // - 深水滑行池 z=-30..5 (y=91..92 静止水源，水面约 y=92.89)
+        // - 对岸陆地平台 z=-44..-31 (y=91..92 石块，顶面 y=93.0)
+        // - 外围石墙防止水流外溢
+        for (int x = -10; x <= 12; x++) {
+            for (int z = -44; z <= 14; z++) {
+                level.setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 90, z)), Blocks.STONE.defaultBlockState());
+                boolean isPerimeter = (x == -10 || x == 12 || z == -44 || z == 14);
+                boolean isLand = (z >= 6 && z <= 13) || (z >= -43 && z <= -31);
+                if (isPerimeter || isLand) {
+                    level.setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 91, z)), Blocks.STONE.defaultBlockState());
+                    level.setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 92, z)), Blocks.STONE.defaultBlockState());
+                } else {
+                    level.setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 91, z)), Blocks.WATER.defaultBlockState());
+                    level.setBlockAndUpdate(helper.absolutePos(new BlockPos(x, 92, z)), Blocks.WATER.defaultBlockState());
+                }
+                for (int y = 93; y <= 95; y++) {
+                    level.setBlockAndUpdate(helper.absolutePos(new BlockPos(x, y, z)), Blocks.AIR.defaultBlockState());
+                }
+            }
+        }
+
+        SportsCarEntity car = ModEntities.GULF_GT_CAR.get().create(level);
+        helper.assertTrue(car != null, "SportsCarEntity must instantiate");
+        Vec3 start = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 93, 10)));
+        car.setPos(start.x, start.y, start.z);
+        car.setCarYaw(180.0F);
+        level.addFreshEntity(car);
+
+        helper.assertTrue(!car.isInWaterMode() && car.getWaterMorphProgress() == 0.0F,
+                "Car spawned on land must start in land mode with morph=0");
+
+        // 阶段 1：从陆地码头驶入水域（20 tick，确保车身完全进入水池且 morph > 0.35）
+        car.setServerInput(0.75F, 0.0F, 180.0F, false, false);
+        helper.runAfterDelay(20, () -> {
+            if (!car.isInWaterMode() || !car.isWaterSurfaceActive()
+                    || !Double.isFinite(car.getWaterSurfaceY())
+                    || car.getWaterMorphProgress() <= 0.35F) {
+                car.discard();
+                releaseForcedChunks(level, forced);
+                helper.fail("Car did not enter water mode after driving into pool: waterMode="
+                        + car.isInWaterMode() + ", surfaceActive=" + car.isWaterSurfaceActive()
+                        + ", waterY=" + car.getWaterSurfaceY() + ", morph=" + car.getWaterMorphProgress()
+                        + ", pos=" + car.position()
+                        + ", fluidBelow=" + level.getFluidState(car.blockPosition().below()).getType()
+                        + ", blockAhead2=" + level.getBlockState(car.blockPosition().below().north(2)).getBlock()
+                        + ", fluidAhead2=" + level.getFluidState(car.blockPosition().below().north(2)).getType());
+                return;
+            }
+
+            // 阶段 2：继续巡航 10 tick，记录水面高度波动（验证闭环贴水无剧烈上下跳动且 morph 升至 1.0）
+            double[] yMinMax = new double[]{Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY};
+            observeWaterGlideStability(helper, level, forced, car, yMinMax, 0);
+        });
+    }
+
+    private static void observeWaterGlideStability(GameTestHelper helper,
+                                                   ServerLevel level,
+                                                   List<ChunkPos> forced,
+                                                   SportsCarEntity car,
+                                                   double[] yMinMax,
+                                                   int tick) {
+        helper.runAfterDelay(1, () -> {
+            yMinMax[0] = Math.min(yMinMax[0], car.getY());
+            yMinMax[1] = Math.max(yMinMax[1], car.getY());
+
+            if (tick < 9) {
+                observeWaterGlideStability(helper, level, forced, car, yMinMax, tick + 1);
+                return;
+            }
+
+            double waterY = car.getWaterSurfaceY();
+            double ySpan = yMinMax[1] - yMinMax[0];
+            if (!car.isInWaterMode() || car.getWaterMorphProgress() < 0.99F
+                    || ySpan > 0.22D
+                    || car.getY() < waterY - 0.20D || car.getY() > waterY + 0.10D
+                    || car.getForwardSpeed() < 0.55F) {
+                car.discard();
+                releaseForcedChunks(level, forced);
+                helper.fail("Water glide stability check failed: morph=" + car.getWaterMorphProgress()
+                        + ", ySpan=" + ySpan + ", y=" + car.getY() + ", waterY=" + waterY
+                        + ", speed=" + car.getForwardSpeed());
+                return;
+            }
+
+            // 阶段 3：水上氮气加速 8 tick，验证水上氮气超速
+            car.setServerInput(1.0F, 0.0F, 180.0F, false, true);
+            helper.runAfterDelay(8, () -> {
+                float nitroAfterBoost = car.getNitroEnergy();
+                if (!car.isInWaterMode() || !car.isNitroActive()
+                        || car.getForwardSpeed() <= SportsCarEntity.WATER_MAX_FORWARD_SPEED + 0.08F) {
+                    car.discard();
+                    releaseForcedChunks(level, forced);
+                    helper.fail("Water nitro boost failed: waterMode=" + car.isInWaterMode()
+                            + ", nitroActive=" + car.isNitroActive()
+                            + ", speed=" + car.getForwardSpeed());
+                    return;
+                }
+
+                // 阶段 4：水上按住手刹甩尾 10 tick，验证水上甩尾与加快回充氮气
+                car.setServerInput(1.0F, 1.0F, 150.0F, true, false);
+                int startTickCount = car.tickCount;
+                helper.runAfterDelay(10, () -> {
+                    float nitroAfterDrift = car.getNitroEnergy();
+                    int elapsedCarTicks = car.tickCount - startTickCount;
+                    if (!car.isInWaterMode() || !car.isDrifting() || nitroAfterDrift <= nitroAfterBoost + 8.0F) {
+                        car.discard();
+                        releaseForcedChunks(level, forced);
+                        helper.fail("Water drift failed: waterMode=" + car.isInWaterMode()
+                                + ", drifting=" + car.isDrifting()
+                                + ", elapsedCarTicks=" + elapsedCarTicks
+                                + ", pos=" + car.position()
+                                + ", nitroBefore=" + nitroAfterBoost + ", nitroAfter=" + nitroAfterDrift);
+                        return;
+                    }
+
+                    // 阶段 5：回正驶向对岸陆地并等待水陆变形平滑回落至 0.0
+                    double shoreTriggerZ = helper.absolutePos(new BlockPos(1, 93, -32)).getZ();
+                    car.setServerInput(0.85F, 0.0F, 180.0F, false, false);
+                    driveOntoShoreAndWaitMorphExit(helper, level, forced, car, shoreTriggerZ, 0, false);
+                });
+            });
+        });
+    }
+
+    private static void driveOntoShoreAndWaitMorphExit(GameTestHelper helper,
+                                                       ServerLevel level,
+                                                       List<ChunkPos> forced,
+                                                       SportsCarEntity car,
+                                                       double shoreTriggerZ,
+                                                       int tick,
+                                                       boolean reachedShore) {
+        helper.runAfterDelay(1, () -> {
+            boolean onShoreNow = reachedShore || (car.getZ() <= shoreTriggerZ && !car.isInWaterMode());
+            if (onShoreNow) {
+                car.setServerInput(0.25F, 0.0F, 180.0F, false, false);
+            } else {
+                car.setServerInput(0.85F, 0.0F, 180.0F, false, false);
+            }
+
+            if (onShoreNow && !car.isInWaterMode() && !car.isWaterSurfaceActive()
+                    && car.getWaterMorphProgress() <= 0.01F && car.onGround()) {
+                try {
+                    helper.assertTrue(car.getWaterMorphProgress() == 0.0F,
+                            "Water morph must reach 0.0F on land, got " + car.getWaterMorphProgress());
+                    helper.succeed();
+                } finally {
+                    car.discard();
+                    releaseForcedChunks(level, forced);
+                }
+                return;
+            }
+
+            if (tick >= 75) {
+                car.discard();
+                releaseForcedChunks(level, forced);
+                helper.fail("Car failed to exit water mode and morph back on shore within 75 ticks: pos="
+                        + car.position() + ", onGround=" + car.onGround()
+                        + ", waterMode=" + car.isInWaterMode()
+                        + ", surfaceActive=" + car.isWaterSurfaceActive()
+                        + ", morph=" + car.getWaterMorphProgress());
+                return;
+            }
+
+            driveOntoShoreAndWaitMorphExit(helper, level, forced, car, shoreTriggerZ, tick + 1, onShoreNow);
+        });
+    }
+
     // ==================== 测试辅助方法 ====================
 
     private static void cleanupDoorTest(ServerLevel level, List<ChunkPos> forced,
@@ -555,26 +739,33 @@ public final class SportsCarGameTests {
         int maxCx = maxPos.getX() >> 4;
         int minCz = minPos.getZ() >> 4;
         int maxCz = maxPos.getZ() >> 4;
-        Set<ChunkPos> existing = new HashSet<>();
-        for (long packed : level.getForcedChunks()) {
-            existing.add(new ChunkPos(packed));
-        }
-        List<ChunkPos> added = new ArrayList<>();
+        List<ChunkPos> acquired = new ArrayList<>();
         for (int cx = minCx; cx <= maxCx; cx++) {
             for (int cz = minCz; cz <= maxCz; cz++) {
                 ChunkPos cp = new ChunkPos(cx, cz);
-                if (!existing.contains(cp)) {
-                    level.setChunkForced(cx, cz, true);
-                    added.add(cp);
+                long key = cp.toLong();
+                int refs = FORCED_CHUNK_REFS.getOrDefault(key, 0);
+                if (refs == 0) {
+                    // 使用独立 TicketType 与 radius=3（级别 30，邻接区块 31 均保持实体 tick）且不受其他测试 setChunkForced 影响
+                    level.getChunkSource().addRegionTicket(SPORTS_CAR_TEST_TICKET, cp, 3, cp, true);
                 }
+                FORCED_CHUNK_REFS.put(key, refs + 1);
+                acquired.add(cp);
             }
         }
-        return added;
+        return acquired;
     }
 
-    private static void releaseForcedChunks(ServerLevel level, List<ChunkPos> added) {
-        for (ChunkPos cp : added) {
-            level.setChunkForced(cp.x, cp.z, false);
+    private static void releaseForcedChunks(ServerLevel level, List<ChunkPos> acquired) {
+        for (ChunkPos cp : acquired) {
+            long key = cp.toLong();
+            int refs = FORCED_CHUNK_REFS.getOrDefault(key, 0);
+            if (refs <= 1) {
+                FORCED_CHUNK_REFS.remove(key);
+                level.getChunkSource().removeRegionTicket(SPORTS_CAR_TEST_TICKET, cp, 3, cp, true);
+            } else {
+                FORCED_CHUNK_REFS.put(key, refs - 1);
+            }
         }
     }
 

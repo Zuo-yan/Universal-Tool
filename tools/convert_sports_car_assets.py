@@ -36,7 +36,9 @@ PART_SPECS: list[dict[str, Any]] = [
     {"name": "wheel_fl_spin", "texture": "main"},
     {"name": "wheel_fr_steer", "texture": "main"},
     {"name": "wheel_fr_spin", "texture": "main"},
+    {"name": "wheel_rl_brake", "texture": "main"},
     {"name": "wheel_rl_spin", "texture": "main"},
+    {"name": "wheel_rr_brake", "texture": "main"},
     {"name": "wheel_rr_spin", "texture": "main"},
     {"name": "steering_wheel", "texture": "main"},
     {"name": "door_left", "texture": "main"},
@@ -209,6 +211,10 @@ def classify_meshes(bb: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
                 part = "wheel_fl_steer"
             elif "右前轮_固定制动系统" in group_path:
                 part = "wheel_fr_steer"
+            elif "左后轮_固定制动系统" in group_path:
+                part = "wheel_rl_brake"
+            elif "右后轮_固定制动系统" in group_path:
+                part = "wheel_rr_brake"
             elif "左前轮_滚动" in group_path:
                 part = "wheel_fl_spin"
             elif "右前轮_滚动" in group_path:
@@ -293,7 +299,9 @@ def convert() -> None:
         "wheel_fl_spin": bb_to_block_vec(groups_by_name["左前轮_滚动"]["origin"]),
         "wheel_fr_steer": bb_to_block_vec(groups_by_name["右前轮_滚动"]["origin"]),
         "wheel_fr_spin": bb_to_block_vec(groups_by_name["右前轮_滚动"]["origin"]),
+        "wheel_rl_brake": bb_to_block_vec(groups_by_name["左后轮_滚动"]["origin"]),
         "wheel_rl_spin": bb_to_block_vec(groups_by_name["左后轮_滚动"]["origin"]),
+        "wheel_rr_brake": bb_to_block_vec(groups_by_name["右后轮_滚动"]["origin"]),
         "wheel_rr_spin": bb_to_block_vec(groups_by_name["右后轮_滚动"]["origin"]),
         "steering_wheel": bb_to_block_vec(steer_pivot_bb),
         "door_left": bb_to_block_vec(groups_by_name["左车门_前铰链"]["origin"]),

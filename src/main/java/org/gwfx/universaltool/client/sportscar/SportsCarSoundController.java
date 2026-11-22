@@ -16,7 +16,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 海湾 GT 跑车客户端动态音效控制器，基于 {@link AbstractTickableSoundInstance}
- * 实时驱动引擎转速变调、手刹漂移轮胎摩擦声与氮气涡轮喷射声。
+ * 实时驱动引擎转速变调（含水上巡航低沉音色）、陆地手刹漂移轮胎摩擦声、
+ * 水面滑行破浪声与氮气涡轮喷射声。
  */
 public final class SportsCarSoundController {
 
@@ -48,9 +49,17 @@ public final class SportsCarSoundController {
                 soundManager.play(group.engine);
             }
 
-            if (car.isDrifting() && car.onGround() && (group.drift == null || group.drift.isStopped())) {
+            boolean onWater = isHydroSoundActive(car);
+            if (!onWater && car.isDrifting() && car.onGround()
+                    && (group.drift == null || group.drift.isStopped())) {
                 group.drift = new DriftSoundInstance(car);
                 soundManager.play(group.drift);
+            }
+
+            boolean glidingOnWater = onWater && (Math.abs(car.getForwardSpeed()) > 0.03F || car.isDrifting());
+            if (glidingOnWater && (group.waterGlide == null || group.waterGlide.isStopped())) {
+                group.waterGlide = new WaterGlideSoundInstance(car);
+                soundManager.play(group.waterGlide);
             }
 
             if (car.isNitroActive() && (group.nitro == null || group.nitro.isStopped())) {
@@ -81,14 +90,20 @@ public final class SportsCarSoundController {
         ACTIVE_GROUPS.clear();
     }
 
+    private static boolean isHydroSoundActive(SportsCarEntity car) {
+        return car.isInWaterMode() || car.isWaterSurfaceActive() || car.getWaterMorphProgress() > 0.35F;
+    }
+
     private static final class CarSoundGroup {
         EngineSoundInstance engine;
         DriftSoundInstance drift;
+        WaterGlideSoundInstance waterGlide;
         NitroSoundInstance nitro;
 
         boolean isAllStopped() {
             return (engine == null || engine.isStopped())
                     && (drift == null || drift.isStopped())
+                    && (waterGlide == null || waterGlide.isStopped())
                     && (nitro == null || nitro.isStopped());
         }
 
@@ -101,6 +116,10 @@ public final class SportsCarSoundController {
                 soundManager.stop(drift);
                 drift.finish();
             }
+            if (waterGlide != null) {
+                soundManager.stop(waterGlide);
+                waterGlide.finish();
+            }
             if (nitro != null) {
                 soundManager.stop(nitro);
                 nitro.finish();
@@ -109,7 +128,7 @@ public final class SportsCarSoundController {
     }
 
     /**
-     * 引擎循环音：随车速、油门及氮气激活实时变调与淡入淡出。
+     * 引擎循环音：随车速、油门及氮气激活实时变调，并在水上模式呈现更平顺低沉的巡航音色。
      */
     private static final class EngineSoundInstance extends BaseCarLoopSound {
 
@@ -134,25 +153,32 @@ public final class SportsCarSoundController {
                 return;
             }
 
+            boolean onWater = isHydroSoundActive(car);
             float targetPitch = 0.66F
                     + 0.60F * Mth.clamp(speedRatio, 0.0F, 1.25F)
                     + 0.16F * absThrottle
                     + (car.isNitroActive() ? 0.24F : 0.0F);
-            targetPitch = Mth.clamp(targetPitch, 0.55F, 1.85F);
+            if (onWater) {
+                targetPitch *= 0.88F;
+            }
+            targetPitch = Mth.clamp(targetPitch, 0.52F, 1.85F);
 
             float targetVolume = (hasPassenger ? 0.36F : 0.22F)
                     + 0.34F * Mth.clamp(speedRatio, 0.0F, 1.0F)
                     + 0.14F * absThrottle
                     + (car.isNitroActive() ? 0.12F : 0.0F);
-            targetVolume = Mth.clamp(targetVolume, 0.15F, 0.90F);
+            if (onWater) {
+                targetVolume *= 0.86F;
+            }
+            targetVolume = Mth.clamp(targetVolume, 0.14F, 0.90F);
 
-            this.pitch = Mth.lerp(0.24F, this.pitch, targetPitch);
+            this.pitch = Mth.lerp(onWater ? 0.18F : 0.24F, this.pitch, targetPitch);
             this.volume = Mth.lerp(0.20F, this.volume, targetVolume);
         }
     }
 
     /**
-     * 漂移轮胎摩擦声：手刹漂移且接地时平滑淡入，退出漂移后快速收音。
+     * 陆地漂移轮胎摩擦声：手刹漂移且接地时平滑淡入，进入水上或退出漂移后快速收音。
      */
     private static final class DriftSoundInstance extends BaseCarLoopSound {
 
@@ -164,8 +190,8 @@ public final class SportsCarSoundController {
 
         @Override
         protected void updateAudio(SportsCarEntity car) {
-            if (!car.isDrifting() || !car.onGround()) {
-                this.volume = this.volume * 0.70F - 0.04F;
+            if (isHydroSoundActive(car) || !car.isDrifting() || !car.onGround()) {
+                this.volume = this.volume * 0.68F - 0.04F;
                 if (this.volume <= 0.02F) {
                     finish();
                 }
@@ -178,6 +204,45 @@ public final class SportsCarSoundController {
 
             this.volume = Mth.lerp(0.30F, this.volume, targetVolume);
             this.pitch = Mth.lerp(0.25F, this.pitch, targetPitch);
+        }
+    }
+
+    /**
+     * 水面滑行破浪声：随水上车速、甩尾激浪与氮气实时调节音量和音调。
+     */
+    private static final class WaterGlideSoundInstance extends BaseCarLoopSound {
+
+        private WaterGlideSoundInstance(SportsCarEntity car) {
+            super(car, ModSounds.SPORTS_CAR_WATER_GLIDE.get());
+            this.volume = 0.08F;
+            this.pitch = 0.85F;
+        }
+
+        @Override
+        protected void updateAudio(SportsCarEntity car) {
+            float speedRatio = Mth.clamp(Math.abs(car.getForwardSpeed()) / 0.88F, 0.0F, 1.5F);
+            boolean active = isHydroSoundActive(car) && (speedRatio > 0.03F || car.isDrifting());
+            if (!active) {
+                this.volume = this.volume * 0.72F - 0.035F;
+                if (this.volume <= 0.02F) {
+                    finish();
+                }
+                return;
+            }
+
+            float targetVolume = Mth.clamp(
+                    0.22F + 0.56F * Mth.clamp(speedRatio, 0.0F, 1.15F)
+                            + (car.isDrifting() ? 0.14F : 0.0F)
+                            + (car.isNitroActive() ? 0.12F : 0.0F),
+                    0.18F, 0.92F);
+            float targetPitch = Mth.clamp(
+                    0.78F + 0.44F * Mth.clamp(speedRatio, 0.0F, 1.25F)
+                            + (car.isDrifting() ? 0.12F : 0.0F)
+                            + (car.isNitroActive() ? 0.16F : 0.0F),
+                    0.74F, 1.55F);
+
+            this.volume = Mth.lerp(0.25F, this.volume, targetVolume);
+            this.pitch = Mth.lerp(0.22F, this.pitch, targetPitch);
         }
     }
 

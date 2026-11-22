@@ -10,6 +10,7 @@ import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.util.Mth;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -34,6 +35,15 @@ public final class SportsCarModelData {
     /** 单个烘焙面片占用的 float 数：4 个顶点 × (x, y, z, u, v) + 法线 (nx, ny, nz) */
     private static final int FLOATS_PER_FACE = 23;
 
+    /** 四个车轮在实体局部空间下的默认枢轴坐标（单位：方块） */
+    public static final float WHEEL_PIVOT_X = 1.10312F;
+    public static final float WHEEL_PIVOT_Y = 0.53625F;
+    public static final float FRONT_WHEEL_Z = -1.875F;
+    public static final float REAR_WHEEL_Z = 2.000F;
+
+    /** 水上完全变形后车身整体向上抬升高度（单位：方块） */
+    public static final float WATER_MORPH_MAX_LIFT = 0.34F;
+
     private static volatile SportsCarModelData instance;
 
     private final ResourceLocation mainTexture;
@@ -48,7 +58,9 @@ public final class SportsCarModelData {
     private final BakedPart wheelFlSpin;
     private final BakedPart wheelFrSteer;
     private final BakedPart wheelFrSpin;
+    private final BakedPart wheelRlBrake;
     private final BakedPart wheelRlSpin;
+    private final BakedPart wheelRrBrake;
     private final BakedPart wheelRrSpin;
 
     private final BakedPart steeringWheel;
@@ -67,7 +79,9 @@ public final class SportsCarModelData {
                                BakedPart wheelFlSpin,
                                BakedPart wheelFrSteer,
                                BakedPart wheelFrSpin,
+                               BakedPart wheelRlBrake,
                                BakedPart wheelRlSpin,
+                               BakedPart wheelRrBrake,
                                BakedPart wheelRrSpin,
                                BakedPart steeringWheel,
                                BakedPart doorLeft,
@@ -84,7 +98,9 @@ public final class SportsCarModelData {
         this.wheelFlSpin = wheelFlSpin;
         this.wheelFrSteer = wheelFrSteer;
         this.wheelFrSpin = wheelFrSpin;
+        this.wheelRlBrake = wheelRlBrake;
         this.wheelRlSpin = wheelRlSpin;
+        this.wheelRrBrake = wheelRrBrake;
         this.wheelRrSpin = wheelRrSpin;
         this.steeringWheel = steeringWheel;
         this.doorLeft = doorLeft;
@@ -126,15 +142,57 @@ public final class SportsCarModelData {
     }
 
     /**
-     * 渲染除半透明玻璃外的所有不透明部件（车身、四轮、卡钳、方向盘、车门及智能车灯）。
-     *
-     * @param steerAngleRad   前轮与方向盘转向角（弧度，正值=向左打方向）
-     * @param wheelSpinRad    车轮累计滚动角（弧度，前进正向递增）
-     * @param doorOpenProg    迎宾门开合进度（0=关，1=全开 72°）
-     * @param headlightLight  前大灯光照值（如 {@code LightTexture.FULL_BRIGHT}）
-     * @param headlightTint   前大灯 RGBA 染色（如暖白自发光）
-     * @param taillightLight  尾灯光照值
-     * @param taillightTint   尾灯 RGBA 染色
+     * 水上推进舱与车轮折转的统一变换参数（供模型、机械悬臂、涵道护罩与推进光环共享）。
+     */
+    public record HoverPodTransform(
+            float tx,
+            float ty,
+            float tz,
+            float foldPhase,
+            float outwardClear,
+            float vectorPitchDeg,
+            float vectorRollDeg
+    ) {
+    }
+
+    /**
+     * 计算水陆变形下车身整体向上抬升高度（确保折平轮盘与底盘互不穿模）。
+     */
+    public static float computeWaterMorphLift(float waterMorph) {
+        float morph = Mth.clamp(waterMorph, 0.0F, 1.0F);
+        return smoothstep(0.08F, 0.90F, morph) * WATER_MORPH_MAX_LIFT;
+    }
+
+    /**
+     * 计算单个车轮/涵道推进舱在当前变形进度与矢量推进角下的空间变换。
+     */
+    public static HoverPodTransform computeWheelPodTransform(float pivotX,
+                                                             float pivotY,
+                                                             float pivotZ,
+                                                             boolean isLeft,
+                                                             float waterMorph,
+                                                             float vectorPitchDeg,
+                                                             float vectorRollDeg) {
+        float morph = Mth.clamp(waterMorph, 0.0F, 1.0F);
+        float outwardClear = smoothstep(0.0F, 0.32F, morph)
+                * (1.0F - smoothstep(0.45F, 0.92F, morph)) * 0.16F;
+        float foldPhase = smoothstep(0.22F, 1.00F, morph);
+        float sideSign = isLeft ? -1.0F : 1.0F;
+
+        // 向轮位外下方微展后折平，使水平轮盘顶面（+0.051）严格处于碳纤维底板（0.074）之下
+        float tx = pivotX + sideSign * (outwardClear + foldPhase * 0.08F);
+        float ty = pivotY - foldPhase * 0.67625F;
+        float vBlend = smoothstep(0.50F, 1.00F, morph);
+
+        return new HoverPodTransform(
+                tx, ty, pivotZ,
+                foldPhase, outwardClear,
+                vectorPitchDeg * vBlend, vectorRollDeg * vBlend
+        );
+    }
+
+    /**
+     * 渲染除半透明玻璃外的所有不透明部件（无矢量推进倾斜的兼容重载，供物品立体渲染使用）。
      */
     public void renderOpaqueParts(PoseStack poseStack,
                                   VertexConsumer consumer,
@@ -143,11 +201,56 @@ public final class SportsCarModelData {
                                   float steerAngleRad,
                                   float wheelSpinRad,
                                   float doorOpenProg,
+                                  float waterMorph,
+                                  float hoverTurbineSpinRad,
+                                  int headlightLight,
+                                  int headlightTint,
+                                  int taillightLight,
+                                  int taillightTint) {
+        renderOpaqueParts(
+                poseStack, consumer, baseLight, packedOverlay,
+                steerAngleRad, wheelSpinRad, doorOpenProg, waterMorph, hoverTurbineSpinRad,
+                0.0F, 0.0F,
+                headlightLight, headlightTint, taillightLight, taillightTint
+        );
+    }
+
+    /**
+     * 渲染除半透明玻璃外的所有不透明部件（车身、四轮、前后制动系统、方向盘、车门、智能车灯及矢量倾转）。
+     *
+     * @param steerAngleRad       前轮与方向盘转向角（弧度，正值=向左打方向）
+     * @param wheelSpinRad        陆地行驶车轮累计滚动角（弧度，前进正向递增）
+     * @param doorOpenProg        迎宾门开合进度（0=关，1=全开 72°）
+     * @param waterMorph          水陆变形进度（0=陆地四轮，1=水上 90° 折叠气垫涡轮）
+     * @param hoverTurbineSpinRad 水上模式气垫涡轮累计旋转角（弧度）
+     * @param vectorPitchDeg      水上推进舱矢量俯仰角（度，加速向后喷流为负）
+     * @param vectorRollDeg       水上推进舱矢量横倾角（度）
+     * @param headlightLight      前大灯光照值（如 {@code LightTexture.FULL_BRIGHT}）
+     * @param headlightTint       前大灯 RGBA 染色（如暖白自发光）
+     * @param taillightLight      尾灯光照值
+     * @param taillightTint       尾灯 RGBA 染色
+     */
+    public void renderOpaqueParts(PoseStack poseStack,
+                                  VertexConsumer consumer,
+                                  int baseLight,
+                                  int packedOverlay,
+                                  float steerAngleRad,
+                                  float wheelSpinRad,
+                                  float doorOpenProg,
+                                  float waterMorph,
+                                  float hoverTurbineSpinRad,
+                                  float vectorPitchDeg,
+                                  float vectorRollDeg,
                                   int headlightLight,
                                   int headlightTint,
                                   int taillightLight,
                                   int taillightTint) {
         RenderScratch scratch = new RenderScratch();
+
+        float morph = Mth.clamp(waterMorph, 0.0F, 1.0F);
+        // 变形前段：转向角平滑归零，主段：四轮及对应制动系统同步 90° 折平为水平涡轮定子
+        float effectiveSteer = steerAngleRad * (1.0F - smoothstep(0.0F, 0.40F, morph));
+        float turbineBlend = smoothstep(0.45F, 0.88F, morph);
 
         // 静态车身（底板、外蒙皮、空力套件、座舱座椅仪表台等）
         emitAtOrigin(poseStack, consumer, body, baseLight, packedOverlay, 0xFFFFFFFF, scratch);
@@ -156,23 +259,29 @@ public final class SportsCarModelData {
         emitAtOrigin(poseStack, consumer, headlights, headlightLight, packedOverlay, headlightTint, scratch);
         emitAtOrigin(poseStack, consumer, taillights, taillightLight, packedOverlay, taillightTint, scratch);
 
-        // 前轮：卡钳转向组与轮胎轮毂共用枢纽，先绕 Y 轴转向，再叠绕 X 轴负向滚动
-        renderFrontWheel(poseStack, consumer, wheelFlSteer, wheelFlSpin,
-                steerAngleRad, wheelSpinRad, baseLight, packedOverlay, scratch);
-        renderFrontWheel(poseStack, consumer, wheelFrSteer, wheelFrSpin,
-                steerAngleRad, wheelSpinRad, baseLight, packedOverlay, scratch);
+        // 前轮：卡钳转向组与轮胎轮毂共用枢纽，先转向与矢量微倾，再折平并叠加自转/气垫涡轮高速旋转
+        renderWheelAssembly(poseStack, consumer, wheelFlSteer, wheelFlSpin, true,
+                effectiveSteer, wheelSpinRad, hoverTurbineSpinRad,
+                morph, vectorPitchDeg, vectorRollDeg, turbineBlend, baseLight, packedOverlay, scratch);
+        renderWheelAssembly(poseStack, consumer, wheelFrSteer, wheelFrSpin, false,
+                effectiveSteer, wheelSpinRad, hoverTurbineSpinRad,
+                morph, vectorPitchDeg, vectorRollDeg, turbineBlend, baseLight, packedOverlay, scratch);
 
-        // 后轮：仅绕各自枢纽的 X 轴负向滚动
-        renderSpinWheel(poseStack, consumer, wheelRlSpin, wheelSpinRad, baseLight, packedOverlay, scratch);
-        renderSpinWheel(poseStack, consumer, wheelRrSpin, wheelSpinRad, baseLight, packedOverlay, scratch);
+        // 后轮：后轮制动盘与卡钳同步跟随轮毂折叠并作为水平涡轮定子，彻底消除穿模
+        renderWheelAssembly(poseStack, consumer, wheelRlBrake, wheelRlSpin, true,
+                0.0F, wheelSpinRad, hoverTurbineSpinRad,
+                morph, vectorPitchDeg, vectorRollDeg, turbineBlend, baseLight, packedOverlay, scratch);
+        renderWheelAssembly(poseStack, consumer, wheelRrBrake, wheelRrSpin, false,
+                0.0F, wheelSpinRad, hoverTurbineSpinRad,
+                morph, vectorPitchDeg, vectorRollDeg, turbineBlend, baseLight, packedOverlay, scratch);
 
         // 方向盘：绕转向柱导出轴向量旋转（向左转向对应正角度逆时针旋转）
         if (!steeringWheel.isEmpty()) {
             poseStack.pushPose();
             poseStack.translate(steeringWheel.pivotX, steeringWheel.pivotY, steeringWheel.pivotZ);
-            if (Math.abs(steerAngleRad) > 1.0E-4F) {
+            if (Math.abs(effectiveSteer) > 1.0E-4F) {
                 scratch.quat.fromAxisAngleRad(
-                        steeringWheel.axisX, steeringWheel.axisY, steeringWheel.axisZ, steerAngleRad * 6.5F);
+                        steeringWheel.axisX, steeringWheel.axisY, steeringWheel.axisZ, effectiveSteer * 6.5F);
                 poseStack.mulPose(scratch.quat);
             }
             emitFaces(poseStack.last(), consumer, steeringWheel, baseLight, packedOverlay, 0xFFFFFFFF, scratch);
@@ -202,53 +311,63 @@ public final class SportsCarModelData {
                 packedLight, packedOverlay, scratch);
     }
 
-    private static void renderFrontWheel(PoseStack poseStack,
-                                         VertexConsumer consumer,
-                                         BakedPart steerPart,
-                                         BakedPart spinPart,
-                                         float steerAngleRad,
-                                         float wheelSpinRad,
-                                         int packedLight,
-                                         int packedOverlay,
-                                         RenderScratch scratch) {
-        BakedPart pivotPart = !spinPart.isEmpty() ? spinPart : steerPart;
-        if (pivotPart.isEmpty()) {
+    private static void renderWheelAssembly(PoseStack poseStack,
+                                            VertexConsumer consumer,
+                                            @Nullable BakedPart brakePart,
+                                            BakedPart spinPart,
+                                            boolean isLeft,
+                                            float steerAngleRad,
+                                            float wheelSpinRad,
+                                            float hoverTurbineSpinRad,
+                                            float waterMorph,
+                                            float vectorPitchDeg,
+                                            float vectorRollDeg,
+                                            float turbineBlend,
+                                            int packedLight,
+                                            int packedOverlay,
+                                            RenderScratch scratch) {
+        BakedPart pivotPart = !spinPart.isEmpty() ? spinPart : brakePart;
+        if (pivotPart == null || pivotPart.isEmpty()) {
             return;
         }
+        HoverPodTransform pod = computeWheelPodTransform(
+                pivotPart.pivotX, pivotPart.pivotY, pivotPart.pivotZ,
+                isLeft, waterMorph, vectorPitchDeg, vectorRollDeg);
+
         poseStack.pushPose();
-        poseStack.translate(pivotPart.pivotX, pivotPart.pivotY, pivotPart.pivotZ);
+        poseStack.translate(pod.tx(), pod.ty(), pod.tz());
         if (Math.abs(steerAngleRad) > 1.0E-4F) {
             poseStack.mulPose(Axis.YP.rotation(steerAngleRad));
         }
-        if (!steerPart.isEmpty()) {
-            emitFaces(poseStack.last(), consumer, steerPart, packedLight, packedOverlay, 0xFFFFFFFF, scratch);
+        // 在折平前施加矢量推进倾斜，使整个水平推进舱围绕车体参考系前倾/侧倾
+        if (Math.abs(pod.vectorPitchDeg()) > 1.0E-3F) {
+            poseStack.mulPose(Axis.XP.rotationDegrees(pod.vectorPitchDeg()));
+        }
+        if (Math.abs(pod.vectorRollDeg()) > 1.0E-3F) {
+            poseStack.mulPose(Axis.ZP.rotationDegrees(-pod.vectorRollDeg()));
+        }
+        // 左轮绕 +Z 向内折转 +90°、右轮折转 -90°，使外侧轮辋面朝下充当气垫涡轮盘
+        if (pod.foldPhase() > 1.0E-4F) {
+            poseStack.mulPose(Axis.ZP.rotationDegrees((isLeft ? 90.0F : -90.0F) * pod.foldPhase()));
+        }
+        if (brakePart != null && !brakePart.isEmpty()) {
+            emitFaces(poseStack.last(), consumer, brakePart, packedLight, packedOverlay, 0xFFFFFFFF, scratch);
         }
         if (!spinPart.isEmpty()) {
-            if (Math.abs(wheelSpinRad) > 1.0E-4F) {
-                poseStack.mulPose(Axis.XP.rotation(-wheelSpinRad));
+            float landSpin = -wheelSpinRad * (1.0F - turbineBlend);
+            float turbineSpin = (isLeft ? -hoverTurbineSpinRad : hoverTurbineSpinRad) * turbineBlend;
+            float totalSpin = landSpin + turbineSpin;
+            if (Math.abs(totalSpin) > 1.0E-4F) {
+                poseStack.mulPose(Axis.XP.rotation(totalSpin));
             }
             emitFaces(poseStack.last(), consumer, spinPart, packedLight, packedOverlay, 0xFFFFFFFF, scratch);
         }
         poseStack.popPose();
     }
 
-    private static void renderSpinWheel(PoseStack poseStack,
-                                        VertexConsumer consumer,
-                                        BakedPart wheelPart,
-                                        float wheelSpinRad,
-                                        int packedLight,
-                                        int packedOverlay,
-                                        RenderScratch scratch) {
-        if (wheelPart.isEmpty()) {
-            return;
-        }
-        poseStack.pushPose();
-        poseStack.translate(wheelPart.pivotX, wheelPart.pivotY, wheelPart.pivotZ);
-        if (Math.abs(wheelSpinRad) > 1.0E-4F) {
-            poseStack.mulPose(Axis.XP.rotation(-wheelSpinRad));
-        }
-        emitFaces(poseStack.last(), consumer, wheelPart, packedLight, packedOverlay, 0xFFFFFFFF, scratch);
-        poseStack.popPose();
+    public static float smoothstep(float edge0, float edge1, float x) {
+        float t = Mth.clamp((x - edge0) / (edge1 - edge0), 0.0F, 1.0F);
+        return t * t * (3.0F - 2.0F * t);
     }
 
     private static void renderDoorPart(PoseStack poseStack,
@@ -362,7 +481,9 @@ public final class SportsCarModelData {
                     bakePart(parts.getAsJsonObject("wheel_fl_spin")),
                     bakePart(parts.getAsJsonObject("wheel_fr_steer")),
                     bakePart(parts.getAsJsonObject("wheel_fr_spin")),
+                    bakePart(parts.getAsJsonObject("wheel_rl_brake")),
                     bakePart(parts.getAsJsonObject("wheel_rl_spin")),
+                    bakePart(parts.getAsJsonObject("wheel_rr_brake")),
                     bakePart(parts.getAsJsonObject("wheel_rr_spin")),
                     bakePart(parts.getAsJsonObject("steering_wheel")),
                     bakePart(parts.getAsJsonObject("door_left")),

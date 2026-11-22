@@ -70,6 +70,8 @@ public final class SportsCarItemRenderer extends BlockEntityWithoutLevelRenderer
                 0.0F,
                 0.0F,
                 0.0F,
+                0.0F,
+                0.0F,
                 packedLight,
                 0xFFFFFFFF,
                 packedLight,

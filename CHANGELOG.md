@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.9.36 - 2026-11-22
+
+- **Gulf GT Sports Car Amphibious Visuals & Anti-Clipping Overhaul**:
+  - Split `wheel_rl_brake` and `wheel_rr_brake` in `convert_sports_car_assets.py` / `gulf_gt_car.json` so rear brake discs and calipers fold horizontally together with the rear wheels, eliminating vertical brake clipping inside the wheel wells.
+  - Upgraded `SportsCarModelData` and `SportsCarRenderer` with shared zero-clipping wheel-pod transforms (`computeWheelPodTransform`, `computeWaterMorphLift`), full-time carbon-fiber light-blocking wheel-well bulkheads with deployable armored louver panels, articulated double-wishbone & dual-stage hydraulic suspension arms, four independent ducted hover shrouds with Gulf orange/blue trim, compact center wave-piercing hydro skirts, and dynamic 6°–12° thrust-vectoring pod tilt synchronized across pods, shrouds, and cyan thruster glow rings.
+  - Synchronized passenger/cockpit lift and expanded hover-pod splash ring coordinates in `SportsCarClientHandler`.
+
+## 1.9.35 - 2026-11-19
+
+- **Gulf GT Sports Car Amphibious Hover-Hydrofoil Mode**:
+  - Added automatic water-land mode detection with hysteresis anti-jitter (`DATA_WATER_MODE`, `DATA_WATER_MORPH_PROGRESS`, `DATA_WATER_SURFACE_Y`) and smooth closed-loop spring-damper water-surface height tracking, eliminating vertical bobbing while gliding across water (`0.88` blocks/tick base, `1.38` blocks/tick with Nitro) and enabling water drifting (`Space`) and smooth shore climbing (`tryClimbShoreFromWater`).
+  - Added two-stage wheel-to-hover-turbine folding animation (`SportsCarModelData`), deployable Gulf-livery hydrofoil skis with pulsing cyan hover thruster glow (`SportsCarRenderer`), multi-layer bow spray, V-wake, drift water curtains, and nitro water-jet particles with `[HYDRO]` ActionBar status (`SportsCarClientHandler`).
+  - Added mono Ogg Vorbis morph and water-glide audio (`sports_car_morph.ogg`, `sports_car_water_glide.ogg`) integrated into `ModSounds` and `SportsCarSoundController`.
+
 ## 1.9.34 - 2026-11-18
 
 - Rebuilt the Klein Bottle GUI with high-contrast light surfaces and a dedicated tools dock beside the warehouse. Search, storage and all three workstations remain accessible together.

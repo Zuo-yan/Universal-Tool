@@ -58,5 +58,25 @@
         "stream": false
       }
     ]
+  },
+  "sports_car_morph": {
+    "category": "neutral",
+    "subtitle": "subtitles.universal_tool.sports_car_morph",
+    "sounds": [
+      {
+        "name": "universal_tool:entity/sports_car_morph",
+        "stream": false
+      }
+    ]
+  },
+  "sports_car_water_glide": {
+    "category": "neutral",
+    "subtitle": "subtitles.universal_tool.sports_car_water_glide",
+    "sounds": [
+      {
+        "name": "universal_tool:entity/sports_car_water_glide",
+        "stream": false
+      }
+    ]
   }
 }

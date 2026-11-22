@@ -42,6 +42,16 @@ public final class ModSounds {
                     ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
                             "sports_car_door")));
 
+    public static final DeferredHolder<SoundEvent, SoundEvent> SPORTS_CAR_MORPH =
+            SOUNDS.register("sports_car_morph", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
+                            "sports_car_morph")));
+
+    public static final DeferredHolder<SoundEvent, SoundEvent> SPORTS_CAR_WATER_GLIDE =
+            SOUNDS.register("sports_car_water_glide", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
+                            "sports_car_water_glide")));
+
     private ModSounds() {
     }
 }

@@ -8,6 +8,7 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -24,6 +25,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -40,6 +42,7 @@ import org.joml.Vector3f;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,6 +85,14 @@ public class SportsCarEntity extends Entity {
             SynchedEntityData.defineId(SportsCarEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Float> DATA_FORWARD_SPEED =
             SynchedEntityData.defineId(SportsCarEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Boolean> DATA_WATER_MODE =
+            SynchedEntityData.defineId(SportsCarEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Float> DATA_WATER_MORPH_PROGRESS =
+            SynchedEntityData.defineId(SportsCarEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Boolean> DATA_WATER_SURFACE_ACTIVE =
+            SynchedEntityData.defineId(SportsCarEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Float> DATA_WATER_SURFACE_Y =
+            SynchedEntityData.defineId(SportsCarEntity.class, EntityDataSerializers.FLOAT);
 
     // 速度与加速度物理参数（单位：格/tick）
     public static final double NORMAL_MAX_FORWARD_SPEED = 0.95D;
@@ -94,6 +105,18 @@ public class SportsCarEntity extends Entity {
     private static final double COAST_DAMPING = 0.955D;
     private static final double AIR_DAMPING = 0.985D;
     private static final double GRAVITY = 0.075D;
+
+    // 水陆两栖水上滑行参数
+    public static final double WATER_MAX_FORWARD_SPEED = 0.88D;
+    public static final double WATER_NITRO_MAX_FORWARD_SPEED = 1.38D;
+    private static final double WATER_MAX_REVERSE_SPEED = 0.38D;
+    private static final double WATER_COAST_DAMPING = 0.972D;
+    private static final double WATER_LATERAL_GRIP = 0.86D;
+    private static final double WATER_DRIFT_LATERAL_GRIP = 0.945D;
+    private static final int WATER_EXIT_HYSTERESIS_TICKS = 4;
+    private static final float WATER_MORPH_STEP_PER_TICK = 0.08F;
+    private static final float WATER_MORPH_ENTER_SOUND_THRESHOLD = 0.12F;
+    private static final float WATER_MORPH_EXIT_SOUND_THRESHOLD = 0.88F;
 
     // 抓地与漂移参数
     private static final double NORMAL_LATERAL_GRIP = 0.26D;
@@ -143,6 +166,7 @@ public class SportsCarEntity extends Entity {
     // 服务端状态缓存
     private float steerAngleRad;
     private int doorStayTicks;
+    private int waterExitTicks;
     private final Map<UUID, Long> ramCooldowns = new HashMap<>();
 
     // 客户端网络插值状态
@@ -165,6 +189,7 @@ public class SportsCarEntity extends Entity {
     private float prevTerrainRoll;
     private float prevSteerAngle;
     private float prevDoorOpenProgress;
+    private float prevWaterMorphProgress;
     private float prevWheelSpin;
     private float wheelSpin;
 
@@ -205,6 +230,10 @@ public class SportsCarEntity extends Entity {
         builder.define(DATA_DRIFTING, false);
         builder.define(DATA_NITRO_ACTIVE, false);
         builder.define(DATA_FORWARD_SPEED, 0.0F);
+        builder.define(DATA_WATER_MODE, false);
+        builder.define(DATA_WATER_MORPH_PROGRESS, 0.0F);
+        builder.define(DATA_WATER_SURFACE_ACTIVE, false);
+        builder.define(DATA_WATER_SURFACE_Y, Float.NaN);
     }
 
     @Override
@@ -225,6 +254,13 @@ public class SportsCarEntity extends Entity {
         if (tag.contains("DoorOpenProgress")) {
             this.entityData.set(DATA_DOOR_OPEN_PROGRESS, Mth.clamp(tag.getFloat("DoorOpenProgress"), 0.0F, 1.0F));
         }
+        if (tag.contains("WaterMode")) {
+            this.entityData.set(DATA_WATER_MODE, tag.getBoolean("WaterMode"));
+        }
+        if (tag.contains("WaterMorphProgress")) {
+            this.entityData.set(DATA_WATER_MORPH_PROGRESS,
+                    Mth.clamp(tag.getFloat("WaterMorphProgress"), 0.0F, 1.0F));
+        }
     }
 
     @Override
@@ -234,6 +270,8 @@ public class SportsCarEntity extends Entity {
         tag.putFloat("TerrainRoll", getTerrainRoll());
         tag.putFloat("NitroEnergy", getNitroEnergy());
         tag.putFloat("DoorOpenProgress", getDoorOpenProgress());
+        tag.putBoolean("WaterMode", isInWaterMode());
+        tag.putFloat("WaterMorphProgress", getWaterMorphProgress());
     }
 
     // ==================== 公开状态与动画 Getter（供客户端渲染与测试调用） ====================
@@ -381,6 +419,42 @@ public class SportsCarEntity extends Entity {
     }
 
     /**
+     * 是否处于水陆两栖水上气垫/水翼形态。
+     */
+    public boolean isInWaterMode() {
+        return this.entityData.get(DATA_WATER_MODE);
+    }
+
+    /**
+     * 获取水上变形进度（0.0=陆地四轮形态，1.0=水上收轮气垫/水翼形态）。
+     */
+    public float getWaterMorphProgress() {
+        return this.entityData.get(DATA_WATER_MORPH_PROGRESS);
+    }
+
+    /**
+     * 获取帧间插值后的水上变形进度（0.0..1.0）。
+     */
+    public float getWaterMorphProgress(float partialTick) {
+        return Mth.lerp(Mth.clamp(partialTick, 0.0F, 1.0F), this.prevWaterMorphProgress, getWaterMorphProgress());
+    }
+
+    /**
+     * 当前是否正处于水面悬浮/滑行状态（包含入水过渡阶段），供客户端生成浪花与滑水音效。
+     */
+    public boolean isWaterSurfaceActive() {
+        return this.entityData.get(DATA_WATER_SURFACE_ACTIVE);
+    }
+
+    /**
+     * 获取探测到的精确水面高度（单位：世界 Y 坐标，未检测到水面时返回 {@link Double#NaN}）。
+     */
+    public double getWaterSurfaceY() {
+        float y = this.entityData.get(DATA_WATER_SURFACE_Y);
+        return Float.isFinite(y) ? (double) y : Double.NaN;
+    }
+
+    /**
      * 获取指定座位的模型局部坐标（单位：方块，原点在车底正中心，-Z 为车头）。
      * 0=主驾左舵 {@code [-0.406, 0.36, 0.116]}，1=副驾右座 {@code [+0.406, 0.36, 0.116]}。
      */
@@ -525,6 +599,7 @@ public class SportsCarEntity extends Entity {
         this.prevTerrainRoll = getTerrainRoll();
         this.prevSteerAngle = getSteerAngle();
         this.prevDoorOpenProgress = getDoorOpenProgress();
+        this.prevWaterMorphProgress = getWaterMorphProgress();
         this.prevWheelSpin = this.wheelSpin;
 
         if (this.clientPredictionTtl > 0) {
@@ -568,15 +643,23 @@ public class SportsCarEntity extends Entity {
         Vec3 forward = computeForward(yaw);
         double forwardSpeed = horizVel.dot(forward);
 
+        // 探测水面与实体地面，更新水陆两栖模式与变形进度
+        WaterProbeResult waterProbe = probeWaterAndGround(yaw);
+        boolean waterMode = updateWaterModeState(waterProbe);
+        float waterMorph = updateWaterMorphProgress(waterMode);
+        boolean waterSurfaceActive = Double.isFinite(waterProbe.waterSurfaceY())
+                && (waterMode || waterMorph > 0.15F || waterProbe.waterSampleCount() >= 2)
+                && getY() <= waterProbe.waterSurfaceY() + 0.40D;
+
         // 判断当前是否处于倒车工况
         boolean reversing = (throttle < -0.05F && forwardSpeed < 0.08D)
                 || (forwardSpeed < -0.05D && throttle <= 0.05F);
         boolean braking = (throttle < -0.05F) || handbrake;
 
-        // 速度较大时按下手刹进入漂移状态
-        boolean drifting = handbrake && horizSpeed > DRIFT_SPEED_THRESHOLD && onGround();
+        // 速度较大时按下手刹进入漂移/水上甩尾状态
+        boolean drifting = handbrake && horizSpeed > DRIFT_SPEED_THRESHOLD && (onGround() || waterMode);
 
-        // 氮气能量槽管理（行驶中按住 Ctrl 消耗，松开回充，漂移加快回充）
+        // 氮气能量槽管理（行驶中按住 Ctrl 消耗，松开回充，漂移/水上甩尾加快回充）
         float nitroEnergy = getNitroEnergy();
         boolean nitroActive = nitroInput && !reversing && !handbrake
                 && (throttle > 0.05F || horizSpeed > 0.15D)
@@ -604,9 +687,13 @@ public class SportsCarEntity extends Entity {
         double fwdSpeed = horizVel.dot(forward);
         double latSpeed = horizVel.dot(right);
 
+        double baseMaxFwd = waterMode ? WATER_MAX_FORWARD_SPEED : NORMAL_MAX_FORWARD_SPEED;
+        double nitroMaxFwd = waterMode ? WATER_NITRO_MAX_FORWARD_SPEED : NITRO_MAX_FORWARD_SPEED;
+        double maxRev = waterMode ? WATER_MAX_REVERSE_SPEED : MAX_REVERSE_SPEED;
+
         if (drifting) {
             if (throttle > 0.05F) {
-                double driftTarget = throttle * NORMAL_MAX_FORWARD_SPEED * 0.88D;
+                double driftTarget = throttle * baseMaxFwd * 0.88D;
                 fwdSpeed = Mth.lerp(0.05D, fwdSpeed, driftTarget);
             } else {
                 fwdSpeed *= HANDBRAKE_DRIFT_DAMPING;
@@ -614,7 +701,7 @@ public class SportsCarEntity extends Entity {
         } else if (handbrake) {
             fwdSpeed *= HANDBRAKE_STOP_DAMPING;
         } else if (throttle > 0.05F) {
-            double maxFwd = nitroActive ? NITRO_MAX_FORWARD_SPEED : NORMAL_MAX_FORWARD_SPEED;
+            double maxFwd = nitroActive ? nitroMaxFwd : baseMaxFwd;
             double accel = nitroActive ? NITRO_ACCEL : FORWARD_ACCEL;
             double targetFwd = throttle * maxFwd;
             if (fwdSpeed < targetFwd) {
@@ -626,18 +713,23 @@ public class SportsCarEntity extends Entity {
             if (fwdSpeed > 0.05D) {
                 fwdSpeed = Math.max(0.0D, fwdSpeed - BRAKE_DECEL * (-throttle));
             } else {
-                double targetRev = throttle * MAX_REVERSE_SPEED;
+                double targetRev = throttle * maxRev;
                 fwdSpeed = Math.max(targetRev, fwdSpeed + throttle * REVERSE_ACCEL);
             }
         } else {
-            double coast = onGround() ? COAST_DAMPING : AIR_DAMPING;
+            double coast = waterMode ? WATER_COAST_DAMPING : (onGround() ? COAST_DAMPING : AIR_DAMPING);
             fwdSpeed *= coast;
         }
 
-        // 普通行驶高抓地抑制侧滑，手刹漂移放宽阻尼保留侧滑惯性
-        double lateralDamping = onGround()
-                ? (drifting ? DRIFT_LATERAL_GRIP : NORMAL_LATERAL_GRIP)
-                : 0.96D;
+        // 抓地与侧滑阻尼（水上正常巡航适度顺滑，水上甩尾与陆地漂移保留侧滑惯性）
+        double lateralDamping;
+        if (waterMode) {
+            lateralDamping = drifting ? WATER_DRIFT_LATERAL_GRIP : WATER_LATERAL_GRIP;
+        } else if (onGround()) {
+            lateralDamping = drifting ? DRIFT_LATERAL_GRIP : NORMAL_LATERAL_GRIP;
+        } else {
+            lateralDamping = 0.96D;
+        }
         latSpeed *= lateralDamping;
 
         Vec3 newHoriz = forward.scale(fwdSpeed).add(right.scale(latSpeed));
@@ -645,9 +737,19 @@ public class SportsCarEntity extends Entity {
             newHoriz = Vec3.ZERO;
         }
 
-        // 垂直运动与水中浮力
+        // 垂直运动：水上采用闭环弹簧-阻尼高度贴合彻底消除抖动；陆地采用重力
         double vy = vel.y;
-        if (isInWater()) {
+        boolean surfaceControl = (waterMode || waterSurfaceActive) && Double.isFinite(waterProbe.waterSurfaceY());
+        if (surfaceControl) {
+            double speedRatio = Mth.clamp(horizSpeed / WATER_MAX_FORWARD_SPEED, 0.0D, 1.0D);
+            double targetY = waterProbe.waterSurfaceY() - Mth.lerp(speedRatio, 0.10D, 0.01D);
+            if (getY() > targetY + 0.45D) {
+                vy = Math.max(-1.5D, vy - GRAVITY);
+            } else {
+                double dy = targetY - getY();
+                vy = Mth.clamp(vy * 0.70D + dy * 0.34D, -0.32D, 0.28D);
+            }
+        } else if (isInWater()) {
             vy = Math.min(0.14D, vy * 0.88D + 0.055D);
             newHoriz = newHoriz.scale(0.90D);
         } else {
@@ -658,18 +760,30 @@ public class SportsCarEntity extends Entity {
         Vec3 beforePos = position();
         setDeltaMovement(intendedMove);
         this.move(MoverType.SELF, intendedMove);
+
+        // 水面悬浮冲岸时因未触地（onGround=false），原生碰撞不会自动跨上岸边；此处主动三步拆解爬岸
+        boolean climbedShore = false;
+        if (waterMode && this.horizontalCollision && throttle > 0.05F && newHoriz.lengthSqr() > 1.0E-4D) {
+            climbedShore = tryClimbShoreFromWater(newHoriz);
+        }
+
         Vec3 actualDelta = position().subtract(beforePos);
 
-        // 撞墙时保留切向滑擦速度，清除指向墙面的法向分量，不破坏方块
-        double postVy = onGround() ? 0.0D : actualDelta.y;
-        if (this.horizontalCollision) {
+        // 撞墙时保留切向滑擦速度，清除指向墙面的法向分量，不破坏方块；爬岸落地时清零垂直速度防跳起
+        double postVy = (climbedShore || (onGround() && !surfaceControl)) ? 0.0D : actualDelta.y;
+        if (this.horizontalCollision && !climbedShore) {
             setDeltaMovement(actualDelta.x, postVy, actualDelta.z);
         } else {
             setDeltaMovement(newHoriz.x, postVy, newHoriz.z);
         }
 
-        // 四轮地形高度拟合（忽略单轮深坑）
-        updateTerrainAlignment(yaw);
+        // 车身姿态拟合：水上平缓破浪微抬头与转向倾侧，陆地四轮高度拟合
+        double actualFwdSpeed = new Vec3(actualDelta.x, 0.0D, actualDelta.z).dot(forward);
+        if (waterMode) {
+            updateWaterAttitude(actualFwdSpeed);
+        } else {
+            updateTerrainAlignment(yaw);
+        }
 
         // 高速撞击非乘客生物
         double actualHorizSpeed = Math.hypot(actualDelta.x, actualDelta.z);
@@ -682,17 +796,198 @@ public class SportsCarEntity extends Entity {
         updateWelcomeDoors(actualHorizSpeed, throttle);
 
         // 同步数据到客户端
-        double syncedFwdSpeed = new Vec3(actualDelta.x, 0.0D, actualDelta.z).dot(forward);
         this.entityData.set(DATA_STEER_ANGLE, this.steerAngleRad);
         this.entityData.set(DATA_NITRO_ENERGY, nitroEnergy);
         this.entityData.set(DATA_THROTTLE, throttle);
         this.entityData.set(DATA_BRAKING, braking);
         this.entityData.set(DATA_DRIFTING, drifting);
         this.entityData.set(DATA_NITRO_ACTIVE, nitroActive);
-        this.entityData.set(DATA_FORWARD_SPEED, (float) syncedFwdSpeed);
+        this.entityData.set(DATA_FORWARD_SPEED, (float) actualFwdSpeed);
+        this.entityData.set(DATA_WATER_SURFACE_ACTIVE, waterSurfaceActive);
+        this.entityData.set(DATA_WATER_SURFACE_Y,
+                Double.isFinite(waterProbe.waterSurfaceY()) ? (float) waterProbe.waterSurfaceY() : Float.NaN);
     }
 
     private record SteeringResult(float newYaw, float targetSteerAngle) {
+    }
+
+    private record WaterProbeResult(int waterSampleCount, double waterSurfaceY, double solidGroundY) {
+        boolean hasWater() {
+            return this.waterSampleCount > 0 && Double.isFinite(this.waterSurfaceY);
+        }
+    }
+
+    /**
+     * 在车体中心及 4 个轮位探测水体表面与实体地面高度，供两栖切换与贴水悬浮使用。
+     */
+    private WaterProbeResult probeWaterAndGround(float yaw) {
+        Vec3 forward = computeForward(yaw);
+        Vec3 right = computeRight(yaw);
+
+        double[] sampleX = {0.0D, -WHEEL_HALF_TRACK, WHEEL_HALF_TRACK, -WHEEL_HALF_TRACK, WHEEL_HALF_TRACK};
+        double[] sampleZ = {0.0D, FRONT_WHEEL_Z, FRONT_WHEEL_Z, REAR_WHEEL_Z, REAR_WHEEL_Z};
+
+        int waterCount = 0;
+        double waterSum = 0.0D;
+        double[] solidSamples = new double[5];
+        int solidCount = 0;
+
+        for (int i = 0; i < 5; i++) {
+            Vec3 wp = position()
+                    .add(right.scale(sampleX[i]))
+                    .add(forward.scale(-sampleZ[i]));
+            double wY = probeWaterSurfaceAt(wp.x, getY(), wp.z);
+            double sY = probeWheelSupportHeight(wp.x, getY(), wp.z);
+
+            if (Double.isFinite(sY)) {
+                solidSamples[solidCount++] = sY;
+            }
+            if (Double.isFinite(wY) && (Double.isNaN(sY) || wY >= sY - 0.12D)) {
+                waterCount++;
+                waterSum += wY;
+            }
+        }
+
+        double avgWaterY = waterCount > 0 ? (waterSum / waterCount) : Double.NaN;
+        double medianSolidY = Double.NaN;
+        if (solidCount >= 3) {
+            Arrays.sort(solidSamples, 0, solidCount);
+            medianSolidY = solidSamples[solidCount / 2];
+        }
+        return new WaterProbeResult(waterCount, avgWaterY, medianSolidY);
+    }
+
+    private double probeWaterSurfaceAt(double wx, double baseY, double wz) {
+        int bx = Mth.floor(wx);
+        int bz = Mth.floor(wz);
+        int topCheckY = Mth.floor(baseY + 1.50D);
+        int minScanY = Mth.floor(baseY - 1.50D);
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos(bx, topCheckY, bz);
+
+        // 若起点已位于水中，向上追踪直到找到真正的水-气交界面（最多向上 6 格）
+        if (level().getFluidState(cursor).is(FluidTags.WATER)) {
+            int surfaceY = topCheckY;
+            for (int i = 0; i < 6; i++) {
+                cursor.set(bx, surfaceY + 1, bz);
+                if (!level().getFluidState(cursor).is(FluidTags.WATER)) {
+                    break;
+                }
+                surfaceY++;
+            }
+            cursor.set(bx, surfaceY, bz);
+            FluidState fluid = level().getFluidState(cursor);
+            return surfaceY + fluid.getHeight(level(), cursor);
+        }
+
+        for (int y = topCheckY; y >= minScanY; y--) {
+            cursor.set(bx, y, bz);
+            FluidState fluid = level().getFluidState(cursor);
+            if (fluid.is(FluidTags.WATER)) {
+                return y + fluid.getHeight(level(), cursor);
+            }
+        }
+        return Double.NaN;
+    }
+
+    /**
+     * 更新水陆两栖模式状态（带滞回防抽搐：入水 ≥2 采样点即刻切入，离水或踩实更高陆地维持 4 tick 切回）。
+     */
+    private boolean updateWaterModeState(WaterProbeResult probe) {
+        boolean waterMode = isInWaterMode();
+        boolean canEnterWater = probe.waterSampleCount() >= 2
+                && (Double.isNaN(probe.solidGroundY()) || probe.waterSurfaceY() >= probe.solidGroundY() - 0.12D);
+        boolean hasAnyWater = probe.hasWater();
+        boolean onHigherSolid = !Double.isNaN(probe.solidGroundY())
+                && (!hasAnyWater || probe.solidGroundY() > probe.waterSurfaceY() + 0.06D);
+
+        if (!waterMode) {
+            if (canEnterWater) {
+                waterMode = true;
+                this.waterExitTicks = 0;
+            }
+        } else {
+            if (onGround() && !hasAnyWater) {
+                waterMode = false;
+                this.waterExitTicks = 0;
+            } else if (!hasAnyWater || onHigherSolid) {
+                this.waterExitTicks++;
+                if (this.waterExitTicks >= WATER_EXIT_HYSTERESIS_TICKS) {
+                    waterMode = false;
+                    this.waterExitTicks = 0;
+                }
+            } else {
+                this.waterExitTicks = 0;
+            }
+        }
+
+        if (waterMode != isInWaterMode()) {
+            this.entityData.set(DATA_WATER_MODE, waterMode);
+        }
+        return waterMode;
+    }
+
+    /**
+     * 平滑推进水上收轮/展开水翼变形进度，并在跨阈值时播放机械变形音效。
+     */
+    private float updateWaterMorphProgress(boolean waterMode) {
+        float prev = getWaterMorphProgress();
+        float target = waterMode ? 1.0F : 0.0F;
+        float next = prev;
+
+        if (prev < target) {
+            next = Math.min(1.0F, prev + WATER_MORPH_STEP_PER_TICK);
+        } else if (prev > target) {
+            next = Math.max(0.0F, prev - WATER_MORPH_STEP_PER_TICK);
+        }
+
+        if (prev < WATER_MORPH_ENTER_SOUND_THRESHOLD && next >= WATER_MORPH_ENTER_SOUND_THRESHOLD) {
+            level().playSound(null, getX(), getY() + 0.5D, getZ(),
+                    ModSounds.SPORTS_CAR_MORPH.get(), SoundSource.NEUTRAL, 0.85F, 1.08F);
+        } else if (prev > WATER_MORPH_EXIT_SOUND_THRESHOLD && next <= WATER_MORPH_EXIT_SOUND_THRESHOLD) {
+            level().playSound(null, getX(), getY() + 0.5D, getZ(),
+                    ModSounds.SPORTS_CAR_MORPH.get(), SoundSource.NEUTRAL, 0.85F, 0.86F);
+        }
+
+        if (next != prev) {
+            this.entityData.set(DATA_WATER_MORPH_PROGRESS, next);
+        }
+        return next;
+    }
+
+    /**
+     * 水面悬浮驶向岸边时，探测陆地岸阶并拆分为「抬升 -> 水平跨岸 -> 落回岸面」三步平顺爬上岸。
+     */
+    private boolean tryClimbShoreFromWater(Vec3 horizVel) {
+        for (double stepY : new double[]{0.30D, 0.65D, 1.05D, 1.28D}) {
+            AABB steppedBox = getBoundingBox().move(horizVel.x, stepY, horizVel.z);
+            if (level().noCollision(this, steppedBox)) {
+                AABB groundBelow = steppedBox.move(0.0D, -stepY, 0.0D);
+                if (!level().noCollision(this, groundBelow)) {
+                    this.move(MoverType.SELF, new Vec3(0.0D, stepY, 0.0D));
+                    this.move(MoverType.SELF, new Vec3(horizVel.x, 0.0D, horizVel.z));
+                    this.move(MoverType.SELF, new Vec3(0.0D, -stepY, 0.0D));
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 水上模式姿态拟合：基于前行速度平滑微抬头（破浪角 +1.5°..+4.8°）并伴随转向轻柔倾侧与微幅波浪呼吸。
+     */
+    private void updateWaterAttitude(double forwardSpeed) {
+        float speedNorm = Mth.clamp((float) (Math.max(0.0D, forwardSpeed) / WATER_NITRO_MAX_FORWARD_SPEED), 0.0F, 1.0F);
+        float wavePitch = Mth.sin(this.tickCount * 0.14F) * 0.55F * (1.0F - speedNorm * 0.60F);
+        float basePitch = forwardSpeed >= -0.02D ? Mth.lerp(speedNorm, 1.5F, 4.8F) : -1.5F;
+        float targetPitch = Mth.clamp(basePitch + wavePitch, -8.0F, 8.0F);
+
+        float bankRoll = -this.steerAngleRad * speedNorm * 9.5F;
+        float waveRoll = Mth.cos(this.tickCount * 0.11F) * 0.50F * (1.0F - speedNorm * 0.50F);
+        float targetRoll = Mth.clamp(bankRoll + waveRoll, -8.0F, 8.0F);
+
+        this.entityData.set(DATA_TERRAIN_PITCH, Mth.lerp(0.18F, getTerrainPitch(), targetPitch));
+        this.entityData.set(DATA_TERRAIN_ROLL, Mth.lerp(0.18F, getTerrainRoll(), targetRoll));
     }
 
     /**
@@ -990,6 +1285,7 @@ public class SportsCarEntity extends Entity {
             this.prevCarYaw = yaw;
             this.prevTerrainPitch = pitch;
             this.prevTerrainRoll = roll;
+            this.prevWaterMorphProgress = getWaterMorphProgress();
             this.orientationInitialized = true;
             return;
         }

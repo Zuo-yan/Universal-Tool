@@ -42,12 +42,14 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 海湾 GT 跑车客户端总控：采集驾驶输入发包、自动切换与恢复第三人称视角、
- * 7 格第三人称视距与第一人称座舱视角对齐、氮气动态 FOV、ActionBar 极简状态提示、
- * 轮胎/氮气/碎屑粒子生成，以及主副驾双座乘客姿态渲染变换。
+ * 7 格第三人称视距与第一人称座舱视角对齐、氮气动态 FOV、ActionBar 极简状态提示（含 [HYDRO]）、
+ * 陆地轮胎/尾焰粒子与水上多层次破浪/V字尾迹/甩尾水幕/氮气喷水柱特效，以及双座乘客姿态渲染变换。
  */
 @EventBusSubscriber(modid = UniversalToolMod.MODID, value = Dist.CLIENT)
 public final class SportsCarClientHandler {
@@ -60,6 +62,7 @@ public final class SportsCarClientHandler {
 
     private static final Method CAMERA_SET_POSITION = resolveCameraSetPosition();
     private static final Set<Player> PUSHED_PLAYER_POSES = Collections.newSetFromMap(new IdentityHashMap<>());
+    private static final Map<Integer, WaterParticleState> WATER_STATES = new ConcurrentHashMap<>();
 
     private static int clientTickCounter;
     private static int trackedCarId = -1;
@@ -93,17 +96,18 @@ public final class SportsCarClientHandler {
 
         clientTickCounter++;
 
-        // 为附近及当前乘坐的所有跑车更新二阶悬架弹簧、循环音效与轮胎/尾焰粒子
+        // 为附近及当前乘坐的所有跑车更新二阶悬架弹簧、循环音效与陆地/水上特效粒子
         List<SportsCarEntity> nearbyCars = mc.level.getEntitiesOfClass(
                 SportsCarEntity.class, player.getBoundingBox().inflate(PARTICLE_RANGE));
         for (SportsCarEntity nearbyCar : nearbyCars) {
             SportsCarRenderer.tickSpringWithClock(nearbyCar, clientTickCounter);
             if (!mc.isPaused()) {
-                spawnCarParticles(mc.level, nearbyCar);
+                spawnCarParticles(mc.level, nearbyCar, clientTickCounter);
             }
         }
         if (clientTickCounter % 40 == 0) {
             SportsCarRenderer.pruneStaleSprings(clientTickCounter);
+            WATER_STATES.entrySet().removeIf(e -> clientTickCounter - e.getValue().lastSeenTick > 40);
         }
         SportsCarSoundController.updateNearbyCars(mc, nearbyCars);
 
@@ -223,7 +227,7 @@ public final class SportsCarClientHandler {
         poseStack.pushPose();
         PUSHED_PLAYER_POSES.add(player);
 
-        // 平移至主/副驾座椅精确世界坐标，并应用车身姿态与悬架倾侧
+        // 平移至主/副驾座椅精确世界坐标，同步车身姿态、悬架倾侧与水上微抬
         poseStack.translate(seatPos.x - px, seatPos.y - py, seatPos.z - pz);
         poseStack.mulPose(car.getRenderOrientation(partialTick));
 
@@ -234,6 +238,12 @@ public final class SportsCarClientHandler {
         }
         if (Math.abs(fakeRoll) > 1.0E-3F) {
             poseStack.mulPose(Axis.ZP.rotationDegrees(-fakeRoll * 0.7F));
+        }
+
+        float morph = car.getWaterMorphProgress(partialTick);
+        if (morph > 1.0E-3F) {
+            float morphLift = SportsCarModelData.computeWaterMorphLift(morph);
+            poseStack.translate(0.0F, morphLift, 0.0F);
         }
 
         // 抵消原版 yBodyRot 旋转使乘客朝向车头 -Z，并略微缩沉以贴合赛车桶椅且不穿出车顶
@@ -254,6 +264,7 @@ public final class SportsCarClientHandler {
     public static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         resetTracking(Minecraft.getInstance(), false);
         PUSHED_PLAYER_POSES.clear();
+        WATER_STATES.clear();
         SportsCarSoundController.clearAll();
         SportsCarRenderer.clearSprings();
     }
@@ -327,8 +338,12 @@ public final class SportsCarClientHandler {
                 .append(Component.literal("] " + Math.round(nitro) + "%  " + speedKmh + " km/h")
                         .withStyle(ChatFormatting.WHITE));
 
+        if (car.isInWaterMode() || car.isWaterSurfaceActive() || car.getWaterMorphProgress() > 0.35F) {
+            msg.append(Component.literal("  [HYDRO]").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
+        }
+
         if (car.isNitroActive()) {
-            msg.append(Component.literal("  [NITRO]").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
+            msg.append(Component.literal("  [NITRO]").withStyle(ChatFormatting.BLUE, ChatFormatting.BOLD));
         } else if (car.isDrifting()) {
             msg.append(Component.literal("  [DRIFT]").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
         } else if (car.isBraking()) {
@@ -351,12 +366,15 @@ public final class SportsCarClientHandler {
         Quaternionf orient = car.getRenderOrientation(partialTick);
         Vec3 base = car.getCarBasePosition(partialTick);
 
-        Vector3f localEye = new Vector3f((float) seatLocal.x, COCKPIT_EYE_HEIGHT, (float) seatLocal.z);
+        float morph = car.getWaterMorphProgress(partialTick);
+        float morphLift = SportsCarModelData.computeWaterMorphLift(morph);
+
+        Vector3f localEye = new Vector3f((float) seatLocal.x, COCKPIT_EYE_HEIGHT + morphLift, (float) seatLocal.z);
         orient.transform(localEye);
         Vec3 eyePos = base.add(localEye.x, localEye.y, localEye.z);
 
         if (level != null) {
-            Vector3f localSafe = new Vector3f(0.0F, 0.95F, 0.0F);
+            Vector3f localSafe = new Vector3f(0.0F, 0.95F + morphLift, 0.0F);
             orient.transform(localSafe);
             Vec3 origin = base.add(localSafe.x, localSafe.y, localSafe.z);
             HitResult hit = level.clip(new ClipContext(
@@ -378,34 +396,32 @@ public final class SportsCarClientHandler {
         }
     }
 
-    private static void spawnCarParticles(Level level, SportsCarEntity car) {
+    private static void spawnCarParticles(Level level, SportsCarEntity car, int clientTick) {
         RandomSource rand = level.getRandom();
         Quaternionf orient = car.getRenderOrientation(1.0F);
         Vec3 base = car.getCarBasePosition(1.0F);
         float speed = car.getForwardSpeed();
         float absSpeed = Math.abs(speed);
+        float morph = car.getWaterMorphProgress();
+        boolean waterSurface = car.isWaterSurfaceActive();
+        boolean hydroActive = waterSurface || morph > 0.35F;
 
-        // 1. 漂移时左右后轮生成黑烟与橡胶尘雾
-        if (car.isDrifting() && car.onGround()) {
-            for (int side = -1; side <= 1; side += 2) {
-                Vector3f localWheel = new Vector3f(side * 1.103F, 0.08F, 2.00F);
-                orient.transform(localWheel);
-                double wx = base.x + localWheel.x + (rand.nextDouble() - 0.5D) * 0.18D;
-                double wy = base.y + localWheel.y;
-                double wz = base.z + localWheel.z + (rand.nextDouble() - 0.5D) * 0.18D;
+        WaterParticleState wState = WATER_STATES.computeIfAbsent(car.getId(), id -> new WaterParticleState());
+        wState.lastSeenTick = clientTick;
 
-                level.addParticle(ParticleTypes.LARGE_SMOKE, wx, wy, wz,
-                        (rand.nextDouble() - 0.5D) * 0.04D,
-                        0.03D + rand.nextDouble() * 0.04D,
-                        (rand.nextDouble() - 0.5D) * 0.04D);
-                level.addParticle(ParticleTypes.SMOKE, wx, wy + 0.05D, wz,
-                        (rand.nextDouble() - 0.5D) * 0.06D,
-                        0.04D + rand.nextDouble() * 0.05D,
-                        (rand.nextDouble() - 0.5D) * 0.06D);
-            }
+        double rawWaterY = car.getWaterSurfaceY();
+        double waterY = Double.isFinite(rawWaterY) ? rawWaterY : (base.y + 0.08D);
+
+        // 入水或水翼变形展开瞬间，在四轮周围迸发一圈清澈水花
+        boolean enteredWater = !wState.wasWaterActive && (waterSurface || car.isInWaterMode());
+        boolean morphBurst = wState.lastMorph < 0.25F && morph >= 0.25F && Double.isFinite(rawWaterY);
+        if (enteredWater || morphBurst) {
+            spawnEntrySplashRing(level, rand, orient, base, waterY);
         }
+        wState.wasWaterActive = waterSurface || car.isInWaterMode();
+        wState.lastMorph = morph;
 
-        // 2. 氮气加速时双排气管生成蓝色与火焰尾焰粒子
+        // 1. 氮气加速时双排气管始终生成蓝色与火焰尾焰粒子（水上与水雾交融）
         if (car.isNitroActive()) {
             Vector3f backwardVel = orient.transform(new Vector3f(0.0F, 0.02F, 0.36F));
             for (int side = -1; side <= 1; side += 2) {
@@ -432,7 +448,33 @@ public final class SportsCarClientHandler {
             }
         }
 
-        // 3. 高速行驶时地面扬起轻量碎屑粒子
+        if (hydroActive) {
+            // 水上模式禁止陆地橡胶黑烟与泥土碎屑，转为多层次破浪与尾迹浪花特效
+            spawnWaterHydroParticles(level, rand, car, orient, base, waterY, speed, absSpeed);
+            return;
+        }
+
+        // 2. 陆地漂移时左右后轮生成黑烟与橡胶尘雾
+        if (car.isDrifting() && car.onGround()) {
+            for (int side = -1; side <= 1; side += 2) {
+                Vector3f localWheel = new Vector3f(side * 1.103F, 0.08F, 2.00F);
+                orient.transform(localWheel);
+                double wx = base.x + localWheel.x + (rand.nextDouble() - 0.5D) * 0.18D;
+                double wy = base.y + localWheel.y;
+                double wz = base.z + localWheel.z + (rand.nextDouble() - 0.5D) * 0.18D;
+
+                level.addParticle(ParticleTypes.LARGE_SMOKE, wx, wy, wz,
+                        (rand.nextDouble() - 0.5D) * 0.04D,
+                        0.03D + rand.nextDouble() * 0.04D,
+                        (rand.nextDouble() - 0.5D) * 0.04D);
+                level.addParticle(ParticleTypes.SMOKE, wx, wy + 0.05D, wz,
+                        (rand.nextDouble() - 0.5D) * 0.06D,
+                        0.04D + rand.nextDouble() * 0.05D,
+                        (rand.nextDouble() - 0.5D) * 0.06D);
+            }
+        }
+
+        // 3. 陆地高速行驶时地面扬起轻量碎屑粒子
         if (car.onGround() && absSpeed > 0.25F && rand.nextFloat() < Math.min(0.75F, absSpeed * 0.65F)) {
             int side = rand.nextBoolean() ? -1 : 1;
             Vector3f localRear = new Vector3f(side * 1.103F, 0.05F, 2.00F);
@@ -452,5 +494,152 @@ public final class SportsCarClientHandler {
                         gx, gy, gz, kick.x, kick.y, kick.z);
             }
         }
+    }
+
+    private static void spawnEntrySplashRing(Level level,
+                                             RandomSource rand,
+                                             Quaternionf orient,
+                                             Vec3 base,
+                                             double waterY) {
+        float[] xs = {-1.18F, 1.18F, -1.18F, 1.18F};
+        float[] zs = {SportsCarModelData.FRONT_WHEEL_Z, SportsCarModelData.FRONT_WHEEL_Z,
+                SportsCarModelData.REAR_WHEEL_Z, SportsCarModelData.REAR_WHEEL_Z};
+        for (int i = 0; i < 4; i++) {
+            Vector3f p = orient.transform(new Vector3f(xs[i], 0.0F, zs[i]));
+            double wx = base.x + p.x;
+            double wz = base.z + p.z;
+            for (int k = 0; k < 5; k++) {
+                double angle = rand.nextDouble() * Math.PI * 2.0D;
+                double radius = 0.35D + rand.nextDouble() * 0.28D;
+                double ox = Math.cos(angle) * radius;
+                double oz = Math.sin(angle) * radius;
+                double vx = Math.cos(angle) * (0.08D + rand.nextDouble() * 0.10D) + Math.signum(xs[i]) * 0.06D;
+                double vy = 0.14D + rand.nextDouble() * 0.16D;
+                double vz = Math.sin(angle) * (0.08D + rand.nextDouble() * 0.10D);
+                level.addParticle(ParticleTypes.SPLASH, wx + ox, waterY + 0.05D, wz + oz, vx, vy, vz);
+            }
+            level.addParticle(ParticleTypes.CLOUD, wx, waterY + 0.08D, wz,
+                    Math.signum(xs[i]) * 0.06D, 0.04D, (rand.nextDouble() - 0.5D) * 0.06D);
+            level.addParticle(ParticleTypes.BUBBLE_POP, wx, waterY + 0.02D, wz, 0.0D, 0.05D, 0.0D);
+        }
+    }
+
+    private static void spawnWaterHydroParticles(Level level,
+                                                 RandomSource rand,
+                                                 SportsCarEntity car,
+                                                 Quaternionf orient,
+                                                 Vec3 base,
+                                                 double waterY,
+                                                 float speed,
+                                                 float absSpeed) {
+        float speedRatio = Mth.clamp(absSpeed / 0.88F, 0.0F, 1.5F);
+        float dirSign = speed >= 0.0F ? 1.0F : -1.0F;
+
+        // A. 船首破浪：前涵道推进舱外缘切水点向斜上方激起飞溅浪花与白色水沫
+        if (absSpeed > 0.08F) {
+            int bowCount = Math.max(1, Math.round(1.0F + 2.5F * speedRatio));
+            for (int side = -1; side <= 1; side += 2) {
+                Vector3f bowPos = orient.transform(new Vector3f(side * 1.48F, 0.0F, -2.18F));
+                double bx = base.x + bowPos.x;
+                double bz = base.z + bowPos.z;
+                for (int i = 0; i < bowCount; i++) {
+                    Vector3f sprayVel = orient.transform(new Vector3f(
+                            side * (0.10F + 0.18F * speedRatio) + (rand.nextFloat() - 0.5F) * 0.05F,
+                            0.08F + 0.16F * speedRatio + rand.nextFloat() * 0.06F,
+                            dirSign * (0.04F + 0.06F * speedRatio)));
+                    level.addParticle(ParticleTypes.SPLASH,
+                            bx + (rand.nextDouble() - 0.5D) * 0.16D,
+                            waterY + 0.04D,
+                            bz + (rand.nextDouble() - 0.5D) * 0.16D,
+                            sprayVel.x, sprayVel.y, sprayVel.z);
+                }
+                if (rand.nextFloat() < 0.55F + 0.35F * speedRatio) {
+                    Vector3f mistVel = orient.transform(new Vector3f(
+                            side * (0.06F + 0.09F * speedRatio),
+                            0.03F + 0.05F * speedRatio,
+                            dirSign * 0.05F));
+                    level.addParticle(ParticleTypes.CLOUD, bx, waterY + 0.06D, bz,
+                            mistVel.x, mistVel.y, mistVel.z);
+                }
+                level.addParticle(ParticleTypes.BUBBLE_POP, bx, waterY + 0.02D, bz,
+                        0.0D, 0.04D, 0.0D);
+            }
+
+            // B. V 字尾迹双浪：后涵道推进舱与车尾拖出双道白色泡沫与水花尾迹
+            for (int side = -1; side <= 1; side += 2) {
+                Vector3f wakePos = orient.transform(new Vector3f(side * 1.46F, 0.0F, 2.42F));
+                double wx = base.x + wakePos.x;
+                double wz = base.z + wakePos.z;
+                Vector3f wakeVel = orient.transform(new Vector3f(
+                        side * (0.05F + 0.07F * speedRatio),
+                        0.03F + 0.06F * speedRatio,
+                        dirSign * (0.08F + 0.10F * speedRatio)));
+                level.addParticle(ParticleTypes.SPLASH, wx, waterY + 0.03D, wz,
+                        wakeVel.x, wakeVel.y, wakeVel.z);
+                level.addParticle(ParticleTypes.FISHING, wx, waterY + 0.02D, wz,
+                        wakeVel.x * 0.7D, 0.02D, wakeVel.z * 0.7D);
+
+                if (rand.nextFloat() < 0.45F + 0.40F * speedRatio) {
+                    Vector3f foamPos = orient.transform(new Vector3f(side * 1.18F, 0.0F, 3.12F));
+                    level.addParticle(ParticleTypes.CLOUD,
+                            base.x + foamPos.x + (rand.nextDouble() - 0.5D) * 0.20D,
+                            waterY + 0.04D,
+                            base.z + foamPos.z + (rand.nextDouble() - 0.5D) * 0.20D,
+                            wakeVel.x * 0.5D, 0.015D, wakeVel.z * 0.5D);
+                }
+            }
+        }
+
+        // C. 水上甩尾或急转时外侧涵道与导流裙掀起高抛扇形水幕浪花
+        float steer = car.getSteerAngle();
+        if ((car.isDrifting() || Math.abs(steer) > 0.24F) && absSpeed > 0.18F) {
+            int outerSide = steer >= 0.0F ? 1 : -1;
+            int curtainCount = car.isDrifting() ? 5 : 3;
+            for (int i = 0; i < curtainCount; i++) {
+                float zAlong = -1.10F + rand.nextFloat() * 3.10F;
+                Vector3f arcPos = orient.transform(new Vector3f(outerSide * 1.56F, 0.0F, zAlong));
+                Vector3f arcVel = orient.transform(new Vector3f(
+                        outerSide * (0.18F + 0.22F * speedRatio),
+                        0.16F + 0.18F * speedRatio + rand.nextFloat() * 0.08F,
+                        (rand.nextFloat() - 0.3F) * 0.12F));
+                level.addParticle(ParticleTypes.SPLASH,
+                        base.x + arcPos.x, waterY + 0.05D, base.z + arcPos.z,
+                        arcVel.x, arcVel.y, arcVel.z);
+                if (i % 2 == 0) {
+                    level.addParticle(ParticleTypes.CLOUD,
+                            base.x + arcPos.x, waterY + 0.08D, base.z + arcPos.z,
+                            arcVel.x * 0.65D, arcVel.y * 0.45D, arcVel.z * 0.65D);
+                }
+            }
+        }
+
+        // D. 水上氮气加速时车尾扩散器下方喷射高压白色水柱与水雾
+        if (car.isNitroActive()) {
+            for (int side = -1; side <= 1; side += 2) {
+                Vector3f jetPos = orient.transform(new Vector3f(side * 0.36F, 0.0F, 3.38F));
+                double jx = base.x + jetPos.x;
+                double jz = base.z + jetPos.z;
+                for (int k = 0; k < 3; k++) {
+                    Vector3f jetVel = orient.transform(new Vector3f(
+                            side * 0.05F + (rand.nextFloat() - 0.5F) * 0.08F,
+                            0.12F + rand.nextFloat() * 0.12F,
+                            0.38F + rand.nextFloat() * 0.14F));
+                    level.addParticle(ParticleTypes.SPLASH, jx, waterY + 0.06D, jz,
+                            jetVel.x, jetVel.y, jetVel.z);
+                }
+                Vector3f mistVel = orient.transform(new Vector3f(
+                        (rand.nextFloat() - 0.5F) * 0.08F, 0.08F, 0.28F));
+                level.addParticle(ParticleTypes.CLOUD, jx, waterY + 0.10D, jz,
+                        mistVel.x, mistVel.y, mistVel.z);
+                level.addParticle(ParticleTypes.BUBBLE_POP, jx, waterY + 0.04D, jz,
+                        mistVel.x * 0.5D, 0.06D, mistVel.z * 0.5D);
+            }
+        }
+    }
+
+    private static final class WaterParticleState {
+        boolean wasWaterActive;
+        float lastMorph;
+        int lastSeenTick;
     }
 }
