@@ -9,7 +9,6 @@ public final class ClientScreens {
     private ClientScreens() {}
     public static void openCodex() { Minecraft.getInstance().setScreen(new CodexScreen()); }
     public static void openSkills() {
-        SkillClientController.forceCloseWheel();
         Minecraft.getInstance().setScreen(new SkillScreen());
     }
     public static void openPersonalSpace(BlockPos gatePos, int mode, String ownerName, String environmentId) {

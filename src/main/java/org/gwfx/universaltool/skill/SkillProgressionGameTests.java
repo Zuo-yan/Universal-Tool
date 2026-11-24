@@ -9,353 +9,373 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.Cow;
+import net.minecraft.world.entity.animal.Wolf;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.projectile.Arrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.common.damagesource.DamageContainer;
 import net.neoforged.neoforge.common.util.BlockSnapshot;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
-import org.gwfx.universaltool.UniversalToolMod;
 
 import java.util.UUID;
 
 /**
- * Server-side checks for the skill rules that are easy to get subtly wrong: per-level milestone
- * points, the budget/cost balance, respec refunds, offline cooldown recovery, slot expansion, and
- * the "placed then mined" exclusion.
- *
- * <p>Registered only by the isolated island game-test run configuration, matching the existing
- * private-space tests, so the normal client/server runs are unaffected.
+ * 技能模块重构全量服务端 GameTest 套件：
+ * 覆盖 110 点预算、5 大星阶、双轨解锁、3 套预设、星座共鸣、全局开关休眠、历史缺陷回归与新技能执行。
  */
 @PrefixGameTestTemplate(false)
 public final class SkillProgressionGameTests {
-    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void migrationAndDefense(GameTestHelper helper) {
-        CompoundTag old = new CompoundTag();
-        old.putInt("Level", 9);
-        old.putLong("Experience", 175);
-        old.putInt("SkillPoints", 11);
-        PlayerSkillData data = new PlayerSkillData();
-        data.deserialize(old);
-        helper.assertTrue(data.experience() == 700, "Half-level progress must be preserved");
-        data.deserialize(data.serialize());
-        helper.assertTrue(data.experience() == 700, "Migration must run only once");
-        old.putInt("Level", 40);
-        old.putInt("SkillPoints", 62);
-        old.putLong("ExperienceAtMaxLevel", 999999);
-        data.deserialize(old);
-        helper.assertTrue(data.level() == 40 && data.experience() == 0, "Old capped XP must not advance levels");
-        data.addExperience(data.experienceForNextLevel());
-        helper.assertTrue(data.skillPoints() == 62, "No duplicate point grants");
-        data.addExperience(1_000_000);
-        helper.assertTrue(data.level() == 50 && data.skillPoints() == 68, "Migrated graduation budget must be 68");
-        ServerLevel world = helper.getLevel();
-        ServerPlayer player = mockPlayer(world.getServer(), world, "defense-test");
-        var skills = SkillManager.data(player);
-        skills.maximizeAllSkills();
-        skills.addToLoadout(false, ModSkills.DIAMOND_BULWARK);
-        SkillManager.applyPassiveEffects(player);
-        helper.assertTrue(player.getArmorValue() == 20, "Rank three armor must be 20");
-        helper.assertTrue(player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR_TOUGHNESS) == 8, "Rank three toughness must be 8");
-        skills.removeFromLoadout(false, 0);
-        skills.addToLoadout(false, ModSkills.DAMAGE_CLAMP);
-        SkillManager.applyPassiveEffects(player);
-        helper.assertTrue(player.getArmorValue() == 0, "Unequip must remove armor");
-        player.setInvulnerable(false);
-        for (int tick = 0; tick < 65; tick++) player.tick();
-        player.setHealth(20);
-        player.hurt(world.damageSources().generic(), 100);
-        helper.assertTrue(Math.abs(player.getHealth() - 14) < 0.01, "Actual damage must cap at six HP, health=" + player.getHealth());
-        player.invulnerableTime = 0;
-        player.hurt(world.damageSources().fellOutOfWorld(), 100);
-        helper.assertTrue(player.getHealth() == 0, "Void must bypass cap");
-        helper.succeed();
-    }
-
-    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void milestonePointsAreNotSkippedOnMultiLevelAward(GameTestHelper helper) {
-        PlayerSkillData data = new PlayerSkillData();
-        // Level 1 -> 10 in one award must still pay the level-5 and level-10 milestone points.
-        int needed = 0;
-        for (int level = 1; level < 10; level++) {
-            needed += 600 + (level - 1) * 100;
-        }
-        int gained = data.addExperience(needed);
-        helper.assertTrue(gained == 9, "Award must cross exactly nine levels, got " + gained);
-        helper.assertTrue(data.level() == 10, "Expected level 10, got " + data.level());
-        int expected = PlayerSkillData.INITIAL_POINTS + 9 + PlayerSkillData.milestoneBonus(5) + PlayerSkillData.milestoneBonus(10);
-        helper.assertTrue(data.skillPoints() == expected,
-                "Milestones at 5 and 10 must both pay: expected " + expected + ", got " + data.skillPoints());
-        helper.succeed();
-    }
 
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
     public static void pointBudgetExactlyCoversEverySkill(GameTestHelper helper) {
         int budget = PlayerSkillData.totalPointBudget();
         int cost = ModSkills.totalCost();
-        helper.assertTrue(budget == cost,
-                "Max-level budget must equal the cost of learning everything: " + budget + " vs " + cost);
+        helper.assertTrue(ModSkills.all().size() == 32, "Catalog must contain 32 skills");
+        helper.assertTrue(budget == 110 && budget == cost,
+                "Max-level budget must equal cost of all 32 skills (110): " + budget + " vs " + cost);
         helper.succeed();
     }
 
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void respecRefundsSpentPointsAndKeepsUnlocks(GameTestHelper helper) {
+    public static void starRankAndSlotExpansion(GameTestHelper helper) {
         PlayerSkillData data = new PlayerSkillData();
-        data.addExperience(4000);
-        int before = data.skillPoints();
-        data.addDiscovery("combat:hostile_kill");
-        helper.assertTrue(data.unlockEligibleSkills(null) > 0, "A discovery must unlock its active skill");
-        helper.assertTrue(data.learnOrUpgrade(ModSkills.FROZEN_PULL), "Unlocked active must be learnable");
-        helper.assertTrue(data.learnOrUpgrade(ModSkills.FOCUS_MINING), "Passive must be learnable with points");
-        helper.assertTrue(data.addToLoadout(true, ModSkills.FROZEN_PULL), "Learned active must equip");
-        int spent = before - data.skillPoints();
-        helper.assertTrue(spent > 0, "Learning must consume points");
+        helper.assertTrue(data.starRank() == StarRank.STARDUST, "Lv.1 must start as STARDUST");
+        helper.assertTrue(data.activeSlotCount() == 2 && data.passiveSlotCount() == 2,
+                "Lv.1 slots must be 2 active / 2 passive");
 
-        data.resetAllocations();
-        helper.assertTrue(data.skillPoints() == before,
-                "Respec must refund exactly what was spent: expected " + before + ", got " + data.skillPoints());
-        helper.assertTrue(!data.learned(ModSkills.FROZEN_PULL), "Respec must clear learning");
-        helper.assertTrue(data.activeLoadout().isEmpty(), "Respec must clear the active loadout");
-        helper.assertTrue(data.isUnlocked(ModSkills.FROZEN_PULL),
-                "Respec must keep the active skill's unlock qualification");
+        // Lv.1 -> Lv.10（不跳过 5 级与 10 级里程碑）
+        int needed = 0;
+        for (int i = 0; i < 9; i++) {
+            needed += 200 + i * 50;
+        }
+        int gained = data.addExperience(needed);
+        helper.assertTrue(gained == 9 && data.level() == 10, "Must reach Lv.10, got " + data.level());
+        helper.assertTrue(data.starRank() == StarRank.ORBITER, "Lv.10 must promote to ORBITER");
+        helper.assertTrue(data.activeSlotCount() == 3 && data.passiveSlotCount() == 4,
+                "Lv.10 slots must expand to 3/4");
+
+        int expectedPts = PlayerSkillData.INITIAL_POINTS + 9
+                + PlayerSkillData.milestoneBonus(5) + PlayerSkillData.milestoneBonus(10);
+        helper.assertTrue(data.skillPoints() == expectedPts,
+                "Milestone bonus mismatch: expected " + expectedPts + ", got " + data.skillPoints());
+
+        data.addExperience(5_000_000);
+        helper.assertTrue(data.level() == PlayerSkillData.MAX_LEVEL && data.starRank() == StarRank.SOVEREIGN,
+                "Must reach Lv.50 SOVEREIGN");
+        helper.assertTrue(data.activeSlotCount() == 6 && data.passiveSlotCount() == 8,
+                "Max rank must grant 6 active / 8 passive slots");
         helper.succeed();
     }
 
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void resetOnlyReturnsSelectedSkillsSpentPoints(GameTestHelper helper) {
+    public static void passiveAndActiveDualTrackUnlockAndCascadeReset(GameTestHelper helper) {
         PlayerSkillData data = new PlayerSkillData();
-        data.addExperience(4_000);
-        int before = data.skillPoints();
-        helper.assertTrue(data.learnOrUpgrade(ModSkills.FOCUS_MINING), "First passive should be learnable");
-        helper.assertTrue(data.learnOrUpgrade(ModSkills.SURVIVAL_FLOW), "Second passive should be learnable");
-        int refunded = data.resetSkill(ModSkills.FOCUS_MINING);
-        helper.assertTrue(refunded > 0, "Selected skill should refund points");
-        helper.assertTrue(!data.learned(ModSkills.FOCUS_MINING), "Selected skill must be cleared");
-        helper.assertTrue(data.learned(ModSkills.SURVIVAL_FLOW), "Other learned skills must remain");
-        int remainingSpent = ModSkills.find(ModSkills.SURVIVAL_FLOW)
-                .orElseThrow().costAt(1);
-        helper.assertTrue(data.skillPoints() == before - remainingSpent,
-                "Only the selected skill may change the point balance");
+        data.addExperience(30_000);
+
+        // 被动技能不再默认全部解锁
+        helper.assertTrue(!data.isUnlocked(ModSkills.FOCUS_MINING), "Passive must start locked until trial met");
+        helper.assertTrue(!data.learnOrUpgrade(ModSkills.FOCUS_MINING), "Locked passive cannot be learned");
+        helper.assertTrue(!data.isUnlocked(ModSkills.ITEM_MAGNET), "Child passive must start locked");
+
+        // 即使完成子节点试炼，未点亮前置节点依然不能学习
+        data.incrementStat("blocks_mined", 100);
+        helper.assertTrue(data.isUnlocked(ModSkills.FOCUS_MINING), "Root passive trial must unlock at 20+ blocks");
+        helper.assertTrue(data.isUnlocked(ModSkills.ITEM_MAGNET), "Child trial must unlock at 80+ blocks");
+        helper.assertTrue(!data.learnOrUpgrade(ModSkills.ITEM_MAGNET), "Cannot learn child before prerequisite learned");
+
+        // 点亮根节点后再学习子节点，然后测试级联洗点
+        int ptsBefore = data.skillPoints();
+        helper.assertTrue(data.learnOrUpgrade(ModSkills.FOCUS_MINING), "Root should now be learnable");
+        helper.assertTrue(data.learnOrUpgrade(ModSkills.ITEM_MAGNET), "Child should now be learnable");
+        helper.assertTrue(data.learnOrUpgrade(ModSkills.ITEM_MAGNET), "Child can upgrade to Lv.2");
+
+        var resetRes = data.resetSkillCascade(ModSkills.FOCUS_MINING);
+        helper.assertTrue(resetRes.refundedPoints() == 3, "Cascade reset must refund all 3 points");
+        helper.assertTrue(!data.learned(ModSkills.FOCUS_MINING) && !data.learned(ModSkills.ITEM_MAGNET),
+                "Cascade reset must clear both parent and dependent child");
+        helper.assertTrue(data.skillPoints() == ptsBefore, "Point balance must return to exact prior value");
+        helper.assertTrue(data.isUnlocked(ModSkills.FOCUS_MINING), "Trial unlocks must persist across respec");
         helper.succeed();
     }
 
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void cooldownsRecoverAcrossOfflineTime(GameTestHelper helper) {
-        PlayerSkillData data = new PlayerSkillData();
-        long now = System.currentTimeMillis();
-        data.startCooldown(ModSkills.BERSERK, 200);
-        helper.assertTrue(data.onCooldown(ModSkills.BERSERK), "A fresh cooldown must be active");
+    public static void presetsAndConstellationResonance(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerLevel world = server.overworld();
+        ServerPlayer player = mockPlayer(server, world, "preset-resonance");
+        PlayerSkillData data = SkillManager.data(player);
+        data.maximizeAllSkills();
 
-        // Persisted expiry must be an absolute wall-clock stamp, not a game-tick counter, which is
-        // what lets the cooldown keep recovering while the server is stopped.
-        CompoundTag saved = data.serialize();
-        long stored = saved.getCompound("Cooldowns").getLong(ModSkills.BERSERK);
-        long expected = now + 200 * PlayerSkillData.MILLIS_PER_TICK;
-        helper.assertTrue(Math.abs(stored - expected) < 5_000,
-                "Cooldown must be stored as absolute wall-clock time, got " + stored);
+        // 预设 0 装配 4 个巧匠（触发 4 件共鸣）
+        data.switchPreset(0);
+        helper.assertTrue(data.addToLoadout(true, ModSkills.ORE_SIGHT), "Equip active 1");
+        helper.assertTrue(data.addToLoadout(true, ModSkills.VEIN_RESONANCE), "Equip active 2");
+        helper.assertTrue(data.addToLoadout(false, ModSkills.FOCUS_MINING), "Equip passive 1");
+        helper.assertTrue(data.addToLoadout(false, ModSkills.ITEM_MAGNET), "Equip passive 2");
+        helper.assertTrue(data.resonanceTier(SkillConstellation.QIAOJIANG) == 2,
+                "4 Qiaojiang skills at Lv.50 must activate tier 2 resonance");
 
-        // Reloading the save preserves the running cooldown.
-        PlayerSkillData reloaded = new PlayerSkillData();
-        reloaded.deserialize(saved);
-        helper.assertTrue(reloaded.onCooldown(ModSkills.BERSERK),
-                "Cooldown must survive a save/load cycle");
+        SkillManager.applyPassiveEffects(player);
+        double reachWithQiaojiang = player.getAttributeValue(Attributes.BLOCK_INTERACTION_RANGE);
 
-        // A stamp that already elapsed in real time is no longer on cooldown, even though no game
-        // ticks advanced in between: this is the offline-recovery guarantee.
-        CompoundTag elapsed = new CompoundTag();
-        CompoundTag cooldowns = new CompoundTag();
-        cooldowns.putLong(ModSkills.BERSERK, System.currentTimeMillis() - 1);
-        elapsed.put("Cooldowns", cooldowns);
-        PlayerSkillData recovered = new PlayerSkillData();
-        recovered.deserialize(elapsed);
-        helper.assertTrue(!recovered.onCooldown(ModSkills.BERSERK),
-                "A cooldown whose wall-clock window elapsed must be recovered");
+        // 切换到预设 1（空星轨）
+        data.switchPreset(1);
+        helper.assertTrue(data.resonanceTier(SkillConstellation.QIAOJIANG) == 0, "Preset 1 should have no resonance");
+        SkillManager.applyPassiveEffects(player);
+        double reachPlain = player.getAttributeValue(Attributes.BLOCK_INTERACTION_RANGE);
+        helper.assertTrue(reachWithQiaojiang > reachPlain + 0.5,
+                "Qiaojiang 2-piece resonance must grant +1.0 reach");
+
+        // 切回预设 0 完整保留
+        data.switchPreset(0);
+        helper.assertTrue(data.activeLoadout().size() == 2 && data.passiveLoadout().size() == 2,
+                "Preset 0 loadout must persist across switches");
         helper.succeed();
     }
 
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void activeSlotsExpandAtLevelTen(GameTestHelper helper) {
-        PlayerSkillData data = new PlayerSkillData();
-        helper.assertTrue(data.activeSlotCount() == PlayerSkillData.BASE_ACTIVE_SLOTS,
-                "Below level 10 the active slots must stay at the base count");
-        data.addExperience(1_000_000);
-        helper.assertTrue(data.level() == PlayerSkillData.MAX_LEVEL,
-                "A large award must reach the cap");
-        helper.assertTrue(data.activeSlotCount() == PlayerSkillData.MAX_ACTIVE_SLOTS,
-                "At level 10 and above the active slots must expand to the maximum");
-        helper.succeed();
-    }
+    public static void worldToggleDormantBehavior(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerLevel world = server.overworld();
+        ServerPlayer player = mockPlayer(server, world, "toggle-test");
+        try {
+            SkillManager.setSystemEnabled(server, true);
+            PlayerSkillData data = SkillManager.data(player);
+            data.maximizeAllSkills();
+            data.addToLoadout(false, ModSkills.DIAMOND_BULWARK);
+            SkillManager.applyPassiveEffects(player);
+            helper.assertTrue(player.getArmorValue() == 20, "Enabled state must apply 20 armor");
 
-    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void maxCommandFillsEveryFormalSkill(GameTestHelper helper) {
-        PlayerSkillData data = new PlayerSkillData();
-        int changed = data.maximizeAllSkills();
-        helper.assertTrue(changed >= ModSkills.all().size(), "Max command must fill every formal skill");
-        helper.assertTrue(data.level() == PlayerSkillData.MAX_LEVEL,
-                "Max command must set growth to the level cap");
-        helper.assertTrue(data.activeSlotCount() == PlayerSkillData.MAX_ACTIVE_SLOTS,
-                "Max command must open every active slot");
-        helper.assertTrue(data.passiveSlotCount() == PlayerSkillData.MAX_PASSIVE_SLOTS,
-                "Max command must open every passive slot");
-        helper.assertTrue(data.skillPoints() == 0,
-                "The complete point budget must be allocated to the maxed skills");
-        helper.assertTrue(data.activeLoadout().isEmpty() && data.passiveLoadout().isEmpty(),
-                "Max command must leave loadouts empty for the player to rebuild");
-        for (SkillDefinition definition : ModSkills.all()) {
-            helper.assertTrue(data.learnedLevel(definition.id()) == definition.maxLevel(),
-                    "Skill was not maxed: " + definition.id());
-            helper.assertTrue(data.isUnlocked(definition.id()),
-                    "Skill unlock was not preserved: " + definition.id());
+            long xpBeforeOff = data.lifetimeExperience();
+            SkillManager.setSystemEnabled(server, false);
+            SkillManager.onPlayerTick(new PlayerTickEvent.Post(player));
+            helper.assertTrue(!SkillManager.isEnabled(server), "System must report disabled");
+            helper.assertTrue(player.getArmorValue() == 0, "Disabling must clear passive armor immediately");
+
+            // 关闭期间挖矿不增经验、不推进试炼
+            BlockPos orePos = helper.absolutePos(new BlockPos(2, 3, 2));
+            world.setBlockAndUpdate(orePos, Blocks.DIAMOND_ORE.defaultBlockState());
+            SkillManager.onBlockBreak(new BlockEvent.BreakEvent(world, orePos, Blocks.DIAMOND_ORE.defaultBlockState(), player));
+            helper.assertTrue(data.lifetimeExperience() == xpBeforeOff, "Disabled state must pause XP gain");
+
+            // 重新开启后无缝恢复
+            SkillManager.setSystemEnabled(server, true);
+            SkillManager.applyPassiveEffects(player);
+            helper.assertTrue(player.getArmorValue() == 20, "Re-enabling must seamlessly restore passive armor");
+            helper.assertTrue(data.learnedLevel(ModSkills.DIAMOND_BULWARK) == 3, "Saved skill data must remain intact");
+        } finally {
+            SkillManager.setSystemEnabled(server, true);
         }
         helper.succeed();
     }
 
-    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void ironPhysiqueDoublesMaxHealth(GameTestHelper helper) {
+    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 120)
+    public static void historicalBugRegressionTests(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
-        ServerLevel overworld = server.overworld();
-        ServerPlayer player = mockPlayer(server, overworld, "physique-test");
+        ServerLevel world = helper.getLevel();
+        ServerPlayer player = mockPlayer(server, world, "bug-regression");
         PlayerSkillData data = SkillManager.data(player);
         data.maximizeAllSkills();
-        data.addToLoadout(false, ModSkills.IRON_PHYSIQUE);
-        SkillManager.applyPassiveEffects(player);
-        helper.assertTrue(player.getMaxHealth() == 40.0F,
-                "Iron Physique at level 3 must set max health to 40.0, got " + player.getMaxHealth());
-        helper.succeed();
-    }
 
-    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 200)
-    public static void placedBlocksDoNotGrantMiningExperience(GameTestHelper helper) {
-        MinecraftServer server = helper.getLevel().getServer();
-        ServerLevel overworld = server.overworld();
-        ServerPlayer player = mockPlayer(server, overworld, "placed-block-test");
-        PlayerSkillData data = SkillManager.data(player);
-        long before = data.experience() + data.lifetimeExperience();
+        // 1. 重复冻结不得破坏原 NoAI=false 状态
+        var zombie = EntityType.ZOMBIE.create(world);
+        helper.assertTrue(zombie != null, "Zombie must spawn");
+        zombie.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter());
+        zombie.setNoAi(false);
+        world.addFreshEntity(zombie);
+        SkillActiveExecutor.freeze(player, zombie, world, 10);
+        SkillActiveExecutor.freeze(player, zombie, world, 20);
+        helper.assertTrue(zombie.isNoAi(), "Zombie must be NoAI while frozen");
 
-        BlockPos pos = new BlockPos(64, 100, 64);
+        // 2. 友好目标保护：村民、动物、自己的狼不受影响
+        Villager villager = EntityType.VILLAGER.create(world);
+        Cow cow = EntityType.COW.create(world);
+        Wolf wolf = EntityType.WOLF.create(world);
+        helper.assertTrue(villager != null && cow != null && wolf != null, "Friendly entities must exist");
+        wolf.tame(player);
+        helper.assertTrue(!SkillManager.canAffect(player, villager), "Villager must be protected");
+        helper.assertTrue(!SkillManager.canAffect(player, cow), "Cow must be protected");
+        helper.assertTrue(!SkillManager.canAffect(player, wolf), "Own tamed wolf must be protected");
+        helper.assertTrue(SkillManager.canAffect(player, zombie), "Hostile zombie must be affectable");
+
+        // 3. 冻结玩家不得施放主动技能
+        data.addToLoadout(true, ModSkills.BERSERK);
+        SkillActiveExecutor.freeze(player, player, world, 20);
+        SkillManager.handleCast(player, false);
+        helper.assertTrue(player.getEffect(MobEffects.DAMAGE_BOOST) == null,
+                "Frozen player must not be able to cast Berserk");
+        SkillActiveExecutor.clearTransient(player);
+
+        // 4. 洗点不得误删外部（药水/信标）急迫效果
+        player.addEffect(new MobEffectInstance(MobEffects.DIG_SPEED, 600, 1));
+        SkillManager.handleAction(player, org.gwfx.universaltool.network.SkillActionPayload.Action.RESET,
+                "", java.util.List.of());
+        var haste = player.getEffect(MobEffects.DIG_SPEED);
+        helper.assertTrue(haste != null && haste.getAmplifier() == 1 && haste.getDuration() > 400,
+                "Reset must preserve external Haste II");
+
+        // 5. 放置方块记录不会因时间流逝而重新给经验
+        data.maximizeAllSkills();
+        long xpBefore = data.lifetimeExperience();
+        BlockPos placedPos = helper.absolutePos(new BlockPos(3, 3, 3));
         BlockState stone = Blocks.STONE.defaultBlockState();
-        overworld.setBlockAndUpdate(pos, stone);
-        BlockSnapshot snapshot = BlockSnapshot.create(ResourceKey.create(Registries.DIMENSION,
-                Level.OVERWORLD.location()), overworld, pos);
-        SkillManager.onBlockPlaced(new BlockEvent.EntityPlaceEvent(snapshot, Blocks.AIR.defaultBlockState(), player));
+        world.setBlockAndUpdate(placedPos, stone);
+        SkillManager.onBlockPlaced(new BlockEvent.EntityPlaceEvent(
+                BlockSnapshot.create(ResourceKey.create(Registries.DIMENSION, Level.OVERWORLD.location()), world, placedPos),
+                Blocks.AIR.defaultBlockState(), player));
+        SkillManager.onBlockBreak(new BlockEvent.BreakEvent(world, placedPos, stone, player));
+        helper.assertTrue(data.lifetimeExperience() == xpBefore,
+                "Re-mining player-placed block must grant zero XP");
 
-        // Re-mining the block this player just placed must not count as growth experience.
-        SkillManager.onBlockBreak(new BlockEvent.BreakEvent(overworld, pos, stone, player));
-        long afterPlaced = data.experience() + data.lifetimeExperience();
-        helper.assertTrue(afterPlaced == before,
-                "Placing and then mining the same block must not grant experience: " + before + " -> " + afterPlaced);
+        villager.discard();
+        cow.discard();
+        wolf.discard();
 
-        // A naturally generated ore at a different position still counts.
-        BlockPos ore = pos.offset(4, 0, 0);
-        overworld.setBlockAndUpdate(ore, Blocks.DIAMOND_ORE.defaultBlockState());
-        SkillManager.onBlockBreak(new BlockEvent.BreakEvent(overworld, ore,
-                Blocks.DIAMOND_ORE.defaultBlockState(), player));
-        long afterOre = data.experience() + data.lifetimeExperience();
-        helper.assertTrue(afterOre > afterPlaced, "Mining an untouched ore must grant experience");
-        helper.succeed();
-    }
-
-    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void oppressiveFieldMinimumAndGrowth(GameTestHelper helper) {
-        ServerLevel level = helper.getLevel();
-        ServerPlayer player = mockPlayer(level.getServer(), level, "field-growth");
-        BlockPos origin = helper.absolutePos(new BlockPos(1, 3, 1));
-        player.setPos(origin.getX(), origin.getY(), origin.getZ());
-        PlayerSkillData data = SkillManager.data(player);
-        data.maximizeAllSkills();
-        data.resetSkill(ModSkills.OPPRESSIVE_FIELD);
-        data.learnOrUpgrade(ModSkills.OPPRESSIVE_FIELD);
-        data.addToLoadout(true, ModSkills.OPPRESSIVE_FIELD);
-        var target = net.minecraft.world.entity.EntityType.ZOMBIE.create(level);
-        helper.assertTrue(target != null, "Zombie must exist");
-        target.setPos(player.getX() + 11.5, player.getY(), player.getZ());
-        level.addFreshEntity(target);
-        SkillManager.castSelected(player);
-        var weakness = target.getEffect(net.minecraft.world.effect.MobEffects.WEAKNESS);
-        helper.assertTrue(weakness != null && weakness.getDuration() >= 120 && weakness.getAmplifier() == 2,
-                "Rank 1 must apply Weakness III for 6 seconds at 11.5 blocks");
-        target.discard();
-        helper.assertTrue(SkillManager.oppressiveRadius(3) == 18
-                && SkillManager.oppressiveDurationTicks(3) == 200, "Rank 3 must reach 18 blocks and 10 seconds");
-        helper.succeed();
-    }
-
-    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void airStepKeepsPropellingUntilRelease(GameTestHelper helper) {
-        ServerLevel level = helper.getLevel();
-        ServerPlayer player = mockPlayer(level.getServer(), level, "air-hold");
-        player.setPos(helper.absolutePos(new BlockPos(1, 8, 1)).getCenter());
-        player.setOnGround(false);
-        PlayerSkillData data = SkillManager.data(player);
-        data.maximizeAllSkills();
-        data.addToLoadout(true, ModSkills.AIR_STEP);
-        SkillManager.handleCast(player, false);
-        helper.assertTrue(!data.onCooldown(ModSkills.AIR_STEP), "Holding must not start cooldown early");
-        player.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
-        SkillManager.onPlayerTick(new net.neoforged.neoforge.event.tick.PlayerTickEvent.Post(player));
-        helper.assertTrue(player.getDeltaMovement().length() > 0.5, "Hold tick must replenish thrust");
-        SkillManager.handleCast(player, true);
-        helper.assertTrue(data.onCooldown(ModSkills.AIR_STEP), "Release must start cooldown");
-        player.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
-        SkillManager.onPlayerTick(new net.neoforged.neoforge.event.tick.PlayerTickEvent.Post(player));
-        helper.assertTrue(player.getDeltaMovement().length() == 0, "Released skill must stop adding thrust");
-        helper.succeed();
-    }
-
-    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void airStepStopsAtRankTimeLimit(GameTestHelper helper) {
-        ServerLevel level = helper.getLevel();
-        ServerPlayer player = mockPlayer(level.getServer(), level, "air-timeout");
-        player.setPos(helper.absolutePos(new BlockPos(1, 8, 1)).getCenter());
-        player.setOnGround(false);
-        PlayerSkillData data = SkillManager.data(player);
-        data.maximizeAllSkills();
-        data.addToLoadout(true, ModSkills.AIR_STEP);
-        SkillManager.handleCast(player, false);
-        helper.runAfterDelay(61, () -> {
-            SkillManager.onPlayerTick(new net.neoforged.neoforge.event.tick.PlayerTickEvent.Post(player));
-            helper.assertTrue(data.onCooldown(ModSkills.AIR_STEP), "Rank 3 must auto-finish after 60 ticks");
+        // 推进 tick 验证到期恢复 NoAI
+        helper.runAfterDelay(25, () -> {
+            SkillActiveExecutor.tickServer(server);
+            helper.assertTrue(!zombie.isNoAi(), "Repeated freeze must restore original NoAI=false upon expiry");
+            zombie.discard();
             helper.succeed();
         });
     }
 
-
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
-    public static void counterGuardDeflectsProjectileAndReflectsDamage(GameTestHelper helper) {
-        ServerLevel level = helper.getLevel();
-        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), level, "guard-test-player");
+    public static void newSkillsAndCombatExecution(GameTestHelper helper) {
+        ServerLevel world = helper.getLevel();
+        ServerPlayer player = mockPlayer(world.getServer(), world, "new-skills-test");
         player.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter());
-
         PlayerSkillData data = SkillManager.data(player);
         data.maximizeAllSkills();
+
+        // 1. 炼金脉冲：烧炼铁矿石并修复工具
+        ItemStack ironTool = new ItemStack(Items.IRON_PICKAXE);
+        ironTool.setDamageValue(50);
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, ironTool);
+        player.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, new ItemStack(Items.RAW_IRON, 4));
+        data.addToLoadout(true, ModSkills.ARCANE_TRANSMUTE);
+        SkillManager.castSelected(player);
+        helper.assertTrue(player.getOffhandItem().isEmpty(), "Offhand raw iron must be consumed by Arcane Transmute");
+        helper.assertTrue(ironTool.getDamageValue() < 50, "Arcane Transmute must repair held tool durability");
+
+        // 2. 反击护体：弹开弹射物并反伤近战
         data.addToLoadout(true, ModSkills.COUNTER_GUARD);
-        SkillManager.handleCast(player, false);
-
-        // 1. Incoming projectile: Arrow deflection
-        net.minecraft.world.entity.projectile.Arrow arrow = new net.minecraft.world.entity.projectile.Arrow(
-                level, player.getX(), player.getY() + 1, player.getZ() + 3, new ItemStack(Items.ARROW), null);
+        SkillManager.castSelected(player);
+        Arrow arrow = new Arrow(world, player.getX(), player.getY() + 1, player.getZ() + 3, new ItemStack(Items.ARROW), null);
         arrow.setDeltaMovement(0, 0, -1.0);
-        level.addFreshEntity(arrow);
-
+        world.addFreshEntity(arrow);
         SkillManager.deflectProjectile(player, arrow);
-        helper.assertTrue(arrow.getDeltaMovement().z > 0, "Deflected projectile velocity must reverse away from player");
-        helper.assertTrue(arrow.getOwner() == player, "Deflected projectile owner must become the player");
+        helper.assertTrue(arrow.getDeltaMovement().z > 0 && arrow.getOwner() == player,
+                "Counter Guard must deflect arrow back");
 
-        // 2. Direct melee damage reflection
-        net.minecraft.world.entity.monster.Zombie attacker = new net.minecraft.world.entity.monster.Zombie(level);
-        attacker.setPos(player.getX() + 1, player.getY(), player.getZ());
-        level.addFreshEntity(attacker);
+        // 3. 裂空星斩：直接对前方敌怪造成伤害
+        var zombie = EntityType.ZOMBIE.create(world);
+        helper.assertTrue(zombie != null, "Zombie must exist");
+        var look = player.getLookAngle().normalize();
+        zombie.setPos(player.getX() + look.x * 4.0, player.getY(), player.getZ() + look.z * 4.0);
+        world.addFreshEntity(zombie);
+        float zHpBefore = zombie.getHealth();
+        data.addToLoadout(true, ModSkills.ASTRAL_CLEAVE);
+        SkillManager.castSelected(player);
+        helper.assertTrue(zombie.getHealth() < zHpBefore, "Astral Cleave must damage enemy in front of player");
+        zombie.discard();
 
-        float attackerInitialHealth = attacker.getHealth();
-        net.minecraft.world.damagesource.DamageSource meleeDamage = player.damageSources().mobAttack(attacker);
-        net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent event =
-                new net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent(player, new net.neoforged.neoforge.common.damagesource.DamageContainer(meleeDamage, 10.0F));
-        SkillManager.onIncomingDamage(event);
+        // 4. 离线冷却恢复
+        long now = System.currentTimeMillis();
+        data.startCooldown(ModSkills.BERSERK, 200);
+        CompoundTag saved = data.serialize();
+        long stored = saved.getCompound("Cooldowns").getLong(ModSkills.BERSERK);
+        helper.assertTrue(Math.abs(stored - (now + 10_000L)) < 5_000L, "Cooldown must use wall-clock millis");
 
-        helper.assertTrue(event.getAmount() == 0.0F, "Counter Guard must completely negate incoming damage");
-        helper.assertTrue(attacker.getHealth() < attackerInitialHealth, "Attacker must take reflected thorns damage");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 100)
+    public static void hyperConduitAndAuditedSkillEffects(GameTestHelper helper) {
+        ServerLevel world = helper.getLevel();
+        ServerPlayer player = mockPlayer(world.getServer(), world, "conduit-audit-test");
+        player.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter());
+        PlayerSkillData data = SkillManager.data(player);
+
+        // 1. 校验全部 32 技能的 Lv.1 / Lv.2 / Lv.3 数值格式化文案互不相同
+        for (SkillDefinition def : ModSkills.all()) {
+            String s1 = SkillStatFormatter.format(def.id(), 1);
+            String s2 = SkillStatFormatter.format(def.id(), 2);
+            String s3 = SkillStatFormatter.format(def.id(), 3);
+            helper.assertTrue(!s1.equals(s2) && !s2.equals(s3) && !s1.equals(s3),
+                    "Skill levels 1/2/3 must differ for " + def.id() + ": " + s1 + " | " + s2 + " | " + s3);
+        }
+
+        // 2. 超维直达 Lv.1：无克莱因瓶时，挖矿掉落直接入背包
+        data.addExperience(100_000);
+        data.unlockAllSkills(null);
+        for (String req : java.util.List.of(ModSkills.FOCUS_MINING, ModSkills.ITEM_MAGNET,
+                ModSkills.EXPLORERS_EYE, ModSkills.HYPER_CONDUIT)) {
+            helper.assertTrue(data.learnOrUpgrade(req), "Should learn " + req);
+        }
+        data.addToLoadout(false, ModSkills.HYPER_CONDUIT);
+
+        BlockPos dropPos = helper.absolutePos(new BlockPos(2, 3, 2));
+        var dropEntity1 = new net.minecraft.world.entity.item.ItemEntity(world,
+                dropPos.getX(), dropPos.getY(), dropPos.getZ(), new ItemStack(Items.RAW_GOLD, 3));
+        var drops1 = new java.util.ArrayList<>(java.util.List.of(dropEntity1));
+        var blockEvent1 = new net.neoforged.neoforge.event.level.BlockDropsEvent(
+                world, dropPos, Blocks.GOLD_ORE.defaultBlockState(), null, drops1, player, ItemStack.EMPTY);
+        SkillManager.onBlockDrops(blockEvent1);
+        helper.assertTrue(drops1.isEmpty(), "Lv.1 Hyper Conduit must absorb block drop entity");
+        helper.assertTrue(player.getInventory().countItem(Items.RAW_GOLD) == 3,
+                "Lv.1 Hyper Conduit without bottle must put 3 raw gold into inventory");
+
+        // 3. 超维直达 Lv.2 + Lv.3：携克莱因瓶直接入超维仓储，且 Lv.3 吸收 +25% 经验
+        helper.assertTrue(data.learnOrUpgrade(ModSkills.HYPER_CONDUIT), "Upgrade Hyper Conduit to Lv.2");
+        helper.assertTrue(data.learnOrUpgrade(ModSkills.HYPER_CONDUIT), "Upgrade Hyper Conduit to Lv.3");
+        player.getInventory().add(new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
+
+        var dropEntity2 = new net.minecraft.world.entity.item.ItemEntity(world,
+                dropPos.getX(), dropPos.getY(), dropPos.getZ(), new ItemStack(Items.DIAMOND, 2));
+        var drops2 = new java.util.ArrayList<>(java.util.List.of(dropEntity2));
+        var blockEvent2 = new net.neoforged.neoforge.event.level.BlockDropsEvent(
+                world, dropPos, Blocks.DIAMOND_ORE.defaultBlockState(), null, drops2, player, ItemStack.EMPTY);
+        blockEvent2.setDroppedExperience(8);
+        int xpBefore = player.totalExperience;
+        SkillManager.onBlockDrops(blockEvent2);
+        helper.assertTrue(drops2.isEmpty(), "Lv.3 Hyper Conduit must route diamond drop");
+        helper.assertTrue(blockEvent2.getDroppedExperience() == 0, "Lv.3 Hyper Conduit must absorb XP directly");
+        helper.assertTrue(player.totalExperience >= xpBefore + 10, "Lv.3 must grant +25% XP (8 -> 10)");
+
+        var warehouse = org.gwfx.universaltool.klein.KleinStorageSavedData.get(world.getServer())
+                .warehouse(player.getUUID());
+        helper.assertTrue(warehouse.containsType(new ItemStack(Items.DIAMOND)),
+                "Lv.2+ Hyper Conduit with Klein Bottle must insert diamonds into warehouse");
+
+        // 4. 反击护体 Lv.1 实际反弹 125% 伤害（使用基础护甲为 0 的骷髅验证精确数值）
+        data.learnOrUpgrade(ModSkills.IRON_PHYSIQUE);
+        data.learnOrUpgrade(ModSkills.COUNTER_GUARD);
+        data.addToLoadout(true, ModSkills.COUNTER_GUARD);
+        SkillManager.castSelected(player);
+        var skeleton = EntityType.SKELETON.create(world);
+        helper.assertTrue(skeleton != null, "Skeleton must exist");
+        skeleton.setPos(player.getX() + 1, player.getY(), player.getZ());
+        world.addFreshEntity(skeleton);
+        float skelBefore = skeleton.getHealth();
+        var dmg = new LivingIncomingDamageEvent(player, new DamageContainer(player.damageSources().mobAttack(skeleton), 4.0F));
+        SkillManager.onIncomingDamage(dmg);
+        helper.assertTrue(Math.abs((skelBefore - skeleton.getHealth()) - 5.0F) < 0.01F,
+                "Lv.1 Counter Guard must reflect 125% of 4.0 = 5.0 damage, actual=" + (skelBefore - skeleton.getHealth()));
+        skeleton.discard();
+
         helper.succeed();
     }
 

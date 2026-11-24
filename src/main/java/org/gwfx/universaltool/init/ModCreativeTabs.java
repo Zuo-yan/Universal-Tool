@@ -26,6 +26,7 @@ public class ModCreativeTabs {
                         output.accept(ModItems.GOLDEN_UNIVERSAL_TOOL.get());
                         output.accept(ModItems.DIAMOND_UNIVERSAL_TOOL.get());
                         output.accept(ModItems.NETHERITE_UNIVERSAL_TOOL.get());
+                        output.accept(ModItems.QINCHEN_SWORD.get());
                         // 空间传送
                         output.accept(ModItems.TELEPORT_CODEX.get());
                         output.accept(ModItems.SPATIAL_PAGE.get());
@@ -53,6 +54,9 @@ public class ModCreativeTabs {
                     .build());
 
     public static void buildContents(BuildCreativeModeTabContentsEvent event) {
+        if (event.getTabKey() == CreativeModeTabs.COMBAT) {
+            event.accept(ModItems.QINCHEN_SWORD.get());
+        }
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES
                 || event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
             event.accept(ModItems.UNIVERSAL_REPAIR_MATERIAL.get());

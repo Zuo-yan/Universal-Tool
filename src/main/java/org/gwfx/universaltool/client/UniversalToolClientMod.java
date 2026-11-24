@@ -18,10 +18,15 @@ import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.client.phainon.PhainonSkillEffectRenderer;
+import org.gwfx.universaltool.client.phainon.PhainonSwordClientExtensions;
+import org.gwfx.universaltool.client.phainon.PhainonUltimateMeshes;
+import org.gwfx.universaltool.client.phainon.PhainonVfxModelData;
 import org.gwfx.universaltool.client.sportscar.SportsCarItemRenderer;
 import org.gwfx.universaltool.client.sportscar.SportsCarModelData;
 import org.gwfx.universaltool.client.sportscar.SportsCarRenderer;
 import org.gwfx.universaltool.init.ModBlockEntities;
+import org.gwfx.universaltool.init.ModDataComponents;
 import org.gwfx.universaltool.init.ModEntities;
 import org.gwfx.universaltool.init.ModItems;
 import org.gwfx.universaltool.init.ModMenuTypes;
@@ -64,6 +69,9 @@ public final class UniversalToolClientMod {
             )) {
                 ItemProperties.register(itemHolder.get(), formProp, formFn);
             }
+            ResourceLocation awakenedSword = ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "qinchen_awakened");
+            ItemProperties.register(ModItems.QINCHEN_SWORD.get(), awakenedSword,
+                    (stack, level, entity, seed) -> ModDataComponents.getPhainonWeaponState(stack).transformed() ? 1.0F : 0.0F);
         });
     }
 
@@ -71,6 +79,7 @@ public final class UniversalToolClientMod {
     public static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         ClientWaypointCache.clear();
         PhotoManager.clearTextureCache();
+        PhainonSkillEffectRenderer.clear();
     }
 
     @SubscribeEvent
@@ -110,12 +119,18 @@ public final class UniversalToolClientMod {
                 ModItems.ALL_TERRAIN_WHEELCHAIR.get());
         event.registerItem(SportsCarItemRenderer.SportsCarItemExtensions.INSTANCE,
                 ModItems.GULF_GT_CAR.get());
+        event.registerItem(PhainonSwordClientExtensions.INSTANCE,
+                ModItems.QINCHEN_SWORD.get());
     }
 
     @SubscribeEvent
     public static void registerReloadListeners(RegisterClientReloadListenersEvent event) {
-        // 资源包重载时清理海湾 GT 跑车预烘焙缓存，确保模型与贴图变更即时生效
-        event.registerReloadListener((ResourceManagerReloadListener) resourceManager -> SportsCarModelData.invalidate());
+        // 资源包重载时清理预烘焙模型缓存，确保模型与贴图变更即时生效
+        event.registerReloadListener((ResourceManagerReloadListener) resourceManager -> {
+            SportsCarModelData.invalidate();
+            PhainonVfxModelData.invalidate();
+            PhainonUltimateMeshes.reload(resourceManager);
+        });
     }
 
     @SubscribeEvent

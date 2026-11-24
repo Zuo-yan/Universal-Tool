@@ -11,11 +11,13 @@
     "PersonalChunkMapMixin",
     "PersonalMappedRegistryMixin",
     "PersonalHolderSetNamedMixin",
-    "PersonalReloadableResourcesMixin"
+    "PersonalReloadableResourcesMixin",
+    "PhainonSuspensionMovementMixin"
   ],
   "client": [
     "ClientOptionsMixin",
-    "PhoneKeyDefaultsMixin"
+    "PhoneKeyDefaultsMixin",
+    "PhainonPlayerPoseMixin"
   ],
   "injectors": {
     "defaultRequire": 1

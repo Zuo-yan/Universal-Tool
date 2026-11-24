@@ -1,6 +1,7 @@
 package org.gwfx.universaltool.network;
 
 import io.netty.buffer.ByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -21,7 +22,9 @@ public record SkillActionPayload(Action action, String skillId, List<String> loa
         SET_PASSIVE,
         UNSET_ACTIVE,
         UNSET_PASSIVE,
-        RESET
+        RESET,
+        SWITCH_PRESET,
+        RENAME_PRESET
     }
 
     public static final Type<SkillActionPayload> TYPE = new Type<>(
@@ -45,6 +48,11 @@ public record SkillActionPayload(Action action, String skillId, List<String> loa
     public static void handle(SkillActionPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer player) {
+                if (!SkillManager.isEnabled(player.serverLevel())) {
+                    player.displayClientMessage(Component.translatable("message.universal_tool.skills.disabled"), true);
+                    SkillManager.sync(player);
+                    return;
+                }
                 SkillManager.handleAction(player, payload.action(), payload.skillId(), new ArrayList<>(payload.loadout()));
             }
         });

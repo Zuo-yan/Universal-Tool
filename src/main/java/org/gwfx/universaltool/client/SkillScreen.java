@@ -1,6 +1,5 @@
 package org.gwfx.universaltool.client;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -8,47 +7,83 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.network.SkillActionPayload;
 import org.gwfx.universaltool.skill.ModSkills;
 import org.gwfx.universaltool.skill.PlayerSkillData;
+import org.gwfx.universaltool.skill.SkillConstellation;
 import org.gwfx.universaltool.skill.SkillDefinition;
+import org.gwfx.universaltool.skill.SkillPreset;
 import org.gwfx.universaltool.skill.SkillStatFormatter;
-import org.gwfx.universaltool.skill.SkillType;
+import org.gwfx.universaltool.skill.StarRank;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 「星辉秘仪 · 深空鎏金星盘」主界面。
+ *
+ * <p>顶部为星阶、图鉴入口与象限快捷定位栏，中央为可自由拖拽缩放的 32 星图画布，
+ * 右侧为可滚动试炼与星辉觉醒详情栏，底部为 3 套星盘预设、主被动星轨槽位与星座共鸣总览。
+ */
 public class SkillScreen extends Screen {
-    private static final int HEADER_H = 26;
-    private static final int FOOTER_H = 20;
+    private static final int HEADER_H = 30;
+    private static final int FOOTER_H = 50;
+
+    private final SkillStarMapRenderer starMap = new SkillStarMapRenderer();
+    private final SkillDetailDrawer detailDrawer = new SkillDetailDrawer();
+    private final SkillCodexModal codexModal = new SkillCodexModal();
 
     private int left;
     private int top;
     private int panelW;
     private int panelH;
 
-    private int leftW;
-    private int centerW;
-    private int rightW;
-    private int contentY;
-    private int contentH;
+    private int mapX;
+    private int mapY;
+    private int mapW;
+    private int mapH;
+    private int detailX;
+    private int detailY;
+    private int detailW;
+    private int detailH;
+    private int footerY;
 
-    private int tab = 0;
-    private int selectedSkill = 0;
-    private final int[] selectedByTab = {0, 0};
-    private int browserScroll = 0;
-    private boolean draggingBrowserScroll = false;
-    private double dragStartMouseY = 0;
-    private int dragStartScroll = 0;
+    private String selectedSkillId = ModSkills.BATTLE_MOMENTUM;
+    private String hoveredSkillId = "";
 
-    private int loadoutTab = 0;
-    private int loadoutScroll = 0;
-    private boolean draggingLoadoutScroll = false;
-    private double dragStartLoadoutMouseY = 0;
-    private int dragStartLoadoutScroll = 0;
+    private float camX = 0.0F;
+    private float camY = 0.0F;
+    private float targetCamX = 0.0F;
+    private float targetCamY = 0.0F;
+    private float zoom = 0.92F;
+    private float targetZoom = 0.92F;
 
-    private boolean loadoutSelectionIsActive = true;
-    private int loadoutSelectionIndex = 0;
-    private boolean loadoutSelectionInitialized = false;
-    private boolean showSkillDetails = false;
+    private boolean draggingMap = false;
+    private boolean movedDuringDrag = false;
+    private double dragStartX;
+    private double dragStartY;
+    private float dragCamStartX;
+    private float dragCamStartY;
+
+    private long openedAtMillis;
+    private final List<NavBtn> headerButtons = new ArrayList<>();
+    private final List<PresetBtn> presetButtons = new ArrayList<>();
+    private final List<SlotHit> slotHits = new ArrayList<>();
+    private final List<ResonanceHit> resonanceHits = new ArrayList<>();
+
+    private record NavBtn(int x, int y, int w, int h, String label, Runnable action, int accent) {
+        boolean contains(double mx, double my) { return mx >= x && mx < x + w && my >= y && my < y + h; }
+    }
+
+    private record PresetBtn(int index, int x, int y, int w, int h, String label) {
+        boolean contains(double mx, double my) { return mx >= x && mx < x + w && my >= y && my < y + h; }
+    }
+
+    private record SlotHit(boolean active, int index, String skillId, int x, int y, int size) {
+        boolean contains(double mx, double my) { return mx >= x && mx < x + size && my >= y && my < y + size; }
+    }
+
+    private record ResonanceHit(SkillConstellation c, int tier, int x, int y, int w, int h) {
+        boolean contains(double mx, double my) { return mx >= x && mx < x + w && my >= y && my < y + h; }
+    }
 
     public SkillScreen() {
         super(Component.translatable("screen.universal_tool.skills.title"));
@@ -57,1070 +92,500 @@ public class SkillScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        panelW = Math.min(width, Math.min(1080, Math.max(300, width - 10)));
-        panelH = Math.min(height, Math.min(680, Math.max(220, height - 10)));
+        if (openedAtMillis == 0) {
+            openedAtMillis = System.currentTimeMillis();
+        }
+        panelW = Math.min(width, Math.min(1120, Math.max(310, width - 8)));
+        panelH = Math.min(height, Math.min(700, Math.max(230, height - 8)));
         left = Math.max(0, (width - panelW) / 2);
         top = Math.max(0, (height - panelH) / 2);
 
-        int innerW = panelW - 16;
-        int gap = 4;
-        if (innerW <= 460) {
-            leftW = Math.round(innerW * 0.285F);
-            rightW = Math.round(innerW * 0.285F);
-            centerW = innerW - leftW - rightW - gap * 2;
-        } else {
-            leftW = Math.min(230, Math.round(innerW * 0.27F));
-            rightW = Math.min(230, Math.round(innerW * 0.27F));
-            centerW = innerW - leftW - rightW - gap * 2;
-        }
+        int pad = 8;
+        int gap = 6;
+        int contentY = top + HEADER_H + 6;
+        int contentH = Math.max(100, panelH - HEADER_H - FOOTER_H - 14);
 
-        contentY = top + HEADER_H + 6;
-        contentH = panelH - HEADER_H - FOOTER_H - 12;
+        detailW = Math.max(162, Math.min(268, Math.round(panelW * 0.32F)));
+        mapW = Math.max(120, panelW - pad * 2 - detailW - gap);
+        mapX = left + pad;
+        mapY = contentY;
+        mapH = contentH;
 
-        if (!loadoutSelectionInitialized) {
-            PlayerSkillData data = ClientSkillCache.data();
-            if (!data.activeLoadout().isEmpty()) {
-                loadoutSelectionIsActive = true;
-                loadoutSelectionIndex = Math.min(data.selectedActive(), data.activeLoadout().size() - 1);
-            } else if (!data.passiveLoadout().isEmpty()) {
-                loadoutSelectionIsActive = false;
-                loadoutSelectionIndex = 0;
-            }
-            loadoutSelectionInitialized = true;
+        detailX = mapX + mapW + gap;
+        detailY = contentY;
+        detailH = contentH;
+
+        footerY = top + panelH - FOOTER_H - 4;
+
+        PlayerSkillData data = ClientSkillCache.data();
+        if (ModSkills.find(selectedSkillId).isEmpty()) {
+            selectedSkillId = !data.activeLoadout().isEmpty()
+                    ? data.activeLoadout().get(0)
+                    : ModSkills.BATTLE_MOMENTUM;
         }
     }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(g, mouseX, mouseY, partialTick);
+        if (!ClientSkillCache.isSystemEnabled()) {
+            onClose();
+            return;
+        }
+        g.fill(0, 0, width, height, 0x9903050B);
+
+        long now = System.currentTimeMillis();
+        float timeSec = (now % 3600000L) / 1000.0F;
+        float openProgress = Math.min(1.0F, (now - openedAtMillis) / 340.0F);
+
+        camX += (targetCamX - camX) * 0.22F;
+        camY += (targetCamY - camY) * 0.22F;
+        zoom += (targetZoom - zoom) * 0.22F;
+
+        int bgMouseX = codexModal.isOpen() ? -1 : mouseX;
+        int bgMouseY = codexModal.isOpen() ? -1 : mouseY;
+
         PlayerSkillData data = ClientSkillCache.data();
-        clampSelection();
+        if (codexModal.isOpen()) {
+            SkillScreenStyle.drawStarfieldBackground(g, 0, 0, width, height, timeSec, 0, 0);
+            codexModal.render(g, font, data, width, height, mouseX, mouseY);
+            return;
+        }
 
-        SkillScreenStyle.frame(g, left, top, panelW, panelH);
-        renderHeader(g, data, mouseX, mouseY);
+        SkillDefinition hovered = starMap.hitTest(mapX, mapY, mapW, mapH, camX, camY, zoom, openProgress, bgMouseX, bgMouseY);
+        hoveredSkillId = hovered != null ? hovered.id() : "";
 
-        int gap = 4;
-        int col1X = left + 8;
-        int col2X = col1X + leftW + gap;
-        int col3X = col2X + centerW + gap;
+        SkillScreenStyle.astrolabeWindowFrame(g, left, top, panelW, panelH);
+        renderHeader(g, data, bgMouseX, bgMouseY);
 
-        int bgMouseX = showSkillDetails ? -1 : mouseX;
-        int bgMouseY = showSkillDetails ? -1 : mouseY;
+        starMap.render(g, data, mapX, mapY, mapW, mapH, camX, camY, zoom, openProgress,
+                selectedSkillId, hoveredSkillId, timeSec);
 
-        renderBrowser(g, data, col1X, contentY, leftW, contentH, bgMouseX, bgMouseY);
-        renderDetails(g, data, col2X, contentY, centerW, contentH, bgMouseX, bgMouseY);
-        renderLoadouts(g, data, col3X, contentY, rightW, contentH, bgMouseX, bgMouseY);
+        SkillDefinition selectedDef = ModSkills.find(selectedSkillId).orElse(ModSkills.all().iterator().next());
+        detailDrawer.render(g, font, data, selectedDef, detailX, detailY, detailW, detailH, bgMouseX, bgMouseY);
 
         renderFooter(g, data, bgMouseX, bgMouseY);
 
-        if (showSkillDetails) {
-            g.flush();
-            renderSkillDetailsOverlay(g, mouseX, mouseY);
-            g.flush();
+        // 悬停共鸣徽章或星图节点时渲染富文本 Tooltip
+        boolean showedResonance = false;
+        for (ResonanceHit hit : resonanceHits) {
+            if (hit.contains(mouseX, mouseY)) {
+                renderResonanceTooltip(g, data, hit, mouseX, mouseY);
+                showedResonance = true;
+                break;
+            }
+        }
+        if (!showedResonance && hovered != null && !draggingMap) {
+            renderNodeTooltip(g, data, hovered, mouseX, mouseY);
         }
     }
 
     private void renderHeader(GuiGraphics g, PlayerSkillData data, int mouseX, int mouseY) {
-        int headerY = top + 5;
-        int titleX = left + 10;
-        g.drawString(font, title, titleX, headerY + 5, SkillScreenStyle.TEXT_HEADER, false);
+        headerButtons.clear();
+        int hy = top + 7;
+        int curX = left + 10;
 
-        int titleW = font.width(title);
-        String levelStr = "Lv. " + data.level();
-        int levelX = titleX + titleW + 8;
-        g.drawString(font, levelStr, levelX, headerY + 5, SkillScreenStyle.TEXT_MUTED, false);
-        int levelW = font.width(levelStr);
+        StarRank rank = data.starRank();
+        String rankName = Component.translatable(rank.translationKey()).getString();
+        int rankW = font.width(rankName) + 12;
+        SkillScreenStyle.badge(g, curX, hy + 1, rankW, 14, rankName,
+                0xFF141D35, rank.accentColor(), rank.accentColor());
+        curX += rankW + 6;
+
+        String lvStr = "Lv." + data.level() + "/" + PlayerSkillData.MAX_LEVEL;
+        g.drawString(font, lvStr, curX, hy + 4, SkillScreenStyle.TEXT_TITLE, true);
+        curX += font.width(lvStr) + 8;
 
         int closeSize = 16;
         int closeX = left + panelW - closeSize - 8;
-        int closeY = headerY + 2;
-        boolean closeHover = inside(mouseX, mouseY, closeX, closeY, closeSize, closeSize);
-        SkillScreenStyle.closeButton(g, closeX, closeY, closeSize, closeHover);
+        boolean closeHover = mouseX >= closeX && mouseX < closeX + closeSize && mouseY >= hy && mouseY < hy + closeSize;
+        SkillScreenStyle.closeButton(g, closeX, hy, closeSize, closeHover);
+        headerButtons.add(new NavBtn(closeX, hy, closeSize, closeSize, "", this::onClose, SkillScreenStyle.GOLD));
 
-        String pointsStr = "◆ 技能点 " + data.skillPoints();
-        int pointsW = font.width(pointsStr) + 12;
-        int pointsX = closeX - pointsW - 6;
-        int pointsY = headerY + 2;
-        int pointsH = 16;
-        SkillScreenStyle.recessed(g, pointsX, pointsY, pointsW, pointsH, SkillScreenStyle.PANEL_INNER);
-        g.drawCenteredString(font, pointsStr, pointsX + pointsW / 2, pointsY + 4, SkillScreenStyle.TEXT_GOLD);
+        // 全部洗点按钮
+        int resetW = panelW > 560 ? 52 : 34;
+        int resetX = closeX - resetW - 4;
+        NavBtn resetBtn = new NavBtn(resetX, hy, resetW, 16, panelW > 560 ? "重置星图" : "重置",
+                () -> sendAction(SkillActionPayload.Action.RESET, "", List.of()), 0xFFD46A6A);
+        SkillScreenStyle.button(g, resetBtn.x(), resetBtn.y(), resetBtn.w(), resetBtn.h(),
+                resetBtn.label(), !data.levels().isEmpty(), resetBtn.contains(mouseX, mouseY), resetBtn.accent());
+        headerButtons.add(resetBtn);
 
-        int expX = levelX + levelW + 10;
-        int expW = pointsX - expX - 10;
-        if (expW > 40) {
-            int expY = headerY + 5;
-            int expH = 10;
-            float ratio = data.experienceForNextLevel() == 0 ? 1.0F
-                    : Math.min(1.0F, data.experience() / (float) data.experienceForNextLevel());
-            String xpText = data.experience() + " / " + data.experienceForNextLevel();
-            SkillScreenStyle.progressBar(g, expX, expY, expW, expH, ratio, xpText);
-        }
+        // 星典图鉴全览按钮（宽窄屏皆可见）
+        int codexW = panelW > 560 ? 48 : 34;
+        int codexX = resetX - codexW - 4;
+        NavBtn codexBtn = new NavBtn(codexX, hy, codexW, 16, panelW > 560 ? "★图鉴" : "图鉴",
+                codexModal::open, SkillScreenStyle.GOLD_BRIGHT);
+        SkillScreenStyle.button(g, codexBtn.x(), codexBtn.y(), codexBtn.w(), codexBtn.h(),
+                codexBtn.label(), true, codexBtn.contains(mouseX, mouseY), codexBtn.accent());
+        headerButtons.add(codexBtn);
 
-        // Engraved brass separator line beneath header
-        g.fill(left + 6, top + HEADER_H + 1, left + panelW - 6, top + HEADER_H + 2, SkillScreenStyle.BORDER_BRONZE);
-        g.fill(left + 6, top + HEADER_H + 2, left + panelW - 6, top + HEADER_H + 3, SkillScreenStyle.BEVEL_HI);
-    }
-
-    private void renderBrowser(GuiGraphics g, PlayerSkillData data, int x, int y, int w, int h,
-                               int mouseX, int mouseY) {
-        SkillScreenStyle.card(g, x, y, w, h, true);
-
-        int tabY = y + 4;
-        int tabH = 16;
-        int tabW = (w - 10) / 2;
-        for (int i = 0; i < 2; i++) {
-            int tx = x + 4 + i * (tabW + 2);
-            boolean active = tab == i;
-            boolean hover = inside(mouseX, mouseY, tx, tabY, tabW, tabH);
-            String label = i == 0 ? "主动技能" : "被动技能";
-            SkillScreenStyle.tab(g, tx, tabY, tabW, tabH, label, active, hover);
-        }
-
-        List<SkillDefinition> skills = filteredSkills();
-        int detailBtnH = 15;
-        int detailBtnY = y + h - detailBtnH - 4;
-        int detailBtnW = w - 8;
-        int detailBtnX = x + 4;
-
-        int listY = tabY + tabH + 4;
-        int listH = detailBtnY - listY - 3;
-        int rowH = 26;
-        int rowGap = 2;
-        int visible = Math.max(1, (listH + rowGap) / (rowH + rowGap));
-        int maxScroll = Math.max(0, skills.size() - visible);
-        browserScroll = Math.max(0, Math.min(browserScroll, maxScroll));
-
-        boolean hasScroll = maxScroll > 0;
-        int scrollBarW = 6;
-        int cardW = hasScroll ? (w - 8 - scrollBarW - 2) : (w - 8);
-
-        for (int i = 0; i < visible && i + browserScroll < skills.size(); i++) {
-            int index = i + browserScroll;
-            SkillDefinition skill = skills.get(index);
-            int ry = listY + i * (rowH + rowGap);
-            boolean selected = index == selectedSkill;
-            boolean hover = inside(mouseX, mouseY, x + 4, ry, cardW, rowH);
-            boolean learned = data.learned(skill.id());
-            int curLevel = data.learnedLevel(skill.id());
-            boolean unlocked = data.isUnlocked(skill.id());
-
-            if (selected) {
-                SkillScreenStyle.raised(g, x + 4, ry, cardW, rowH, SkillScreenStyle.ROW_SELECTED, SkillScreenStyle.OUTER_BORDER);
-                g.fill(x + 5, ry + 1, x + 7, ry + rowH - 1, SkillScreenStyle.BORDER_GOLD);
-            } else {
-                SkillScreenStyle.recessed(g, x + 4, ry, cardW, rowH, hover ? SkillScreenStyle.ROW_HOVER : SkillScreenStyle.ROW_BG);
+        // 象限快捷聚焦按钮（宽屏显示）
+        int rightBound = codexX - 6;
+        if (panelW >= 670) {
+            String[] navLabels = {"全览", "破军", "玄武", "天枢", "巧匠"};
+            int[] navColors = {
+                    SkillScreenStyle.GOLD,
+                    SkillConstellation.POJUN.primaryColor(),
+                    SkillConstellation.XUANWU.primaryColor(),
+                    SkillConstellation.TIANSHU.primaryColor(),
+                    SkillConstellation.QIAOJIANG.primaryColor()
+            };
+            float[][] navPos = {{0, 0, 0.85F}, {140, -100, 1.15F}, {140, 100, 1.15F}, {-140, -100, 1.15F}, {-140, 100, 1.15F}};
+            int navW = 30;
+            int totalNavW = navLabels.length * (navW + 2);
+            int navStartX = rightBound - totalNavW;
+            for (int i = 0; i < navLabels.length; i++) {
+                int bx = navStartX + i * (navW + 2);
+                float tx = navPos[i][0], ty = navPos[i][1], tz = navPos[i][2];
+                NavBtn nb = new NavBtn(bx, hy, navW, 16, navLabels[i], () -> {
+                    targetCamX = tx;
+                    targetCamY = ty;
+                    targetZoom = tz;
+                }, navColors[i]);
+                SkillScreenStyle.button(g, nb.x(), nb.y(), nb.w(), nb.h(),
+                        nb.label(), true, nb.contains(mouseX, mouseY), nb.accent());
+                headerButtons.add(nb);
             }
-
-            // 18x18 recessed MC slot renders the 16x16 skill icon at exact 1:1 scale
-            SkillScreenStyle.skillIcon(g, skill.id(), x + 8, ry + 4, 18, !unlocked);
-
-            String name = Component.translatable(skill.translationKey()).getString();
-            int maxNameW = cardW - 55;
-            g.drawString(font, SkillScreenStyle.trim(font, name, maxNameW),
-                    x + 29, ry + 3, selected ? SkillScreenStyle.TEXT_GOLD : SkillScreenStyle.TEXT_WHITE, true);
-
-            SkillScreenStyle.masteryDiamonds(g, x + 29, ry + 15, curLevel, skill.maxLevel());
-
-            String lvlStr = curLevel + " / " + skill.maxLevel();
-            int lvlW = font.width(lvlStr);
-            g.drawString(font, lvlStr, x + 4 + cardW - lvlW - 4, ry + 9,
-                    learned ? SkillScreenStyle.TEXT_GOLD : SkillScreenStyle.TEXT_MUTED_LIGHT, true);
+            rightBound = navStartX - 8;
         }
 
-        if (skills.isEmpty()) {
-            SkillScreenStyle.drawCenteredNoShadow(g, font, "没有匹配的技能", x + w / 2, y + h / 2 - 4, SkillScreenStyle.TEXT_MUTED);
+        // 技能点标签
+        String ptsStr = "◆ " + data.skillPoints();
+        int ptsW = font.width(ptsStr) + 12;
+        int ptsX = rightBound - ptsW;
+        SkillScreenStyle.recessedWell(g, ptsX, hy, ptsW, 16, SkillScreenStyle.GOLD);
+        g.drawCenteredString(font, ptsStr, ptsX + ptsW / 2, hy + 4, SkillScreenStyle.TEXT_GOLD);
+
+        // 发光经验条
+        int expW = ptsX - curX - 8;
+        if (expW > 46) {
+            int nextXp = data.experienceForNextLevel();
+            float ratio = nextXp == 0 ? 1.0F : Math.min(1.0F, data.experience() / (float) nextXp);
+            String xpStr = nextXp == 0 ? "MAX" : (data.experience() + "/" + nextXp);
+            SkillScreenStyle.progressBar(g, curX, hy + 2, expW, 12, ratio,
+                    0xFF2869A8, SkillScreenStyle.GOLD_BRIGHT, xpStr);
         }
 
-        if (hasScroll) {
-            int sbX = x + w - scrollBarW - 4;
-            boolean sbHover = inside(mouseX, mouseY, sbX, listY, scrollBarW, listH);
-            SkillScreenStyle.scrollbarVertical(g, sbX, listY, scrollBarW, listH,
-                    browserScroll, maxScroll, visible, skills.size(), draggingBrowserScroll || sbHover);
-        }
-
-        boolean detailHover = inside(mouseX, mouseY, detailBtnX, detailBtnY, detailBtnW, detailBtnH);
-        SkillScreenStyle.button(g, detailBtnX, detailBtnY, detailBtnW, detailBtnH, "查看详细信息", !skills.isEmpty(), detailHover);
-    }
-
-    private void renderDetails(GuiGraphics g, PlayerSkillData data, int x, int y, int w, int h,
-                               int mouseX, int mouseY) {
-        SkillScreenStyle.card(g, x, y, w, h, false);
-        List<SkillDefinition> skills = filteredSkills();
-        if (skills.isEmpty()) return;
-        SkillDefinition skill = skills.get(selectedSkill);
-        int learned = data.learnedLevel(skill.id());
-        boolean unlocked = data.isUnlocked(skill.id());
-        int pad = 8;
-
-        int iconSize = 34;
-        SkillScreenStyle.skillIcon(g, skill.id(), x + pad, y + pad, iconSize, !unlocked);
-
-        int textLeft = x + pad + iconSize + 8;
-        g.drawString(font, Component.translatable(skill.translationKey()),
-                textLeft, y + pad, SkillScreenStyle.TEXT_HEADER, false);
-
-        String masteryText = "熟练度 " + learned + " / " + skill.maxLevel();
-        g.drawString(font, masteryText, textLeft, y + pad + 11, SkillScreenStyle.TEXT_MUTED, false);
-        SkillScreenStyle.masteryDiamonds(g, textLeft + font.width(masteryText) + 6, y + pad + 13,
-                learned, skill.maxLevel());
-
-        int badgeY = y + pad + 23;
-        String typeStr = skill.type() == SkillType.ACTIVE ? "主动技能" : "被动技能";
-        int typeBg = skill.type() == SkillType.ACTIVE ? SkillScreenStyle.BADGE_ACTIVE_BG : SkillScreenStyle.BADGE_PASSIVE_BG;
-        int typeBorder = skill.type() == SkillType.ACTIVE ? SkillScreenStyle.BADGE_ACTIVE_BORDER : SkillScreenStyle.BADGE_PASSIVE_BORDER;
-        int typeText = skill.type() == SkillType.ACTIVE ? SkillScreenStyle.BADGE_ACTIVE_TEXT : SkillScreenStyle.BADGE_PASSIVE_TEXT;
-        int typeW = font.width(typeStr) + 8;
-        SkillScreenStyle.badge(g, textLeft, badgeY, typeW, 11, typeStr, typeBg, typeBorder, typeText);
-
-        String roleStr = getSkillRole(skill.id());
-        int roleW = font.width(roleStr) + 8;
-        SkillScreenStyle.badge(g, textLeft + typeW + 4, badgeY, roleW, 11, roleStr,
-                SkillScreenStyle.BADGE_ROLE_BG, SkillScreenStyle.BADGE_ROLE_BORDER, SkillScreenStyle.BADGE_ROLE_TEXT);
-
-        int descY = y + pad + iconSize + 6;
-        int descMaxW = w - pad * 2;
-        List<net.minecraft.util.FormattedCharSequence> description =
-                font.split(Component.translatable(skill.descriptionKey()), descMaxW);
-        int maxDescLines = 3;
-        for (int i = 0; i < Math.min(description.size(), maxDescLines); i++) {
-            g.drawString(font, description.get(i), x + pad, descY, SkillScreenStyle.TEXT_BODY, false);
-            descY += 10;
-        }
-
-        // Full details button moved to bottom of skill browser column
-
-        int effectBoxY = y + pad + iconSize + 6 + maxDescLines * 10 + 4;
-        int effectBoxH = 38;
-        SkillScreenStyle.recessed(g, x + pad, effectBoxY, w - pad * 2, effectBoxH, SkillScreenStyle.PANEL_INNER);
-        g.drawString(font, "等级效果", x + pad + 5, effectBoxY + 3, SkillScreenStyle.TEXT_GOLD, true);
-
-        int maxStatW = w - pad * 2 - 10;
-        if (learned <= 0) {
-            String nextLine = "下一级: " + SkillStatFormatter.format(skill.id(), 1);
-            g.drawString(font, SkillScreenStyle.trim(font, nextLine, maxStatW),
-                    x + pad + 5, effectBoxY + 14, SkillScreenStyle.TEXT_WHITE, true);
-
-            String costLine = "学习消耗 " + skill.costAt(1) + " 技能点";
-            g.drawString(font, costLine, x + pad + 5, effectBoxY + 25, SkillScreenStyle.TEXT_MUTED_LIGHT, true);
-        } else if (learned < skill.maxLevel()) {
-            String curLine = "当前: " + SkillStatFormatter.format(skill.id(), learned);
-            g.drawString(font, SkillScreenStyle.trim(font, curLine, maxStatW),
-                    x + pad + 5, effectBoxY + 14, SkillScreenStyle.TEXT_WHITE, true);
-
-            int nextCost = skill.costAt(learned + 1);
-            String nextLine = "下级: " + SkillStatFormatter.format(skill.id(), learned + 1)
-                    + " (消耗 " + nextCost + " 点)";
-            g.drawString(font, SkillScreenStyle.trim(font, nextLine, maxStatW),
-                    x + pad + 5, effectBoxY + 25, SkillScreenStyle.TEXT_GOLD, true);
-        } else {
-            String curLine = "当前: " + SkillStatFormatter.format(skill.id(), learned);
-            g.drawString(font, SkillScreenStyle.trim(font, curLine, maxStatW),
-                    x + pad + 5, effectBoxY + 14, SkillScreenStyle.TEXT_GOLD, true);
-            g.drawString(font, "已升至最高等级", x + pad + 5, effectBoxY + 25, SkillScreenStyle.GREEN, true);
-        }
-
-        int unlockBoxY = effectBoxY + effectBoxH + 3;
-        int unlockBoxH = 17;
-        SkillScreenStyle.recessed(g, x + pad, unlockBoxY, w - pad * 2, unlockBoxH, SkillScreenStyle.PANEL_INNER);
-
-        String condStr = Component.translatable(skill.unlockKey()).getString();
-        if (condStr.startsWith("解锁：") || condStr.startsWith("解锁: ")) {
-            condStr = condStr.substring(3);
-        }
-        g.drawString(font, SkillScreenStyle.trim(font, "解锁: " + condStr, w - pad * 2 - 52),
-                x + pad + 5, unlockBoxY + 5, unlocked ? SkillScreenStyle.TEXT_BODY_LIGHT : SkillScreenStyle.RED, true);
-
-        String reqBadge = unlocked ? "✔ 已满足" : "✘ 未达成";
-        int reqBadgeW = font.width(reqBadge);
-        g.drawString(font, reqBadge, x + w - pad - reqBadgeW - 4, unlockBoxY + 5,
-                unlocked ? SkillScreenStyle.GREEN : SkillScreenStyle.RED, true);
-
-        int statBoxY = unlockBoxY + unlockBoxH + 3;
-        int statBoxH = 16;
-        SkillScreenStyle.recessed(g, x + pad, statBoxY, w - pad * 2, statBoxH, SkillScreenStyle.PANEL_INNER);
-
-        String cdText = skill.cooldownTicks() > 0 ? ("冷却: " + (skill.cooldownTicks() / 20.0F) + "s") : "被动常驻";
-        String rangeText = "范围: " + getSkillRange(skill.id());
-        String costText = learned >= skill.maxLevel() ? "已满级" : ("消耗: ◆" + skill.costAt(learned + 1));
-
-        g.drawString(font, cdText, x + pad + 5, statBoxY + 4, SkillScreenStyle.TEXT_MUTED_LIGHT, true);
-        g.drawString(font, rangeText, x + pad + (w - pad * 2) / 3, statBoxY + 4, SkillScreenStyle.TEXT_MUTED_LIGHT, true);
-        g.drawString(font, costText, x + w - pad - font.width(costText) - 5, statBoxY + 4, SkillScreenStyle.TEXT_GOLD, true);
-
-        int btnH = 20;
-        int btnW = Math.min(180, w - pad * 2);
-        int btnX = x + (w - btnW) / 2;
-        int btnY = y + h - btnH - 6;
-
-        boolean canLearn = canLearn(data);
-        boolean hover = inside(mouseX, mouseY, btnX, btnY, btnW, btnH);
-        String btnText;
-        if (learned >= skill.maxLevel()) {
-            btnText = "已达最高等级";
-        } else if (!unlocked) {
-            btnText = "未满足解锁条件";
-        } else if (data.skillPoints() < skill.costAt(learned + 1)) {
-            btnText = "技能点不足 (需要 ◆ " + skill.costAt(learned + 1) + ")";
-        } else {
-            btnText = (learned == 0 ? "学习技能" : "升级技能") + "  ◆ " + skill.costAt(learned + 1);
-        }
-
-        SkillScreenStyle.button(g, btnX, btnY, btnW, btnH, btnText, canLearn, hover);
-    }
-
-    private void renderLoadouts(GuiGraphics g, PlayerSkillData data, int x, int y, int w, int h,
-                                int mouseX, int mouseY) {
-        SkillScreenStyle.card(g, x, y, w, h, true);
-
-        int activeCount = data.activeLoadout().size();
-        int activeMax = data.activeSlotCount();
-        int passiveCount = data.passiveLoadout().size();
-        int passiveMax = data.passiveSlotCount();
-
-        int tabY = y + 4;
-        int tabH = 16;
-        int tabW = (w - 10) / 2;
-
-        for (int i = 0; i < 2; i++) {
-            int tx = x + 4 + i * (tabW + 2);
-            boolean active = loadoutTab == i;
-            boolean hover = inside(mouseX, mouseY, tx, tabY, tabW, tabH);
-            String label = i == 0
-                    ? ("主动 " + activeCount + "/" + activeMax)
-                    : ("被动 " + passiveCount + "/" + passiveMax);
-            SkillScreenStyle.tab(g, tx, tabY, tabW, tabH, label, active, hover);
-        }
-
-        boolean showingActive = loadoutTab == 0;
-        int maxSlots = showingActive ? activeMax : passiveMax;
-
-        int slotsTop = tabY + tabH + 4;
-        int slotsH = h - (slotsTop - y) - 6;
-        int slotH = showingActive
-                ? Math.min(24, (slotsH - (maxSlots - 1) * 2) / Math.max(1, maxSlots))
-                : Math.min(22, (slotsH - (maxSlots - 1) * 2) / Math.max(1, maxSlots));
-
-        int visibleSlots = Math.max(1, (slotsH + 2) / (slotH + 2));
-        int maxLoadoutScroll = Math.max(0, maxSlots - visibleSlots);
-        loadoutScroll = Math.max(0, Math.min(loadoutScroll, maxLoadoutScroll));
-
-        boolean hasScroll = maxLoadoutScroll > 0;
-        int scrollBarW = 6;
-        int slotW = hasScroll ? (w - 8 - scrollBarW - 2) : (w - 8);
-
-        for (int i = 0; i < visibleSlots && i + loadoutScroll < maxSlots; i++) {
-            int slotIndex = i + loadoutScroll;
-            int sy = slotsTop + i * (slotH + 2);
-            drawSlot(g, data, showingActive, slotIndex, x + 4, sy, slotW, slotH, mouseX, mouseY);
-        }
-
-        if (hasScroll) {
-            int sbX = x + w - scrollBarW - 4;
-            boolean sbHover = inside(mouseX, mouseY, sbX, slotsTop, scrollBarW, slotsH);
-            SkillScreenStyle.scrollbarVertical(g, sbX, slotsTop, scrollBarW, slotsH,
-                    loadoutScroll, maxLoadoutScroll, visibleSlots, maxSlots, draggingLoadoutScroll || sbHover);
-        }
-    }
-
-    private void drawSlot(GuiGraphics g, PlayerSkillData data, boolean active, int index,
-                          int x, int y, int w, int h, int mouseX, int mouseY) {
-        List<String> loadout = active ? data.activeLoadout() : data.passiveLoadout();
-        boolean filled = index < loadout.size();
-        String id = filled ? loadout.get(index) : "";
-        boolean hover = inside(mouseX, mouseY, x, y, w, h);
-        boolean current = active && filled && index == data.selectedActive();
-        boolean selectedInLoadout = filled && active == loadoutSelectionIsActive
-                && index == loadoutSelectionIndex;
-
-        if (selectedInLoadout) {
-            int selBg = current ? 0xFF28593E : SkillScreenStyle.ROW_SELECTED;
-            SkillScreenStyle.raised(g, x, y, w, h, selBg, SkillScreenStyle.OUTER_BORDER);
-        } else {
-            SkillScreenStyle.recessed(g, x, y, w, h, hover ? SkillScreenStyle.ROW_HOVER : SkillScreenStyle.ROW_BG);
-        }
-
-        int badgeSize = h - 4;
-        int badgeX = x + 2;
-        int badgeY = y + 2;
-        SkillScreenStyle.recessed(g, badgeX, badgeY, badgeSize, badgeSize, 0xFF241B14);
-        g.drawCenteredString(font, Integer.toString(index + 1), badgeX + badgeSize / 2, badgeY + (badgeSize - 8) / 2,
-                SkillScreenStyle.TEXT_GOLD);
-
-        if (!filled) {
-            g.drawString(font, "空槽位", badgeX + badgeSize + 6, y + (h - 8) / 2, SkillScreenStyle.TEXT_MUTED_LIGHT, true);
-            return;
-        }
-
-        int iconSize = h >= 20 ? 18 : 16;
-        SkillScreenStyle.skillIcon(g, id, badgeX + badgeSize + 3, y + (h - iconSize) / 2, iconSize, false);
-
-        String name = Component.translatable("skill.universal_tool." + id).getString();
-        int nameLeft = badgeX + badgeSize + iconSize + 6;
-        int maxW = w - (nameLeft - x) - 18;
-        g.drawString(font, SkillScreenStyle.trim(font, name, maxW), nameLeft, y + (h - 8) / 2, SkillScreenStyle.TEXT_WHITE, true);
-
-        int btnSize = 12;
-        int btnX = x + w - btnSize - 3;
-        int btnY = y + (h - btnSize) / 2;
-        boolean btnHover = inside(mouseX, mouseY, btnX, btnY, btnSize, btnSize);
-        SkillScreenStyle.raised(g, btnX, btnY, btnSize, btnSize,
-                btnHover ? 0xFFA83030 : 0xFF5C4028,
-                btnHover ? SkillScreenStyle.BORDER_GOLD_GLOW : SkillScreenStyle.OUTER_BORDER);
-        g.drawCenteredString(font, "-", btnX + btnSize / 2, btnY + 2, SkillScreenStyle.TEXT_WHITE);
+        g.fill(left + 6, top + HEADER_H + 1, left + panelW - 6, top + HEADER_H + 2, SkillScreenStyle.GOLD_DIM);
     }
 
     private void renderFooter(GuiGraphics g, PlayerSkillData data, int mouseX, int mouseY) {
-        int footerY = top + panelH - 22;
-        g.fill(left + 6, footerY - 3, left + panelW - 6, footerY - 2, SkillScreenStyle.BORDER_BRONZE);
-        g.fill(left + 6, footerY - 2, left + panelW - 6, footerY - 1, SkillScreenStyle.BEVEL_HI);
+        presetButtons.clear();
+        slotHits.clear();
+        resonanceHits.clear();
 
-        String tip = "ℹ 使用鼠标选择技能，点击学习或装配到槽位";
-        boolean combatLocked = data.inCombat(Minecraft.getInstance().level == null ? 0L
-                : Minecraft.getInstance().level.getGameTime());
-        if (combatLocked) {
-            tip = "ℹ 战斗中不可修改技能，脱战10秒后可重置";
+        int x = left + 8;
+        int w = panelW - 16;
+        SkillScreenStyle.glassCard(g, x, footerY, w, FOOTER_H, SkillScreenStyle.BORDER_SUBTLE);
+
+        int presetW = panelW >= 620 ? 58 : 34;
+        int curX = x + 6;
+        g.drawString(font, "星阵预设", curX, footerY + 5, SkillScreenStyle.TEXT_MUTED, false);
+        for (int i = 0; i < PlayerSkillData.PRESET_COUNT; i++) {
+            SkillPreset preset = data.preset(i);
+            String label = panelW >= 620 ? preset.name() : String.valueOf(i + 1);
+            int bx = curX + i * (presetW + 3);
+            int by = footerY + 17;
+            boolean active = data.activePresetIndex() == i;
+            PresetBtn pb = new PresetBtn(i, bx, by, presetW, 24, label);
+            presetButtons.add(pb);
+            SkillScreenStyle.button(g, pb.x(), pb.y(), pb.w(), pb.h(), label, true,
+                    pb.contains(mouseX, mouseY) || active,
+                    active ? SkillScreenStyle.GOLD_BRIGHT : SkillScreenStyle.BORDER_SUBTLE);
         }
-        g.drawString(font, tip, left + 12, footerY + 5,
-                combatLocked ? SkillScreenStyle.RED_DARK : SkillScreenStyle.TEXT_MUTED, false);
+        curX += PlayerSkillData.PRESET_COUNT * (presetW + 3) + 10;
 
-        List<SkillDefinition> skills = filteredSkills();
-        boolean canReset = !skills.isEmpty() && !combatLocked
-                && data.learnedLevel(skills.get(selectedSkill).id()) > 0;
+        int slotSize = 20;
+        int slotGap = 3;
+        int resAreaW = panelW >= 660 ? 150 : 72;
+        int slotsAvailW = x + w - resAreaW - curX - 8;
 
-        String resetText = "⟳ 重置技能点";
-        int resetW = font.width(resetText) + 24;
-        int resetH = 16;
-        int resetX = left + panelW - resetW - 12;
-        int resetY = footerY + 1;
-        boolean hover = canReset && inside(mouseX, mouseY, resetX, resetY, resetW, resetH);
-        SkillScreenStyle.button(g, resetX, resetY, resetW, resetH, resetText, canReset, hover);
+        if (slotsAvailW > 120) {
+            g.drawString(font, "主动星轨 (" + data.activeLoadout().size() + "/" + data.activeSlotCount() + ")",
+                    curX, footerY + 5, 0xFFFF8F8F, false);
+            for (int i = 0; i < 6; i++) {
+                int sx = curX + i * (slotSize + slotGap);
+                int sy = footerY + 17;
+                boolean unlockedSlot = i < data.activeSlotCount();
+                String sid = i < data.activeLoadout().size() ? data.activeLoadout().get(i) : "";
+                renderLoadoutSlot(g, sx, sy, slotSize, unlockedSlot, sid, true,
+                        i == data.selectedActive() && !sid.isEmpty(), mouseX, mouseY);
+                if (unlockedSlot && !sid.isEmpty()) {
+                    slotHits.add(new SlotHit(true, i, sid, sx, sy, slotSize));
+                }
+            }
 
-        if (!skills.isEmpty()) {
-            if (!canReset && inside(mouseX, mouseY, resetX, resetY, resetW, resetH)) {
-                g.renderTooltip(font, Component.literal(combatLocked
-                        ? "战斗中不可重置，脱战10秒后再试"
-                        : "当前技能尚未投入技能点"), mouseX, mouseY);
+            int passiveStartX = curX + 6 * (slotSize + slotGap) + 12;
+            if (passiveStartX + 8 * (slotSize + slotGap) <= x + w - resAreaW) {
+                g.drawString(font, "被动星轨 (" + data.passiveLoadout().size() + "/" + data.passiveSlotCount() + ")",
+                        passiveStartX, footerY + 5, 0xFF7CE8C0, false);
+                for (int i = 0; i < 8; i++) {
+                    int sx = passiveStartX + i * (slotSize + slotGap);
+                    int sy = footerY + 17;
+                    boolean unlockedSlot = i < data.passiveSlotCount();
+                    String sid = i < data.passiveLoadout().size() ? data.passiveLoadout().get(i) : "";
+                    renderLoadoutSlot(g, sx, sy, slotSize, unlockedSlot, sid, false, false, mouseX, mouseY);
+                    if (unlockedSlot && !sid.isEmpty()) {
+                        slotHits.add(new SlotHit(false, i, sid, sx, sy, slotSize));
+                    }
+                }
+            }
+        }
+
+        int resX = x + w - resAreaW - 4;
+        g.drawString(font, "星座共鸣", resX, footerY + 5, SkillScreenStyle.TEXT_GOLD, false);
+        int chipW = (resAreaW - 6) / 2;
+        int chipH = 13;
+        SkillConstellation[] allC = SkillConstellation.values();
+        for (int i = 0; i < allC.length; i++) {
+            SkillConstellation c = allC[i];
+            int tier = data.resonanceTier(c);
+            int equipped = data.constellationEquippedCount(c);
+            int cx = resX + (i % 2) * (chipW + 3);
+            int cy = footerY + 16 + (i / 2) * (chipH + 3);
+            String cname = Component.translatable(c.translationKey()).getString();
+            String shortName = cname.length() >= 2 ? cname.substring(0, 2) : cname;
+            String text = tier == 2 ? shortName + "★4" : (tier == 1 ? shortName + "★2" : shortName + " " + equipped);
+            int bg = tier > 0 ? SkillScreenStyle.withAlpha(c.primaryColor(), 0.28F) : 0xFF0E1322;
+            int border = tier == 2 ? SkillScreenStyle.GOLD_BRIGHT : (tier == 1 ? c.primaryColor() : SkillScreenStyle.BORDER_SUBTLE);
+            SkillScreenStyle.badge(g, cx, cy, chipW, chipH, text, bg, border,
+                    tier > 0 ? c.glowColor() : SkillScreenStyle.TEXT_MUTED);
+            resonanceHits.add(new ResonanceHit(c, tier, cx, cy, chipW, chipH));
+        }
+    }
+
+    private void renderLoadoutSlot(GuiGraphics g, int x, int y, int size, boolean unlocked, String skillId,
+                                   boolean isActiveSlot, boolean selectedActive, int mouseX, int mouseY) {
+        boolean hover = unlocked && mouseX >= x && mouseX < x + size && mouseY >= y && mouseY < y + size;
+        if (!unlocked) {
+            SkillScreenStyle.recessedWell(g, x, y, size, size, 0xFF1C2338);
+            g.drawCenteredString(font, "×", x + size / 2, y + 6, 0xFF394566);
+            return;
+        }
+        int border = selectedActive ? SkillScreenStyle.GOLD_BRIGHT
+                : (hover ? SkillScreenStyle.GOLD : (isActiveSlot ? 0xFF6E3B44 : 0xFF285C4E));
+        SkillScreenStyle.recessedWell(g, x, y, size, size, border);
+        if (!skillId.isEmpty()) {
+            g.blit(SkillScreenStyle.icon(skillId), x + 2, y + 2, size - 4, size - 4, 0.0F, 0.0F, 32, 32, 32, 32);
+            if (hover) {
+                g.drawString(font, "-", x + size - 7, y + 1, SkillScreenStyle.TEXT_RED, true);
             }
         }
     }
 
-    private boolean canLearn(PlayerSkillData data) {
-        List<SkillDefinition> skills = filteredSkills();
-        if (skills.isEmpty()) return false;
-        SkillDefinition skill = skills.get(selectedSkill);
-        int learned = data.learnedLevel(skill.id());
-        return learned < skill.maxLevel() && data.isUnlocked(skill.id())
-                && data.skillPoints() >= skill.costAt(Math.min(skill.maxLevel(), learned + 1));
+    private void renderNodeTooltip(GuiGraphics g, PlayerSkillData data, SkillDefinition def, int mouseX, int mouseY) {
+        int lv = data.learnedLevel(def.id());
+        boolean unlocked = data.isUnlocked(def.id());
+        String typeStr = def.type().isActive() ? "主动" : "被动";
+        String cName = Component.translatable(def.constellation().translationKey()).getString();
+
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.literal("§6" + Component.translatable(def.translationKey()).getString()
+                + " §7[" + cName + " · " + typeStr + "]"));
+        if (lv > 0) {
+            lines.add(Component.literal("§a当前等级: Lv." + lv + " / 3" + (lv >= 3 ? " §e★已觉醒" : "")));
+            lines.add(Component.literal("§f效果: §b" + SkillStatFormatter.format(def.id(), lv)));
+        } else {
+            PlayerSkillData.TrialProgress prog = data.trialProgress(def);
+            String lockInfo = unlocked ? "§a试炼已达成" : ("§e试炼 " + prog.current() + "/" + prog.target());
+            lines.add(Component.literal("§7未点亮 · " + lockInfo));
+            lines.add(Component.literal("§7Lv.1 效果: §f" + SkillStatFormatter.format(def.id(), 1)));
+        }
+        lines.add(Component.literal("§7" + Component.translatable(def.descriptionKey()).getString()));
+        lines.add(Component.literal("§6★ 觉醒: §e" + Component.translatable(def.awakeningKey()).getString()));
+        lines.add(Component.literal("§8点击选中星辰，右侧滚动查看全阶数值"));
+
+        g.renderComponentTooltip(font, lines, mouseX, mouseY);
     }
+
+    private void renderResonanceTooltip(GuiGraphics g, PlayerSkillData data, ResonanceHit hit, int mouseX, int mouseY) {
+        SkillConstellation c = hit.c();
+        int count = data.constellationEquippedCount(c);
+        List<Component> lines = List.of(
+                Component.translatable(c.translationKey()).append(" · 已装配 " + count + " 星"),
+                Component.literal((hit.tier() >= 1 ? "§a[已激活] " : "§7[2星解锁] "))
+                        .append(Component.translatable(c.resonance2Key())),
+                Component.literal((hit.tier() >= 2 ? "§6[已激活] " : "§7[4星解锁] "))
+                        .append(Component.translatable(c.resonance4Key()))
+        );
+        g.renderComponentTooltip(font, lines, mouseX, mouseY);
+    }
+
+    // ===== 鼠标与键盘交互 =====
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
-        int mx = (int) mouseX;
-        int my = (int) mouseY;
+        if (codexModal.isOpen()) {
+            return codexModal.mouseClicked(mouseX, mouseY, button, id -> {
+                selectedSkillId = id;
+                ModSkills.find(id).ifPresent(def -> {
+                    targetCamX = def.mapX() * 0.55F;
+                    targetCamY = def.mapY() * 0.55F;
+                    targetZoom = Math.max(targetZoom, 1.05F);
+                });
+            });
+        }
 
-        if (showSkillDetails) {
-            int mW = modalW();
-            int mH = modalH();
-            int mX = modalX();
-            int mY = modalY();
-
-            int modalCloseSize = 16;
-            int modalCloseX = mX + mW - modalCloseSize - 10;
-            int modalCloseY = mY + 8;
-            if (inside(mx, my, modalCloseX, modalCloseY, modalCloseSize, modalCloseSize)) {
-                showSkillDetails = false;
-                return true;
-            }
-
-            int btnW = font.width("关闭") + 24;
-            int btnH = 18;
-            int btnX = mX + mW - btnW - 14;
-            int btnY = mY + mH - btnH - 10;
-            if (inside(mx, my, btnX, btnY, btnW, btnH)) {
-                showSkillDetails = false;
-                return true;
-            }
-
-            if (!inside(mx, my, mX, mY, mW, mH)) {
-                showSkillDetails = false;
-                return true;
-            }
-
+        if (detailDrawer.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
 
-        int headerY = top + 5;
-        int closeSize = 16;
-        int closeX = left + panelW - closeSize - 8;
-        int closeY = headerY + 2;
-        if (inside(mx, my, closeX, closeY, closeSize, closeSize)) {
-            onClose();
-            return true;
-        }
-
-        int footerY = top + panelH - 22;
-        String resetText = "⟳ 重置技能点";
-        int resetW = font.width(resetText) + 24;
-        int resetH = 16;
-        int resetX = left + panelW - resetW - 12;
-        int resetY = footerY + 1;
-        if (inside(mx, my, resetX, resetY, resetW, resetH)) {
-            if (!ClientSkillCache.data().inCombat(Minecraft.getInstance().level == null ? 0L
-                    : Minecraft.getInstance().level.getGameTime())) {
-                resetCurrentSkill();
+        for (NavBtn btn : headerButtons) {
+            if (btn.contains(mouseX, mouseY)) {
+                btn.action().run();
+                return true;
             }
-            return true;
         }
-
-        int gap = 4;
-        int col1X = left + 8;
-        int col2X = col1X + leftW + gap;
-        int col3X = col2X + centerW + gap;
-
-        // Column 1: Tabs [ 主动技能 ] [ 被动技能 ]
-        int tabY = contentY + 4;
-        int tabH = 16;
-        int tabW = (leftW - 10) / 2;
-        for (int i = 0; i < 2; i++) {
-            int tx = col1X + 4 + i * (tabW + 2);
-            if (inside(mx, my, tx, tabY, tabW, tabH)) {
-                if (tab != i) {
-                    tab = i;
-                    selectedSkill = selectedByTab[i];
-                    browserScroll = 0;
-                    loadoutTab = i;
+        for (PresetBtn pb : presetButtons) {
+            if (pb.contains(mouseX, mouseY)) {
+                sendAction(SkillActionPayload.Action.SWITCH_PRESET, String.valueOf(pb.index()), List.of());
+                return true;
+            }
+        }
+        for (SlotHit hit : slotHits) {
+            if (hit.contains(mouseX, mouseY)) {
+                if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT || hasShiftDown()) {
+                    sendAction(hit.active() ? SkillActionPayload.Action.UNSET_ACTIVE : SkillActionPayload.Action.UNSET_PASSIVE,
+                            String.valueOf(hit.index()), List.of());
+                } else {
+                    selectedSkillId = hit.skillId();
+                    ModSkills.find(selectedSkillId).ifPresent(def -> {
+                        targetCamX = def.mapX() * 0.45F;
+                        targetCamY = def.mapY() * 0.45F;
+                    });
                 }
                 return true;
             }
         }
 
-        // Column 1: Detail button click
-        int detailBtnH = 15;
-        int detailBtnY = contentY + contentH - detailBtnH - 4;
-        int detailBtnW = leftW - 8;
-        int detailBtnX = col1X + 4;
-        if (inside(mx, my, detailBtnX, detailBtnY, detailBtnW, detailBtnH)) {
-            if (!filteredSkills().isEmpty()) {
-                showSkillDetails = true;
-            }
-            return true;
-        }
-
-        // Column 1: Vertical scrollbar click
-        List<SkillDefinition> skills = filteredSkills();
-        int listY = tabY + tabH + 4;
-        int listH = detailBtnY - listY - 3;
-        int rowH = 26;
-        int rowGap = 2;
-        int visible = Math.max(1, (listH + rowGap) / (rowH + rowGap));
-        int maxScroll = Math.max(0, skills.size() - visible);
-        int scrollBarW = 6;
-
-        if (maxScroll > 0) {
-            int sbX = col1X + leftW - scrollBarW - 4;
-            if (inside(mx, my, sbX - 2, listY, scrollBarW + 4, listH)) {
-                draggingBrowserScroll = true;
-                dragStartMouseY = mouseY;
-                dragStartScroll = browserScroll;
-                return true;
-            }
-        }
-
-        // Column 1: Skill list item click
-        int cardW = maxScroll > 0 ? (leftW - 8 - scrollBarW - 2) : (leftW - 8);
-        for (int i = 0; i < visible && i + browserScroll < skills.size(); i++) {
-            int ry = listY + i * (rowH + rowGap);
-            if (inside(mx, my, col1X + 4, ry, cardW, rowH)) {
-                selectedSkill = i + browserScroll;
-                selectedByTab[tab] = selectedSkill;
-                return true;
-            }
-        }
-
-        // Column 2: Action Button [ 学习 / 升级 ]
         PlayerSkillData data = ClientSkillCache.data();
-        int pad = 8;
-        int btnH = 20;
-        int btnW = Math.min(180, centerW - pad * 2);
-        int btnX = col2X + (centerW - btnW) / 2;
-        int btnY = contentY + contentH - btnH - 6;
-        if (inside(mx, my, btnX, btnY, btnW, btnH)) {
-            if (canLearn(data)) {
-                learnSelected();
+        SkillDefinition selectedDef = ModSkills.find(selectedSkillId).orElse(null);
+        if (selectedDef != null) {
+            if (detailDrawer.prereqBtn != null && detailDrawer.prereqBtn.contains(mouseX, mouseY)
+                    && selectedDef.hasPrerequisite()) {
+                selectedSkillId = selectedDef.prerequisiteId();
+                ModSkills.find(selectedSkillId).ifPresent(pre -> {
+                    targetCamX = pre.mapX() * 0.45F;
+                    targetCamY = pre.mapY() * 0.45F;
+                });
                 return true;
             }
-        }
-
-        // Column 2: Details overlay button handled via Column 1 bottom button
-
-        // Column 3: Loadout Tabs [ 主动装配 ] [ 被动装配 ]
-        int loadoutTabY = contentY + 4;
-        int loadoutTabH = 16;
-        int loadoutTabW = (rightW - 10) / 2;
-        for (int i = 0; i < 2; i++) {
-            int tx = col3X + 4 + i * (loadoutTabW + 2);
-            if (inside(mx, my, tx, loadoutTabY, loadoutTabW, loadoutTabH)) {
-                if (loadoutTab != i) {
-                    loadoutTab = i;
-                    loadoutScroll = 0;
+            if (detailDrawer.learnBtn != null && detailDrawer.learnBtn.contains(mouseX, mouseY)) {
+                if (data.canLearnOrUpgrade(selectedDef.id())) {
+                    sendAction(SkillActionPayload.Action.LEARN, selectedDef.id(), List.of());
+                    starMap.spawnBurst(selectedDef.mapX(), selectedDef.mapY(),
+                            selectedDef.constellation().primaryColor());
                 }
                 return true;
             }
-        }
-
-        // Column 3: Loadout slots
-        boolean showingActive = loadoutTab == 0;
-        int maxSlots = showingActive ? data.activeSlotCount() : data.passiveSlotCount();
-        int slotsTop = loadoutTabY + loadoutTabH + 4;
-        int slotsH = contentH - (slotsTop - contentY) - 6;
-        int slotH = showingActive
-                ? Math.min(24, (slotsH - (maxSlots - 1) * 2) / Math.max(1, maxSlots))
-                : Math.min(22, (slotsH - (maxSlots - 1) * 2) / Math.max(1, maxSlots));
-
-        int visibleSlots = Math.max(1, (slotsH + 2) / (slotH + 2));
-        int maxLoadoutScroll = Math.max(0, maxSlots - visibleSlots);
-        int loadoutScrollBarW = 6;
-        int slotW = maxLoadoutScroll > 0 ? (rightW - 8 - loadoutScrollBarW - 2) : (rightW - 8);
-
-        if (maxLoadoutScroll > 0) {
-            int sbX = col3X + rightW - loadoutScrollBarW - 4;
-            if (inside(mx, my, sbX - 2, slotsTop, loadoutScrollBarW + 4, slotsH)) {
-                draggingLoadoutScroll = true;
-                dragStartLoadoutMouseY = mouseY;
-                dragStartLoadoutScroll = loadoutScroll;
-                return true;
-            }
-        }
-
-        List<String> curLoadout = showingActive ? data.activeLoadout() : data.passiveLoadout();
-        for (int i = 0; i < visibleSlots && i + loadoutScroll < maxSlots; i++) {
-            int slotIndex = i + loadoutScroll;
-            int sy = slotsTop + i * (slotH + 2);
-            if (inside(mx, my, col3X + 4, sy, slotW, slotH)) {
-                int btnSize = 12;
-                int bX = col3X + 4 + slotW - btnSize - 3;
-                int bY = sy + (slotH - btnSize) / 2;
-                if (inside(mx, my, bX, bY, btnSize, btnSize) && slotIndex < curLoadout.size()) {
-                    unequipSlot(showingActive, slotIndex);
-                    return true;
-                }
-                if (slotIndex < curLoadout.size()) {
-                    loadoutSelectionIsActive = showingActive;
-                    loadoutSelectionIndex = slotIndex;
-                    loadoutSelectionInitialized = true;
-                    selectSkillById(curLoadout.get(slotIndex));
-                    if (showingActive) {
-                        PacketDistributor.sendToServer(new SkillActionPayload(
-                                SkillActionPayload.Action.SELECT_ACTIVE,
-                                Integer.toString(slotIndex), List.of()));
-                    }
-                    return true;
-                }
-                if (!skills.isEmpty()) {
-                    SkillDefinition cur = skills.get(selectedSkill);
-                    boolean match = showingActive ? (cur.type() == SkillType.ACTIVE) : (cur.type() == SkillType.PASSIVE);
-                    if (match && data.learned(cur.id()) && !curLoadout.contains(cur.id())) {
-                        equipSkill(cur.id(), showingActive);
-                        return true;
+            if (detailDrawer.equipBtn != null && detailDrawer.equipBtn.contains(mouseX, mouseY)) {
+                if (data.learnedLevel(selectedDef.id()) > 0) {
+                    boolean isActive = selectedDef.type().isActive();
+                    List<String> loadout = isActive ? data.activeLoadout() : data.passiveLoadout();
+                    int idx = loadout.indexOf(selectedDef.id());
+                    if (idx >= 0) {
+                        sendAction(isActive ? SkillActionPayload.Action.UNSET_ACTIVE : SkillActionPayload.Action.UNSET_PASSIVE,
+                                String.valueOf(idx), List.of());
+                    } else {
+                        sendAction(isActive ? SkillActionPayload.Action.SET_ACTIVE : SkillActionPayload.Action.SET_PASSIVE,
+                                selectedDef.id(), List.of());
                     }
                 }
                 return true;
             }
+            if (detailDrawer.resetBtn != null && detailDrawer.resetBtn.contains(mouseX, mouseY)) {
+                if (data.learnedLevel(selectedDef.id()) > 0) {
+                    sendAction(SkillActionPayload.Action.RESET, selectedDef.id(), List.of());
+                }
+                return true;
+            }
         }
 
+        if (mouseX >= mapX && mouseX < mapX + mapW && mouseY >= mapY && mouseY < mapY + mapH) {
+            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+                draggingMap = true;
+                movedDuringDrag = false;
+                dragStartX = mouseX;
+                dragStartY = mouseY;
+                dragCamStartX = targetCamX;
+                dragCamStartY = targetCamY;
+                return true;
+            }
+        }
         return super.mouseClicked(mouseX, mouseY, button);
-    }
-
-    private void selectSkillById(String id) {
-        SkillDefinition def = ModSkills.find(id).orElse(null);
-        if (def == null) return;
-        tab = def.type() == SkillType.ACTIVE ? 0 : 1;
-        loadoutTab = tab;
-        List<SkillDefinition> list = filteredSkills();
-        for (int i = 0; i < list.size(); i++) {
-            if (list.get(i).id().equals(id)) {
-                selectedSkill = i;
-                selectedByTab[tab] = i;
-                break;
-            }
-        }
-    }
-
-    private int modalW() {
-        return Math.min(520, Math.max(300, panelW - 30));
-    }
-
-    private int modalH() {
-        return Math.min(340, Math.max(220, panelH - 30));
-    }
-
-    private int modalX() {
-        return left + (panelW - modalW()) / 2;
-    }
-
-    private int modalY() {
-        return top + (panelH - modalH()) / 2;
-    }
-
-    private void renderSkillDetailsOverlay(GuiGraphics g, int mouseX, int mouseY) {
-        List<SkillDefinition> skills = filteredSkills();
-        if (skills.isEmpty()) return;
-        SkillDefinition skill = skills.get(selectedSkill);
-        PlayerSkillData data = ClientSkillCache.data();
-
-        // 1. Darken full screen behind the modal
-        g.fill(0, 0, width, height, 0xCC120B06);
-        g.flush();
-
-        // 2. Elevate modal to top layer
-        g.pose().pushPose();
-        g.pose().translate(0.0F, 0.0F, 400.0F);
-
-        int mW = modalW();
-        int mH = modalH();
-        int mX = modalX();
-        int mY = modalY();
-
-        // Warm Walnut + Burnished Brass + Illuminated Parchment modal window
-        SkillScreenStyle.frame(g, mX, mY, mW, mH);
-
-        int pad = 12;
-        int iconSize = 34;
-        int iconX = mX + pad;
-        int iconY = mY + pad;
-        boolean unlocked = data.isUnlocked(skill.id());
-        int learned = data.learnedLevel(skill.id());
-
-        // Header: Skill icon
-        SkillScreenStyle.skillIcon(g, skill.id(), iconX, iconY, iconSize, !unlocked);
-
-        int textLeft = iconX + iconSize + 10;
-
-        // Header: Skill name
-        g.drawString(font, Component.translatable(skill.translationKey()),
-                textLeft, iconY, SkillScreenStyle.TEXT_HEADER, false);
-
-        // Header: Badges
-        int badgeY = iconY + 12;
-        String typeStr = skill.type() == SkillType.ACTIVE ? "主动技能" : "被动技能";
-        int typeBg = skill.type() == SkillType.ACTIVE ? SkillScreenStyle.BADGE_ACTIVE_BG : SkillScreenStyle.BADGE_PASSIVE_BG;
-        int typeBorder = skill.type() == SkillType.ACTIVE ? SkillScreenStyle.BADGE_ACTIVE_BORDER : SkillScreenStyle.BADGE_PASSIVE_BORDER;
-        int typeText = skill.type() == SkillType.ACTIVE ? SkillScreenStyle.BADGE_ACTIVE_TEXT : SkillScreenStyle.BADGE_PASSIVE_TEXT;
-        int typeW = font.width(typeStr) + 8;
-        SkillScreenStyle.badge(g, textLeft, badgeY, typeW, 11, typeStr, typeBg, typeBorder, typeText);
-
-        String roleStr = getSkillRole(skill.id());
-        int roleW = font.width(roleStr) + 8;
-        SkillScreenStyle.badge(g, textLeft + typeW + 4, badgeY, roleW, 11, roleStr,
-                SkillScreenStyle.BADGE_ROLE_BG, SkillScreenStyle.BADGE_ROLE_BORDER, SkillScreenStyle.BADGE_ROLE_TEXT);
-
-        // Header: Mastery pips
-        String masteryText = "熟练度 " + learned + " / " + skill.maxLevel();
-        g.drawString(font, masteryText, textLeft, badgeY + 13, SkillScreenStyle.TEXT_MUTED, false);
-        SkillScreenStyle.masteryDiamonds(g, textLeft + font.width(masteryText) + 6, badgeY + 15,
-                learned, skill.maxLevel());
-
-        // Header: Top-right close button "X"
-        int closeSize = 16;
-        int closeX = mX + mW - closeSize - 10;
-        int closeY = mY + 8;
-        boolean closeHover = inside(mouseX, mouseY, closeX, closeY, closeSize, closeSize);
-        SkillScreenStyle.closeButton(g, closeX, closeY, closeSize, closeHover);
-
-        // Engraved brass divider groove
-        int divY = iconY + iconSize + 6;
-        g.fill(mX + pad, divY, mX + mW - pad, divY + 1, SkillScreenStyle.BORDER_BRONZE);
-        g.fill(mX + pad, divY + 1, mX + mW - pad, divY + 2, SkillScreenStyle.BEVEL_HI);
-
-        int sectionW = mW - pad * 2;
-
-        // Section 1: Level Effects Box
-        int effY = divY + 6;
-        int effH = 46;
-        SkillScreenStyle.recessed(g, mX + pad, effY, sectionW, effH, SkillScreenStyle.PANEL_INNER);
-        g.drawString(font, "◈ 等级效果", mX + pad + 6, effY + 4, SkillScreenStyle.TEXT_GOLD, true);
-
-        int effTextY = effY + 16;
-        if (learned <= 0) {
-            String nextLine = "下一级: " + SkillStatFormatter.format(skill.id(), 1);
-            g.drawString(font, SkillScreenStyle.trim(font, nextLine, sectionW - 12),
-                    mX + pad + 6, effTextY, SkillScreenStyle.TEXT_WHITE, true);
-            String costLine = "学习消耗: ◆ " + skill.costAt(1) + " 技能点";
-            g.drawString(font, costLine, mX + pad + 6, effTextY + 12, SkillScreenStyle.TEXT_MUTED_LIGHT, true);
-        } else if (learned < skill.maxLevel()) {
-            String curLine = "当前 (Lv." + learned + "): " + SkillStatFormatter.format(skill.id(), learned);
-            g.drawString(font, SkillScreenStyle.trim(font, curLine, sectionW - 12),
-                    mX + pad + 6, effTextY, SkillScreenStyle.TEXT_WHITE, true);
-            int nextCost = skill.costAt(learned + 1);
-            String nextLine = "下一级 (Lv." + (learned + 1) + "): " + SkillStatFormatter.format(skill.id(), learned + 1)
-                    + "  ·  消耗 ◆ " + nextCost + " 点";
-            g.drawString(font, SkillScreenStyle.trim(font, nextLine, sectionW - 12),
-                    mX + pad + 6, effTextY + 12, SkillScreenStyle.TEXT_GOLD, true);
-        } else {
-            String curLine = "当前 (Lv." + learned + " 满级): " + SkillStatFormatter.format(skill.id(), learned);
-            g.drawString(font, SkillScreenStyle.trim(font, curLine, sectionW - 12),
-                    mX + pad + 6, effTextY, SkillScreenStyle.TEXT_GOLD, true);
-            g.drawString(font, "已升至最高等级", mX + pad + 6, effTextY + 12, SkillScreenStyle.GREEN, true);
-        }
-
-        // Section 2: Mechanics & Detailed Description
-        int descBoxY = effY + effH + 5;
-        int bottomReserved = 58;
-        int descBoxH = Math.max(50, mH - (descBoxY - mY) - bottomReserved);
-        SkillScreenStyle.recessed(g, mX + pad, descBoxY, sectionW, descBoxH, SkillScreenStyle.PANEL_INNER);
-        g.drawString(font, "◈ 机制与技能说明", mX + pad + 6, descBoxY + 4, SkillScreenStyle.TEXT_GOLD, true);
-
-        int descLineY = descBoxY + 16;
-        List<net.minecraft.util.FormattedCharSequence> descLines =
-                font.split(Component.translatable(skill.descriptionKey()), sectionW - 14);
-        int maxLines = Math.max(1, (descBoxH - 20) / 11);
-        for (int i = 0; i < Math.min(descLines.size(), maxLines); i++) {
-            g.drawString(font, descLines.get(i), mX + pad + 6, descLineY, SkillScreenStyle.TEXT_BODY_LIGHT, true);
-            descLineY += 11;
-        }
-
-        // Section 3: Unlock Requirements Box
-        int unlY = descBoxY + descBoxH + 5;
-        int unlH = 22;
-        SkillScreenStyle.recessed(g, mX + pad, unlY, sectionW, unlH, SkillScreenStyle.PANEL_INNER);
-
-        String condStr = Component.translatable(skill.unlockKey()).getString();
-        if (condStr.startsWith("解锁：") || condStr.startsWith("解锁: ")) {
-            condStr = condStr.substring(3);
-        }
-        g.drawString(font, SkillScreenStyle.trim(font, "◈ 解锁条件: " + condStr, sectionW - 70),
-                mX + pad + 6, unlY + 7, unlocked ? SkillScreenStyle.TEXT_BODY_LIGHT : SkillScreenStyle.RED, true);
-
-        String reqBadge = unlocked ? "✔ 已满足" : "✘ 未达成";
-        int reqBadgeW = font.width(reqBadge);
-        g.drawString(font, reqBadge, mX + pad + sectionW - reqBadgeW - 6, unlY + 7,
-                unlocked ? SkillScreenStyle.GREEN : SkillScreenStyle.RED, true);
-
-        // Section 4: Parameters & Bottom Footer Bar
-        int footerBarY = unlY + unlH + 5;
-        String cooldown = skill.cooldownTicks() > 0
-                ? "冷却: " + (skill.cooldownTicks() / 20.0F) + "秒"
-                : "被动常驻";
-        String statsSummary = cooldown + "  ·  范围: " + getSkillRange(skill.id());
-        g.drawString(font, statsSummary, mX + pad + 4, footerBarY + 5, SkillScreenStyle.TEXT_MUTED, false);
-
-        // Close button at bottom-right
-        int btnW = font.width("关闭") + 24;
-        int btnH = 18;
-        int btnX = mX + mW - btnW - pad;
-        int btnY = mY + mH - btnH - 10;
-        boolean btnHover = inside(mouseX, mouseY, btnX, btnY, btnW, btnH);
-        SkillScreenStyle.button(g, btnX, btnY, btnW, btnH, "关闭", true, btnHover);
-
-        g.flush();
-        g.pose().popPose();
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (showSkillDetails) return true;
-        if (button == 0) {
-            if (draggingBrowserScroll) {
-                List<SkillDefinition> skills = filteredSkills();
-                int tabH = 16;
-                int detailBtnH = 15;
-                int detailBtnY = contentY + contentH - detailBtnH - 4;
-                int listY = contentY + 4 + tabH + 4;
-                int listH = detailBtnY - listY - 3;
-                int rowH = 26;
-                int rowGap = 2;
-                int visible = Math.max(1, (listH + rowGap) / (rowH + rowGap));
-                int maxScroll = Math.max(0, skills.size() - visible);
-
-                if (maxScroll > 0) {
-                    int thumbH = Math.max(16, Math.round(listH * ((float) visible / skills.size())));
-                    int travel = listH - thumbH;
-                    if (travel > 0) {
-                        double deltaY = mouseY - dragStartMouseY;
-                        int newScroll = dragStartScroll + Math.round((float) (deltaY / travel) * maxScroll);
-                        browserScroll = Math.max(0, Math.min(maxScroll, newScroll));
-                    }
-                }
-                return true;
+        if (detailDrawer.mouseDragged(mouseX, mouseY, button)) {
+            return true;
+        }
+        if (draggingMap && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            double dx = mouseX - dragStartX;
+            double dy = mouseY - dragStartY;
+            if (Math.hypot(dx, dy) > 4.0) {
+                movedDuringDrag = true;
             }
-
-            if (draggingLoadoutScroll) {
-                PlayerSkillData data = ClientSkillCache.data();
-                boolean showingActive = loadoutTab == 0;
-                int maxSlots = showingActive ? data.activeSlotCount() : data.passiveSlotCount();
-                int tabH = 16;
-                int slotsTop = contentY + 4 + tabH + 4;
-                int slotsH = contentH - (slotsTop - contentY) - 6;
-                int slotH = showingActive ? 24 : 22;
-                int visibleSlots = Math.max(1, (slotsH + 2) / (slotH + 2));
-                int maxLoadoutScroll = Math.max(0, maxSlots - visibleSlots);
-
-                if (maxLoadoutScroll > 0) {
-                    int thumbH = Math.max(16, Math.round(slotsH * ((float) visibleSlots / maxSlots)));
-                    int travel = slotsH - thumbH;
-                    if (travel > 0) {
-                        double deltaY = mouseY - dragStartLoadoutMouseY;
-                        int newScroll = dragStartLoadoutScroll + Math.round((float) (deltaY / travel) * maxLoadoutScroll);
-                        loadoutScroll = Math.max(0, Math.min(maxLoadoutScroll, newScroll));
-                    }
-                }
-                return true;
-            }
+            targetCamX = Math.max(-280, Math.min(280, dragCamStartX - (float) (dx / zoom)));
+            targetCamY = Math.max(-220, Math.min(220, dragCamStartY - (float) (dy / zoom)));
+            return true;
         }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (showSkillDetails) return true;
-        if (button == 0) {
-            draggingBrowserScroll = false;
-            draggingLoadoutScroll = false;
+        if (detailDrawer.mouseReleased(button)) {
+            return true;
+        }
+        if (draggingMap && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            draggingMap = false;
+            if (!movedDuringDrag) {
+                float openProgress = Math.min(1.0F, (System.currentTimeMillis() - openedAtMillis) / 340.0F);
+                SkillDefinition hit = starMap.hitTest(mapX, mapY, mapW, mapH, camX, camY, zoom, openProgress, mouseX, mouseY);
+                if (hit != null) {
+                    selectedSkillId = hit.id();
+                }
+            }
+            return true;
         }
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (showSkillDetails) return true;
-        int gap = 4;
-        int col1X = left + 8;
-        int col3X = col1X + leftW + gap + centerW + gap;
-
-        if (inside((int) mouseX, (int) mouseY, col1X, contentY, leftW, contentH)) {
-            List<SkillDefinition> skills = filteredSkills();
-            int tabH = 16;
-            int detailBtnH = 15;
-            int detailBtnY = contentY + contentH - detailBtnH - 4;
-            int listY = contentY + 4 + tabH + 4;
-            int listH = detailBtnY - listY - 3;
-            int rowH = 26;
-            int rowGap = 2;
-            int visible = Math.max(1, (listH + rowGap) / (rowH + rowGap));
-            int maxScroll = Math.max(0, skills.size() - visible);
-            browserScroll = Math.max(0, Math.min(maxScroll, browserScroll - (int) Math.signum(scrollY)));
+        if (codexModal.isOpen()) {
+            return codexModal.mouseScrolled(mouseX, mouseY, scrollY);
+        }
+        if (detailDrawer.handleScroll(mouseX, mouseY, scrollY)) {
             return true;
         }
-
-        if (inside((int) mouseX, (int) mouseY, col3X, contentY, rightW, contentH)) {
-            PlayerSkillData data = ClientSkillCache.data();
-            boolean showingActive = loadoutTab == 0;
-            int maxSlots = showingActive ? data.activeSlotCount() : data.passiveSlotCount();
-            int tabH = 16;
-            int slotsTop = contentY + 4 + tabH + 4;
-            int slotsH = contentH - (slotsTop - contentY) - 6;
-            int slotH = showingActive ? 24 : 22;
-            int visibleSlots = Math.max(1, (slotsH + 2) / (slotH + 2));
-            int maxLoadoutScroll = Math.max(0, maxSlots - visibleSlots);
-            loadoutScroll = Math.max(0, Math.min(maxLoadoutScroll, loadoutScroll - (int) Math.signum(scrollY)));
+        if (mouseX >= mapX && mouseX < mapX + mapW && mouseY >= mapY && mouseY < mapY + mapH) {
+            float factor = scrollY > 0 ? 1.12F : 0.89F;
+            targetZoom = Math.max(0.60F, Math.min(1.55F, targetZoom * factor));
             return true;
         }
-
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
-    }
-
-    private List<SkillDefinition> filteredSkills() {
-        return skillsForTab(tab);
-    }
-
-    private static List<SkillDefinition> skillsForTab(int requestedTab) {
-        return new ArrayList<>(requestedTab == 0 ? ModSkills.actives() : ModSkills.passives());
-    }
-
-    private void clampSelection() {
-        for (int i = 0; i < selectedByTab.length; i++) {
-            int size = skillsForTab(i).size();
-            selectedByTab[i] = size == 0 ? 0 : Math.max(0, Math.min(selectedByTab[i], size - 1));
-        }
-        selectedSkill = selectedByTab[tab];
-    }
-
-    private void learnSelected() {
-        List<SkillDefinition> skills = filteredSkills();
-        if (skills.isEmpty()) return;
-        PacketDistributor.sendToServer(new SkillActionPayload(SkillActionPayload.Action.LEARN,
-                skills.get(selectedSkill).id(), List.of()));
-    }
-
-    private void equipSkill(String id, boolean active) {
-        SkillActionPayload.Action action = active
-                ? SkillActionPayload.Action.SET_ACTIVE : SkillActionPayload.Action.SET_PASSIVE;
-        PacketDistributor.sendToServer(new SkillActionPayload(action, id, List.of()));
-    }
-
-    private void unequipSlot(boolean active, int slotIndex) {
-        SkillActionPayload.Action action = active
-                ? SkillActionPayload.Action.UNSET_ACTIVE : SkillActionPayload.Action.UNSET_PASSIVE;
-        PacketDistributor.sendToServer(new SkillActionPayload(action,
-                Integer.toString(slotIndex), List.of()));
-    }
-
-    private void resetCurrentSkill() {
-        List<SkillDefinition> skills = filteredSkills();
-        if (skills.isEmpty()) return;
-        SkillDefinition selected = skills.get(selectedSkill);
-        PlayerSkillData data = ClientSkillCache.data();
-        if (data.learnedLevel(selected.id()) <= 0) return;
-        PacketDistributor.sendToServer(new SkillActionPayload(
-                SkillActionPayload.Action.RESET, selected.id(), List.of()));
-    }
-
-    private static String getSkillRole(String id) {
-        return switch (id) {
-            case ModSkills.COUNTER_GUARD -> "防守反击";
-            case ModSkills.GRAVITY_WELL -> "群体牵引";
-            case ModSkills.FROZEN_PULL -> "强力控制";
-            case ModSkills.OPPRESSIVE_FIELD -> "群体削弱";
-            case ModSkills.ORE_SIGHT -> "矿脉感知";
-            case ModSkills.AIR_STEP -> "位移机动";
-            case ModSkills.LIGHTNING_SPEAR -> "蓄力爆发";
-            case ModSkills.BERSERK -> "战力强化";
-            case ModSkills.BATTLE_MOMENTUM -> "连击增伤";
-            case ModSkills.FOCUS_MINING -> "采掘加速";
-            case ModSkills.LAST_STAND -> "濒死减伤";
-            case ModSkills.SURVIVAL_FLOW -> "脱战自愈";
-            case ModSkills.SWIFT_PACE -> "机动疾行";
-            case ModSkills.LIGHT_FEATHER -> "轻盈免摔";
-            case ModSkills.IRON_PHYSIQUE -> "体魄倍增";
-            case ModSkills.ARMOR_PIERCING -> "破甲穿透";
-            case ModSkills.BLOODTHIRST -> "近战吸血";
-            case ModSkills.ITEM_MAGNET -> "引力拾取";
-            case ModSkills.DIAMOND_BULWARK -> "护甲强化";
-            case ModSkills.DAMAGE_CLAMP -> "单次限伤";
-            default -> "特殊能力";
-        };
-    }
-
-    private static String getSkillRange(String id) {
-        return switch (id) {
-            case ModSkills.COUNTER_GUARD -> "自身";
-            case ModSkills.GRAVITY_WELL -> "28~36格";
-            case ModSkills.FROZEN_PULL -> "20~28格";
-            case ModSkills.OPPRESSIVE_FIELD -> "12~18格";
-            case ModSkills.ORE_SIGHT -> "16~24格";
-            case ModSkills.AIR_STEP -> "自身";
-            case ModSkills.LIGHTNING_SPEAR -> "直线贯穿";
-            case ModSkills.BERSERK -> "自身";
-            default -> "常驻生效";
-        };
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-            if (showSkillDetails) {
-                showSkillDetails = false;
+        if (codexModal.isOpen()) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                codexModal.close();
                 return true;
             }
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE || SkillKeybinds.OPEN.matches(keyCode, scanCode)) {
             onClose();
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    private static boolean inside(int mouseX, int mouseY, int x, int y, int width, int height) {
-        return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
+    private void sendAction(SkillActionPayload.Action action, String skillId, List<String> loadout) {
+        PacketDistributor.sendToServer(new SkillActionPayload(action, skillId, loadout));
     }
 
     @Override

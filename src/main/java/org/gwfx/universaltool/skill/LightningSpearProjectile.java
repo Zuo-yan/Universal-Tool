@@ -1,5 +1,6 @@
 package org.gwfx.universaltool.skill;
 
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -16,13 +17,13 @@ import org.gwfx.universaltool.init.ModEntities;
 import org.gwfx.universaltool.init.ModItems;
 
 /**
- * 3D spear projectile that flies towards its target, deals impact damage,
- * and calls down a real lightning bolt upon striking an entity or block.
+ * 3D 雷霆之矛投射物：沿视线飞出，造成带施法者归属的魔法伤害与视觉落雷；Lv.3 觉醒支持连锁雷电溅射。
  */
 public final class LightningSpearProjectile extends ThrowableProjectile implements ItemSupplier {
     private static final int MAX_LIFETIME = 60;
     private float chargeRatio = 1.0F;
     private float damage = 1.0F;
+    private int skillLevel = 1;
 
     public LightningSpearProjectile(EntityType<? extends LightningSpearProjectile> type, Level level) {
         super(type, level);
@@ -45,6 +46,10 @@ public final class LightningSpearProjectile extends ThrowableProjectile implemen
 
     public float chargeRatio() {
         return chargeRatio;
+    }
+
+    public void setSkillLevel(int skillLevel) {
+        this.skillLevel = Math.max(1, skillLevel);
     }
 
     @Override
@@ -82,13 +87,18 @@ public final class LightningSpearProjectile extends ThrowableProjectile implemen
             }
 
             if (level() instanceof ServerLevel serverLevel) {
-                LightningBolt bolt = EntityType.LIGHTNING_BOLT.create(serverLevel);
-                if (bolt != null) {
-                    bolt.moveTo(target.position());
-                    if (owner instanceof ServerPlayer sp) {
-                        bolt.setCause(sp);
+                spawnVisualBolt(serverLevel, target.position(), owner);
+                // Lv.3 星辉觉醒：向周围 6 格最多 3 个敌人释放连锁雷电溅射
+                if (skillLevel >= 3 && owner instanceof ServerPlayer sp) {
+                    int chains = 0;
+                    for (LivingEntity extra : serverLevel.getEntitiesOfClass(LivingEntity.class,
+                            target.getBoundingBox().inflate(6.0),
+                            e -> e != target && SkillManager.canAffect(sp, e))) {
+                        extra.hurt(damageSources().indirectMagic(this, sp), damage * 0.45F);
+                        serverLevel.sendParticles(ParticleTypes.ELECTRIC_SPARK,
+                                extra.getX(), extra.getY() + 0.8, extra.getZ(), 12, 0.25, 0.35, 0.25, 0.08);
+                        if (++chains >= 3) break;
                     }
-                    serverLevel.addFreshEntity(bolt);
                 }
             }
             discard();
@@ -100,16 +110,22 @@ public final class LightningSpearProjectile extends ThrowableProjectile implemen
         super.onHitBlock(hit);
         if (!level().isClientSide) {
             if (level() instanceof ServerLevel serverLevel) {
-                LightningBolt bolt = EntityType.LIGHTNING_BOLT.create(serverLevel);
-                if (bolt != null) {
-                    bolt.moveTo(hit.getLocation());
-                    if (getOwner() instanceof ServerPlayer sp) {
-                        bolt.setCause(sp);
-                    }
-                    serverLevel.addFreshEntity(bolt);
-                }
+                LivingEntity owner = getOwner() instanceof LivingEntity livingOwner ? livingOwner : null;
+                spawnVisualBolt(serverLevel, hit.getLocation(), owner);
             }
             discard();
+        }
+    }
+
+    private static void spawnVisualBolt(ServerLevel serverLevel, net.minecraft.world.phys.Vec3 pos, LivingEntity owner) {
+        LightningBolt bolt = EntityType.LIGHTNING_BOLT.create(serverLevel);
+        if (bolt != null) {
+            bolt.moveTo(pos);
+            bolt.setVisualOnly(true);
+            if (owner instanceof ServerPlayer sp) {
+                bolt.setCause(sp);
+            }
+            serverLevel.addFreshEntity(bolt);
         }
     }
 

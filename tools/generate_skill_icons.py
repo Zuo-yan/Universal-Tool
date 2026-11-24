@@ -19,11 +19,11 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "src/main/resources/assets/universal_tool/textures/gui/skills"
 SIZE = 32
 
-BG_TOP = (31, 24, 37, 255)
-BG_BOTTOM = (12, 10, 16, 255)
-FRAME = (116, 86, 44, 255)
-FRAME_HI = (204, 156, 70, 255)
-FRAME_DARK = (51, 36, 28, 255)
+BG_TOP = (20, 26, 48, 255)
+BG_BOTTOM = (10, 13, 26, 255)
+FRAME = (156, 118, 52, 255)
+FRAME_HI = (242, 210, 122, 255)
+FRAME_DARK = (46, 36, 22, 255)
 
 
 def frame(icon: Image.Image, accent: tuple[int, int, int, int]) -> Image.Image:
@@ -290,6 +290,128 @@ def damage_clamp() -> Image.Image:
     return frame(icon, (225, 150, 97, 255))
 
 
+def astral_cleave() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.arc((4, 5, 27, 27), 210, 35, fill=(255, 226, 120, 255), width=4)
+    d.arc((6, 7, 25, 25), 220, 25, fill=(255, 248, 200, 255), width=2)
+    d.line((7, 24, 22, 9), fill=(255, 130, 90, 255), width=2)
+    d.point((24, 7), fill=(255, 255, 255, 255))
+    d.point((11, 8), fill=(255, 210, 130, 255))
+    return frame(icon, (255, 118, 84, 255))
+
+
+def thunder_judgment() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.ellipse((6, 20, 26, 28), outline=(255, 195, 80, 255), width=2)
+    d.polygon(((18, 4), (11, 16), (16, 16), (13, 24), (22, 12), (17, 12)), fill=(255, 240, 135, 255))
+    d.line((16, 5, 16, 22), fill=(255, 255, 235, 255), width=1)
+    d.point((8, 12), fill=(255, 180, 90, 255))
+    d.point((24, 10), fill=(255, 180, 90, 255))
+    return frame(icon, (255, 210, 96, 255))
+
+
+def tool_resonance() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.line((8, 24, 23, 9), fill=(180, 135, 70, 255), width=2)
+    d.polygon(((19, 6), (26, 6), (26, 13), (22, 15), (17, 10)), fill=(166, 98, 235, 255))
+    d.ellipse((5, 5, 27, 27), outline=(255, 190, 90, 255), width=1)
+    d.point((24, 8), fill=(245, 210, 255, 255))
+    return frame(icon, (240, 145, 88, 255))
+
+
+def starlight_sanctuary() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.pieslice((5, 7, 27, 29), 180, 360, fill=(45, 135, 118, 255), outline=(145, 255, 225, 255), width=2)
+    d.line((5, 22, 27, 22), fill=(245, 220, 125, 255), width=2)
+    d.line((16, 11, 16, 20), fill=(235, 255, 245, 255), width=2)
+    d.line((12, 15, 20, 15), fill=(235, 255, 245, 255), width=2)
+    return frame(icon, (78, 222, 184, 255))
+
+
+def phoenix_ember() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.polygon(((16, 7), (26, 11), (22, 18), (16, 15), (10, 18), (6, 11)), fill=(255, 115, 55, 255))
+    d.polygon(((16, 11), (21, 20), (16, 27), (11, 20)), fill=(255, 205, 85, 255))
+    d.polygon(((16, 14), (18, 20), (16, 24), (14, 20)), fill=(255, 248, 210, 255))
+    return frame(icon, (255, 140, 72, 255))
+
+
+def void_blink() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.ellipse((6, 6, 26, 26), outline=(140, 95, 235, 255), width=2)
+    d.polygon(((16, 5), (22, 16), (16, 27), (10, 16)), fill=(195, 150, 255, 255))
+    d.polygon(((16, 10), (19, 16), (16, 22), (13, 16)), fill=(245, 235, 255, 255))
+    return frame(icon, (175, 130, 255, 255))
+
+
+def spatial_attunement() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.ellipse((7, 7, 25, 25), outline=(135, 175, 255, 255), width=2)
+    d.line((16, 5, 16, 27), fill=(240, 210, 120, 255), width=2)
+    d.line((5, 16, 27, 16), fill=(240, 210, 120, 255), width=2)
+    d.rectangle((14, 14, 18, 18), fill=(230, 245, 255, 255))
+    return frame(icon, (158, 135, 255, 255))
+
+
+def vein_resonance() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.line((8, 23, 16, 15), fill=(255, 220, 110, 255), width=2)
+    d.line((16, 15, 24, 9), fill=(255, 220, 110, 255), width=2)
+    d.line((16, 15, 23, 22), fill=(255, 220, 110, 255), width=2)
+    for cx, cy, col in ((8, 23, (95, 235, 225, 255)), (16, 15, (255, 240, 160, 255)),
+                        (24, 9, (95, 235, 225, 255)), (23, 22, (95, 235, 225, 255))):
+        d.rectangle((cx - 3, cy - 3, cx + 3, cy + 3), fill=col)
+    return frame(icon, (245, 198, 78, 255))
+
+
+def arcane_transmute() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.polygon(((16, 5), (24, 15), (21, 25), (11, 25), (8, 15)), fill=(225, 95, 45, 255))
+    d.polygon(((16, 9), (21, 17), (18, 24), (14, 24), (11, 17)), fill=(255, 195, 75, 255))
+    d.rectangle((11, 19, 21, 24), fill=(255, 235, 135, 255))
+    return frame(icon, (245, 170, 68, 255))
+
+
+def hyper_conduit() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.ellipse((6, 9, 17, 23), outline=(110, 225, 245, 255), width=2)
+    d.ellipse((15, 9, 26, 23), outline=(235, 195, 95, 255), width=2)
+    d.rectangle((14, 14, 18, 18), fill=(255, 250, 220, 255))
+    return frame(icon, (130, 220, 245, 255))
+
+
+def void_fortune() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.polygon(((16, 5), (19, 13), (27, 16), (19, 19), (16, 27), (13, 19), (5, 16), (13, 13)),
+              fill=(248, 208, 88, 255))
+    d.polygon(((16, 10), (18, 14), (22, 16), (18, 18), (16, 22), (14, 18), (10, 16), (14, 14)),
+              fill=(195, 115, 255, 255))
+    d.point((16, 16), fill=(255, 255, 255, 255))
+    return frame(icon, (248, 200, 82, 255))
+
+
+def explorers_eye() -> Image.Image:
+    icon = glyph()
+    d = ImageDraw.Draw(icon)
+    d.polygon(((5, 16), (11, 10), (21, 10), (27, 16), (21, 22), (11, 22)), fill=(48, 92, 130, 255),
+              outline=(245, 205, 95, 255))
+    d.ellipse((12, 12, 20, 20), fill=(110, 235, 210, 255))
+    d.ellipse((14, 14, 18, 18), fill=(20, 35, 55, 255))
+    d.point((15, 15), fill=(255, 255, 255, 255))
+    return frame(icon, (130, 230, 195, 255))
+
+
 ICONS = {
     "counter_guard": counter_guard,
     "gravity_well": gravity_well,
@@ -311,6 +433,18 @@ ICONS = {
     "item_magnet": item_magnet,
     "diamond_bulwark": diamond_bulwark,
     "damage_clamp": damage_clamp,
+    "astral_cleave": astral_cleave,
+    "thunder_judgment": thunder_judgment,
+    "tool_resonance": tool_resonance,
+    "starlight_sanctuary": starlight_sanctuary,
+    "phoenix_ember": phoenix_ember,
+    "void_blink": void_blink,
+    "spatial_attunement": spatial_attunement,
+    "vein_resonance": vein_resonance,
+    "arcane_transmute": arcane_transmute,
+    "hyper_conduit": hyper_conduit,
+    "void_fortune": void_fortune,
+    "explorers_eye": explorers_eye,
 }
 
 

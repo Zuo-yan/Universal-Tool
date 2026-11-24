@@ -1,5 +1,6 @@
 package org.gwfx.universaltool.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -7,6 +8,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
@@ -18,17 +20,19 @@ import org.gwfx.universaltool.network.RequestSkillScreenPayload;
 import org.gwfx.universaltool.skill.ModSkills;
 import org.gwfx.universaltool.skill.PlayerSkillData;
 import org.gwfx.universaltool.skill.SkillDefinition;
+import org.lwjgl.glfw.GLFW;
+
+import java.util.List;
 
 /**
- * Client-side skill input controller and in-game hotbar HUD.
- *
- * <p>Pressing the select key opens {@link SkillWheelScreen} for responsive, mouse-guided active skill selection.
- * Pressing/releasing the cast key handles instant and charged casting.
+ * 客户端技能输入控制与局内「动态星徽 HUD」。
  */
 @EventBusSubscriber(modid = UniversalToolMod.MODID, value = Dist.CLIENT)
 public final class SkillClientController {
     private static boolean wasCasting;
+    private static boolean castInterrupted;
     private static long chargeStartedAt;
+    private static long castBounceAt;
 
     public static void registerKeys(RegisterKeyMappingsEvent event) {
         event.register(SkillKeybinds.SELECT);
@@ -41,38 +45,84 @@ public final class SkillClientController {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) {
             ClientSkillCache.clear();
+            wasCasting = false;
+            castInterrupted = false;
+            return;
+        }
+
+        if (minecraft.screen != null || minecraft.getOverlay() != null || !minecraft.isWindowActive()) {
             if (wasCasting) cancelCharge();
             return;
         }
 
-        if (minecraft.screen != null) {
+        while (SkillKeybinds.OPEN.consumeClick()) {
+            if (wasCasting) cancelCharge();
+            if (!ClientSkillCache.isSystemEnabled()) {
+                minecraft.player.displayClientMessage(Component.translatable("message.universal_tool.skills.disabled"), true);
+                continue;
+            }
+            PacketDistributor.sendToServer(RequestSkillScreenPayload.INSTANCE);
+        }
+
+        if (!ClientSkillCache.isSystemEnabled()) {
             if (wasCasting) cancelCharge();
             return;
         }
 
         handleCastKey();
+    }
 
-        while (SkillKeybinds.OPEN.consumeClick()) {
-            if (wasCasting) cancelCharge();
-            PacketDistributor.sendToServer(RequestSkillScreenPayload.INSTANCE);
-        }
-
-        if (SkillKeybinds.SELECT.isDown() && !minecraft.options.keyPlayerList.isDown()) {
-            if (wasCasting) cancelCharge();
-            PlayerSkillData data = ClientSkillCache.data();
-            if (!data.activeLoadout().isEmpty()) {
-                minecraft.setScreen(new SkillWheelScreen());
-            }
+    @SubscribeEvent
+    public static void onKey(InputEvent.Key event) {
+        if (event.getAction() == GLFW.GLFW_PRESS) {
+            onInputPressed(InputConstants.getKey(event.getKey(), event.getScanCode()));
         }
     }
 
-    /** Sends a press edge to start a cast, and a release edge to finish a charge. */
+    @SubscribeEvent
+    public static void onMouseButton(InputEvent.MouseButton.Pre event) {
+        if (event.getAction() == GLFW.GLFW_PRESS
+                && onInputPressed(InputConstants.Type.MOUSE.getOrCreate(event.getButton()))) {
+            event.setCanceled(true);
+        }
+    }
+
+    private static boolean onInputPressed(InputConstants.Key key) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || minecraft.player.isDeadOrDying() || minecraft.screen != null
+                || minecraft.getOverlay() != null || !minecraft.isWindowActive()) {
+            return false;
+        }
+        if (SkillKeybinds.CAST.isActiveAndMatches(key)) castInterrupted = false;
+        if (!SkillKeybinds.SELECT.isActiveAndMatches(key) || minecraft.options.keyPlayerList.isDown()
+                || !ClientSkillCache.isSystemEnabled() || ClientSkillCache.data().activeLoadout().isEmpty()) {
+            return false;
+        }
+
+        if (wasCasting) cancelCharge();
+        // Opening a Screen clears the game's KeyMappings. The wheel owns the physical input's release.
+        SkillWheelScreen wheel = new SkillWheelScreen(key, ClientSkillCache.data().selectedSkill());
+        minecraft.setScreen(wheel);
+        if (minecraft.screen != wheel) return false;
+
+        // GLFW can restore the position from the previous wheel after it releases the cursor.
+        var window = minecraft.getWindow();
+        GLFW.glfwSetCursorPos(window.getWindow(), window.getScreenWidth() / 2.0, window.getScreenHeight() / 2.0);
+        return true;
+    }
+
     private static void handleCastKey() {
         boolean casting = SkillKeybinds.CAST.isDown();
+        if (castInterrupted) {
+            if (casting) return;
+            castInterrupted = false;
+        }
         if (casting && !wasCasting) {
             chargeStartedAt = System.currentTimeMillis();
+            castBounceAt = chargeStartedAt;
             PacketDistributor.sendToServer(CastActiveSkillPayload.PRESS);
         } else if (!casting && wasCasting) {
+            castBounceAt = System.currentTimeMillis();
             PacketDistributor.sendToServer(CastActiveSkillPayload.RELEASE);
         }
         wasCasting = casting;
@@ -81,80 +131,106 @@ public final class SkillClientController {
     private static void cancelCharge() {
         PacketDistributor.sendToServer(CancelChargePayload.INSTANCE);
         wasCasting = false;
-    }
-
-    public static boolean wheelOpen() {
-        return Minecraft.getInstance().screen instanceof SkillWheelScreen;
+        castInterrupted = true;
     }
 
     @SubscribeEvent
     public static void renderCurrent(RenderGuiLayerEvent.Post event) {
         if (!event.getName().equals(VanillaGuiLayers.HOTBAR)) return;
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.screen != null || wheelOpen()) return;
+        if (minecraft.player == null || minecraft.screen != null) return;
+        if (!ClientSkillCache.isSystemEnabled() || minecraft.options.hideGui) return;
+
         PlayerSkillData data = ClientSkillCache.data();
         String id = data.selectedSkill();
         if (id.isEmpty()) return;
 
-        GuiGraphics graphics = event.getGuiGraphics();
-        int slotSize = 22;
-        int x = graphics.guiWidth() / 2 + 91 + 5;
-        int y = graphics.guiHeight() - slotSize;
+        GuiGraphics g = event.getGuiGraphics();
+        long now = System.currentTimeMillis();
+        float bounceT = Math.max(0.0F, 1.0F - (now - castBounceAt) / 220.0F);
+        int bounceY = -Math.round(bounceT * 2.5F);
 
+        int slotSize = 24;
+        int x = g.guiWidth() / 2 + 91 + 6;
+        int y = g.guiHeight() - slotSize - 1 + bounceY;
+
+        SkillDefinition def = ModSkills.find(id).orElse(null);
+        int accent = def != null ? def.constellation().primaryColor() : SkillScreenStyle.GOLD;
         boolean onCooldown = data.onCooldown(id);
         long remainingMillis = data.cooldownRemainingMillis(id);
         long seconds = (remainingMillis + 999) / 1000;
 
-        // Slot background & ornate frame
-        graphics.fill(x, y, x + slotSize, y + slotSize, 0xDD120D18);
-        int border = onCooldown ? 0xFF3D2C42 : 0xFFFFD15C;
-        SkillScreenStyle.outline(graphics, x, y, slotSize, slotSize, border);
+        // 深空鎏金星徽主槽
+        g.fill(x, y, x + slotSize, y + slotSize, 0xE00A0E1D);
+        int border = onCooldown ? 0xFF34405E : (data.isAwakened(id) ? SkillScreenStyle.GOLD_BRIGHT : accent);
+        SkillScreenStyle.outline(g, x, y, slotSize, slotSize, border);
         if (!onCooldown) {
-            graphics.fill(x + 1, y + 1, x + 3, y + 2, 0xFFFFEFA6);
-            graphics.fill(x + slotSize - 3, y + 1, x + slotSize - 1, y + 2, 0xFFFFEFA6);
+            g.fill(x + 1, y + 1, x + 4, y + 2, SkillScreenStyle.GOLD_BRIGHT);
+            g.fill(x + slotSize - 4, y + 1, x + slotSize - 1, y + 2, SkillScreenStyle.GOLD_BRIGHT);
         }
 
-        // Skill icon scaled to 18x18
-        SkillScreenStyle.skillIcon(graphics, id, x + 2, y + 2, 18, onCooldown);
+        SkillScreenStyle.skillIcon(g, id, x + 2, y + 2, 20, onCooldown);
 
         if (onCooldown) {
-            SkillDefinition def = ModSkills.find(id).orElse(null);
             long totalMillis = def != null ? def.cooldownTicks() * 50L : 1000L;
             float cdRatio = Math.max(0.0F, Math.min(1.0F, remainingMillis / (float) Math.max(1, totalMillis)));
-            int sweepH = Math.round(18 * cdRatio);
+            int sweepH = Math.round(20 * cdRatio);
             if (sweepH > 0) {
-                graphics.fill(x + 2, y + 2 + (18 - sweepH), x + 20, y + 20, 0x88000000);
+                g.fill(x + 2, y + 2 + (20 - sweepH), x + 22, y + 22, 0x9905070E);
             }
             String cdStr = seconds > 0 ? (seconds + "s") : "0s";
-            graphics.drawCenteredString(minecraft.font, cdStr, x + slotSize / 2, y + 7, 0xFFFF5555);
+            g.drawCenteredString(minecraft.font, cdStr, x + slotSize / 2, y + 8, SkillScreenStyle.TEXT_RED);
         } else {
             String key = SkillKeybinds.CAST.getTranslatedKeyMessage().getString();
             int kw = minecraft.font.width(key);
-            graphics.drawString(minecraft.font, key, x + slotSize - kw - 2, y + slotSize - 8, 0xFFE0D5C0, true);
+            g.drawString(minecraft.font, key, x + slotSize - kw - 2, y + slotSize - 9, SkillScreenStyle.GOLD_BRIGHT, true);
         }
 
-        SkillDefinition definition = ModSkills.find(id).orElse(null);
-        if (definition != null && (definition.charged() || ModSkills.AIR_STEP.equals(id)) && wasCasting && !onCooldown) {
+        // 蓄力进度条
+        if (def != null && (def.charged() || ModSkills.AIR_STEP.equals(id)) && wasCasting && !onCooldown) {
             int chargeTicks = ModSkills.AIR_STEP.equals(id)
                     ? org.gwfx.universaltool.skill.SkillManager.airStepDurationTicks(data.learnedLevel(id))
-                    : definition.chargeTicks();
-            long elapsed = System.currentTimeMillis() - chargeStartedAt;
+                    : def.chargeTicks();
+            long elapsed = now - chargeStartedAt;
             float ratio = Math.max(0.0F, Math.min(1.0F, elapsed / (chargeTicks * 50.0F)));
             int barW = Math.round(slotSize * ratio);
-            graphics.fill(x, y - 4, x + slotSize, y - 1, 0xCC100D18);
-            graphics.fill(x, y - 4, x + barW, y - 2, 0xFF66CCFF);
-            graphics.fill(x, y - 4, x + barW, y - 3, 0xFFFFFFFF);
+            g.fill(x, y - 5, x + slotSize, y - 2, 0xDD0A0E1D);
+            g.fill(x, y - 5, x + barW, y - 2, SkillScreenStyle.TEXT_CYAN);
+        }
+
+        // 经验脉冲微条（获得经验后短暂浮现 3.2 秒）
+        float xpAlpha = SkillToastOverlay.xpPulseAlpha();
+        if (xpAlpha > 0.02F) {
+            int nextXp = data.experienceForNextLevel();
+            float xpRatio = nextXp == 0 ? 1.0F : Math.min(1.0F, data.experience() / (float) nextXp);
+            int barY = y - 4;
+            int barW = slotSize + 24;
+            g.fill(x, barY, x + barW, barY + 2, SkillScreenStyle.withAlpha(0x0A0E1D, xpAlpha));
+            int filled = Math.round(barW * xpRatio);
+            if (filled > 0) {
+                g.fill(x, barY, x + filled, barY + 2, SkillScreenStyle.withAlpha(SkillScreenStyle.GOLD_BRIGHT, xpAlpha));
+            }
+        }
+
+        // 其余装配主动技能的迷你状态缩略格
+        List<String> actives = data.activeLoadout();
+        if (actives.size() > 1) {
+            int miniX = x + slotSize + 4;
+            int miniY = y + slotSize - 10;
+            for (int i = 0; i < actives.size(); i++) {
+                String aid = actives.get(i);
+                if (aid.equals(id)) continue;
+                boolean cd = data.onCooldown(aid);
+                g.fill(miniX, miniY, miniX + 10, miniY + 10, 0xDD0A0E1D);
+                SkillScreenStyle.outline(g, miniX, miniY, 10, 10, cd ? 0xFF3A425E : SkillScreenStyle.GOLD);
+                g.blit(SkillScreenStyle.icon(aid), miniX + 1, miniY + 1, 8, 8, 0.0F, 0.0F, 32, 32, 32, 32);
+                if (cd) {
+                    g.fill(miniX + 1, miniY + 1, miniX + 9, miniY + 9, 0x9905070E);
+                }
+                miniX += 12;
+            }
         }
     }
 
-    public static void forceCloseWheel() {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.screen instanceof SkillWheelScreen) {
-            mc.setScreen(null);
-        }
-        wasCasting = false;
-    }
-
-    private SkillClientController() {
-    }
+    private SkillClientController() {}
 }

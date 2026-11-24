@@ -9,6 +9,28 @@
       }
     ]
   },
+  "skill.phainon_normal_skill_voice": {
+    "category": "player",
+    "subtitle": "subtitles.universal_tool.skill.phainon_normal_skill_voice",
+    "sounds": [
+      {
+        "name": "universal_tool:skill/phainon_normal_skill_voice_1",
+        "stream": false
+      },
+      {
+        "name": "universal_tool:skill/phainon_normal_skill_voice_2",
+        "stream": false
+      }
+    ]
+  },
+  "skill.phainon_ultimate_activate": {
+    "subtitle": "subtitles.universal_tool.skill.phainon_ultimate_activate",
+    "sounds": ["universal_tool:skill/phainon_ultimate_activate"]
+  },
+  "skill.phainon_ultimate_release": {
+    "subtitle": "subtitles.universal_tool.skill.phainon_ultimate_release",
+    "sounds": ["universal_tool:skill/phainon_ultimate_release"]
+  },
   "entity.naiwa.laugh": {
     "category": "neutral",
     "subtitle": "subtitles.universal_tool.entity.naiwa.laugh",

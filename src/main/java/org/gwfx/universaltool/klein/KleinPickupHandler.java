@@ -27,10 +27,13 @@ public final class KleinPickupHandler {
         if (entity.getTarget() != null && !entity.getTarget().equals(player.getUUID())) return false;
 
         KleinStorageSavedData saved = KleinStorageSavedData.get(player.server);
-        if (!saved.autoDeposit(player.getUUID()) || KleinOpenPayload.findBottle(player.getInventory()) < 0) return false;
+        int conduitLv = org.gwfx.universaltool.skill.SkillModSynergyHandler.hyperConduitLevel(player);
+        boolean allowAuto = saved.autoDeposit(player.getUUID()) || conduitLv >= 2;
+        if (!allowAuto || KleinOpenPayload.findBottle(player.getInventory()) < 0) return false;
 
         ItemStack stack = entity.getItem().copy();
-        if (!KleinWarehouse.canStore(stack) || !saved.warehouse(player.getUUID()).containsType(stack)) return false;
+        if (!KleinWarehouse.canStore(stack)) return false;
+        if (conduitLv < 2 && !saved.warehouse(player.getUUID()).containsType(stack)) return false;
         ItemStack extracted = stack.copy();
         BigInteger acceptedAmount = saved.warehouse(player.getUUID()).insert(
                 extracted, BigInteger.valueOf(extracted.getCount()));
@@ -45,6 +48,7 @@ public final class KleinPickupHandler {
         player.take(entity, accepted);
         saved.changed();
         saved.syncViewers(player.getUUID());
+        org.gwfx.universaltool.skill.SkillModSynergyHandler.onKleinBottlePickup(player);
         return true;
     }
 

@@ -4,9 +4,13 @@ import net.minecraft.core.Direction;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.gwfx.universaltool.naiwa.NaiwaLaughSoundPayload;
 import org.gwfx.universaltool.naiwa.DidiStatusPayload;
+import org.gwfx.universaltool.client.phainon.PhainonSkillEffectRenderer;
 import org.gwfx.universaltool.network.CounterGuardEffectPayload;
+import org.gwfx.universaltool.phainon.PhainonSkillEffectPayload;
 import org.gwfx.universaltool.network.ModPacketHandler;
 import org.gwfx.universaltool.network.OpenSkillScreenPayload;
+import org.gwfx.universaltool.network.SanctuaryDomeEffectPayload;
+import org.gwfx.universaltool.network.SkillNotificationPayload;
 import org.gwfx.universaltool.network.OreSightPayload;
 import org.gwfx.universaltool.network.PersonalDimensionSyncPayload;
 import org.gwfx.universaltool.network.PersonalSpaceResultPayload;
@@ -40,10 +44,16 @@ public final class ClientPayloadHandlers {
         ModPacketHandler.registerClientHandler(PersonalDimensionSyncPayload.TYPE, ClientPayloadHandlers::handlePersonalDimensionSync);
         ModPacketHandler.registerClientHandler(SyncSkillDataPayload.TYPE, ClientPayloadHandlers::handleSyncSkillData);
         ModPacketHandler.registerClientHandler(OpenSkillScreenPayload.TYPE, ClientPayloadHandlers::handleOpenSkillScreen);
+        ModPacketHandler.registerClientHandler(SkillNotificationPayload.TYPE,
+                (payload, context) -> context.enqueueWork(() -> SkillToastOverlay.onNotification(payload)));
         ModPacketHandler.registerClientHandler(WormholeLiveVistaPayload.TYPE, ClientPayloadHandlers::handleWormholeLiveVista);
         ModPacketHandler.registerClientHandler(NaiwaLaughSoundPayload.TYPE, ClientPayloadHandlers::handleNaiwaLaughSound);
         ModPacketHandler.registerClientHandler(DidiStatusPayload.TYPE,
                 (payload, context) -> context.enqueueWork(() -> DidiDaidaPage.receiveStatus(payload)));
+        ModPacketHandler.registerClientHandler(SanctuaryDomeEffectPayload.TYPE,
+                (payload, context) -> context.enqueueWork(() -> SanctuaryDomeEffectRenderer.apply(payload)));
+        ModPacketHandler.registerClientHandler(PhainonSkillEffectPayload.TYPE,
+                (payload, context) -> context.enqueueWork(() -> PhainonSkillEffectRenderer.apply(payload)));
     }
 
     public static void handleNaiwaLaughSound(NaiwaLaughSoundPayload payload, IPayloadContext context) {

@@ -14,6 +14,7 @@ import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.Tier;
 import net.minecraft.world.item.TieredItem;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
+import org.gwfx.universaltool.item.ModRarities;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -185,6 +186,9 @@ public final class LotteryValuator {
         Long tagOverride = checkCustomDataPackTags(dummyStack);
         if (tagOverride != null) {
             return tagOverride;
+        }
+        if (dummyStack.getRarity() == ModRarities.MYTHIC.getValue()) {
+            return RarityTier.MYTHIC.getMinPoints();
         }
 
         // 2. 特殊奇珍神物命中表 (原版核心固定分)
@@ -512,7 +516,7 @@ public final class LotteryValuator {
             case COMMON -> 2L;
             case UNCOMMON -> 20L;
             case RARE -> 120L;
-            case EPIC -> 600L;
+            default -> 600L;
         };
 
         // 2. NeoForge / Common 通用标签加权系数

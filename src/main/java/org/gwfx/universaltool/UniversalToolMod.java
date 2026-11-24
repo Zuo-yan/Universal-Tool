@@ -42,7 +42,10 @@ public class UniversalToolMod {
         ModRecipes.RECIPE_SERIALIZERS.register(modEventBus);
         ModWorldGeneration.GENERATORS.register(modEventBus);
         ModSounds.SOUNDS.register(modEventBus);
-        if (Boolean.getBoolean("universal_tool.islandTests")) {
+        if (Boolean.getBoolean("universal_tool.phainonTestsOnly")) {
+            modEventBus.addListener((RegisterGameTestsEvent event) ->
+                    event.register(org.gwfx.universaltool.phainon.PhainonNormalSkillGameTests.class));
+        } else if (Boolean.getBoolean("universal_tool.islandTests")) {
             modEventBus.addListener((RegisterGameTestsEvent event) -> {
                 event.register(org.gwfx.universaltool.space.PrivateSpaceGameTests.class);
                 event.register(org.gwfx.universaltool.skill.SkillProgressionGameTests.class);
@@ -52,6 +55,7 @@ public class UniversalToolMod {
                 event.register(org.gwfx.universaltool.wheelchair.AllTerrainWheelchairGameTests.class);
                 event.register(org.gwfx.universaltool.naiwa.NaiwaGameTests.class);
                 event.register(org.gwfx.universaltool.sportscar.SportsCarGameTests.class);
+                event.register(org.gwfx.universaltool.phainon.PhainonNormalSkillGameTests.class);
             });
         }
         ModAttachments.register(modEventBus);

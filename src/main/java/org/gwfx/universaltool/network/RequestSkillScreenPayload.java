@@ -1,6 +1,7 @@
 package org.gwfx.universaltool.network;
 
 import io.netty.buffer.ByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
@@ -25,6 +26,10 @@ public record RequestSkillScreenPayload() implements CustomPacketPayload {
         context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer player) {
                 SkillManager.sync(player);
+                if (!SkillManager.isEnabled(player.serverLevel())) {
+                    player.displayClientMessage(Component.translatable("message.universal_tool.skills.disabled"), true);
+                    return;
+                }
                 PacketDistributor.sendToPlayer(player, OpenSkillScreenPayload.INSTANCE);
             }
         });

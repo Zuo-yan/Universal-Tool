@@ -8,6 +8,7 @@ import net.neoforged.neoforge.common.DeferredSpawnEggItem;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.item.QinchenSwordItem;
 import org.gwfx.universaltool.item.SpatialPageItem;
 import org.gwfx.universaltool.item.TeleportCodexItem;
 import org.gwfx.universaltool.item.TeleportScrollItem;
@@ -29,6 +30,8 @@ public class ModItems {
     public static final DeferredItem<Item> LIGHTNING_SPEAR = ITEMS.register("lightning_spear",
             () -> new Item(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
 
+    public static final DeferredItem<QinchenSwordItem> QINCHEN_SWORD =
+            ITEMS.register("qinchen_sword", QinchenSwordItem::new);
 
     public static final DeferredItem<UniversalToolItem> WOODEN_UNIVERSAL_TOOL = ITEMS.register("wooden_universal_tool",
             () -> new UniversalToolItem(Tiers.WOOD, UniversalToolItem.properties(Tiers.WOOD, 88, 6.0F, -3.1F)));

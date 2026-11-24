@@ -21,6 +21,7 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.item.NetheriteToolForm;
+import org.gwfx.universaltool.phainon.PhainonWeaponState;
 import org.gwfx.universaltool.waypoint.Waypoint;
 
 import javax.annotation.Nullable;
@@ -57,6 +58,11 @@ public final class ModDataComponents {
             DATA_COMPONENTS.registerComponentType("netherite_tool_form", builder -> builder
                     .persistent(NetheriteToolForm.FormData.CODEC)
                     .networkSynchronized(NetheriteToolForm.FormData.STREAM_CODEC));
+
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<PhainonWeaponState>> PHAINON_WEAPON_STATE =
+            DATA_COMPONENTS.registerComponentType("phainon_weapon_state", builder -> builder
+                    .persistent(PhainonWeaponState.CODEC)
+                    .networkSynchronized(PhainonWeaponState.STREAM_CODEC));
 
     private ModDataComponents() {
     }
@@ -216,5 +222,20 @@ public final class ModDataComponents {
 
     public static void setTeleportTarget(ItemStack stack, Waypoint waypoint) {
         stack.set(TELEPORT_TARGET.get(), waypoint);
+    }
+
+    public static PhainonWeaponState getPhainonWeaponState(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return PhainonWeaponState.DEFAULT;
+        }
+        PhainonWeaponState state = stack.get(PHAINON_WEAPON_STATE.get());
+        return state != null ? state : PhainonWeaponState.DEFAULT;
+    }
+
+    public static void setPhainonWeaponState(ItemStack stack, PhainonWeaponState state) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        stack.set(PHAINON_WEAPON_STATE.get(), state != null ? state : PhainonWeaponState.DEFAULT);
     }
 }

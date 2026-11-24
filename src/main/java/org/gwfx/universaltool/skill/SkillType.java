@@ -2,5 +2,9 @@ package org.gwfx.universaltool.skill;
 
 public enum SkillType {
     ACTIVE,
-    PASSIVE
+    PASSIVE;
+
+    public boolean isActive() {
+        return this == ACTIVE;
+    }
 }

@@ -15,6 +15,7 @@ import org.gwfx.universaltool.klein.KleinSyncPayload;
 import org.gwfx.universaltool.naiwa.DidiOrderPayload;
 import org.gwfx.universaltool.naiwa.DidiStatusPayload;
 import org.gwfx.universaltool.naiwa.NaiwaLaughSoundPayload;
+import org.gwfx.universaltool.phainon.PhainonSkillEffectPayload;
 import org.gwfx.universaltool.sportscar.SportsCarInputPayload;
 import org.gwfx.universaltool.wheelchair.WheelchairInputPayload;
 
@@ -41,7 +42,7 @@ public final class ModPacketHandler {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("18");
+        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("22");
 
         // 客户端发往服务端
         registrar.playToServer(SaveWaypointPayload.TYPE, SaveWaypointPayload.STREAM_CODEC, SaveWaypointPayload::handle);
@@ -97,12 +98,18 @@ public final class ModPacketHandler {
                 dispatchClient(SyncSkillDataPayload.TYPE));
         registrar.playToClient(OpenSkillScreenPayload.TYPE, OpenSkillScreenPayload.STREAM_CODEC,
                 dispatchClient(OpenSkillScreenPayload.TYPE));
+        registrar.playToClient(SkillNotificationPayload.TYPE, SkillNotificationPayload.STREAM_CODEC,
+                dispatchClient(SkillNotificationPayload.TYPE));
         registrar.playToClient(WormholeLiveVistaPayload.TYPE, WormholeLiveVistaPayload.STREAM_CODEC,
                 dispatchClient(WormholeLiveVistaPayload.TYPE));
         registrar.playToClient(NaiwaLaughSoundPayload.TYPE, NaiwaLaughSoundPayload.STREAM_CODEC,
                 dispatchClient(NaiwaLaughSoundPayload.TYPE));
         registrar.playToClient(DidiStatusPayload.TYPE, DidiStatusPayload.STREAM_CODEC,
                 dispatchClient(DidiStatusPayload.TYPE));
+        registrar.playToClient(PhainonSkillEffectPayload.TYPE, PhainonSkillEffectPayload.STREAM_CODEC,
+                dispatchClient(PhainonSkillEffectPayload.TYPE));
+        registrar.optional().playToClient(SanctuaryDomeEffectPayload.TYPE, SanctuaryDomeEffectPayload.STREAM_CODEC,
+                dispatchClient(SanctuaryDomeEffectPayload.TYPE));
         registrar.playToClient(KleinSyncPayload.TYPE, KleinSyncPayload.STREAM_CODEC, KleinSyncPayload::handle);
     }
 }

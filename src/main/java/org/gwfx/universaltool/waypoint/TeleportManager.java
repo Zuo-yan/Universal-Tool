@@ -44,7 +44,8 @@ public class TeleportManager {
             this.player = player;
             this.target = target;
             this.startPos = player.position();
-            this.ticksRemaining = CHARGE_TICKS;
+            this.ticksRemaining = org.gwfx.universaltool.skill.SkillModSynergyHandler
+                    .adjustTeleportChargeTicks(player, CHARGE_TICKS);
             this.fromScroll = fromScroll;
         }
     }
@@ -204,10 +205,12 @@ public class TeleportManager {
         completeOrSpawnDestinationExit(destLevel, player, safePos, target.yaw());
 
         // 施加冷却
-        int cooldownTicks = org.gwfx.universaltool.config.ModConfigs.getTeleportCooldownTicks();
+        int cooldownTicks = org.gwfx.universaltool.skill.SkillModSynergyHandler
+                .adjustTeleportCooldownTicks(player, org.gwfx.universaltool.config.ModConfigs.getTeleportCooldownTicks());
         if (cooldownTicks > 0) {
             player.getCooldowns().addCooldown(ModItems.TELEPORT_CODEX.get(), cooldownTicks);
         }
+        org.gwfx.universaltool.skill.SkillModSynergyHandler.onTeleportCompleted(player);
         player.displayClientMessage(Component.translatable("message.universal_tool.teleport_success", target.name()), true);
     }
 

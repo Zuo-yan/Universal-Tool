@@ -288,6 +288,7 @@ public class PhoenixRebirthHandler {
             destLevel.sendParticles(ParticleTypes.SPLASH, exitX, exitY + 0.5, exitZ, 40, 0.4, 0.5, 0.4, 0.2);
             destLevel.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE, exitX, exitY + 0.8, exitZ, 25, 0.3, 0.5, 0.3, 0.05);
             player.sendSystemMessage(Component.translatable("message.universal_tool.phoenix.rebirth_success"));
+            org.gwfx.universaltool.skill.SkillModSynergyHandler.onPhoenixRebirth(player);
         }
     }
 }

@@ -7,84 +7,82 @@ import net.minecraft.resources.ResourceLocation;
 import org.gwfx.universaltool.UniversalToolMod;
 
 /**
- * Visual styling and drawing primitives for the skill management and wheel screens.
- *
- * <p>Uses the "Create / Ars Nouveau" Warm Illuminated Parchment, Walnut Wood &amp; Burnished Brass
- * palette: rich walnut outer molding with brass corner brackets, cream-parchment cards with brass
- * hairline borders, dark-walnut recessed wells for high-contrast stats, and 32x32 skill icons.
+ * 「星辉秘仪 · 深空鎏金星盘」视觉风格原语与动态特效绘制库。
  */
 final class SkillScreenStyle {
-    static final int BACKDROP = 0x88120B06;
-    static final int FRAME_BG = 0xFFEFE5CF;
-    static final int OUTER_BORDER = 0xFF1E140C;
-    static final int WALNUT_DARK = 0xFF382415;
-    static final int WALNUT = 0xFF5C4028;
-    static final int WALNUT_HI = 0xFF7D593A;
+    // ===== 深空与鎏金核心色盘 =====
+    static final int VOID_BG_TOP = 0xFF070A16;
+    static final int VOID_BG_BOTTOM = 0xFF10172C;
+    static final int PANEL_DARK = 0xEC0C1223;
+    static final int PANEL_CARD = 0xE2121A32;
+    static final int PANEL_INNER = 0xFF080C18;
+    static final int SLOT_BG = 0xFF151E38;
 
-    static final int BEVEL_HI = 0xFFF7EEDB;
-    static final int BEVEL_LO = 0xFF9E7330;
-    static final int SLOT_SHADOW = 0xFF4A331F;
+    static final int GOLD_BRIGHT = 0xFFFFF1BA;
+    static final int GOLD = 0xFFE8C26A;
+    static final int GOLD_DIM = 0xFF8C6B2C;
+    static final int GOLD_DARK = 0xFF453314;
 
-    static final int BORDER_BRONZE = 0xFF9E7330;
-    static final int BORDER_BRONZE_HI = 0xFFD6A84E;
-    static final int BORDER_GOLD = 0xFFD6A84E;
-    static final int BORDER_GOLD_GLOW = 0xFFF2D27A;
+    static final int BORDER_SUBTLE = 0xFF283558;
+    static final int BORDER_ACTIVE = 0xFFE8C26A;
 
-    static final int PANEL_BG = 0xFFE8DAC0;
-    static final int PANEL_BG_ALT = 0xFFDFCEAE;
-    static final int PANEL_INNER = 0xFF2B2017;
-    static final int CARD_BORDER = 0xFF9E7330;
+    static final int TEXT_TITLE = 0xFFFFF4D2;
+    static final int TEXT_WHITE = 0xFFE6ECF5;
+    static final int TEXT_BODY = 0xFFB8C4DA;
+    static final int TEXT_MUTED = 0xFF7B8BA8;
+    static final int TEXT_GOLD = 0xFFF5CF71;
+    static final int TEXT_GREEN = 0xFF6CE89D;
+    static final int TEXT_RED = 0xFFFF7A7A;
+    static final int TEXT_CYAN = 0xFF6FE6F2;
 
-    static final int ROW_BG = 0xFF3A2A1E;
-    static final int ROW_HOVER = 0xFF4D3929;
-    static final int ROW_SELECTED = 0xFF2C4D3A;
-
-    static final int TEXT_HEADER = 0xFF3A281A;
-    static final int TEXT_GOLD = 0xFFF2D27A;
-    static final int TEXT_WHITE = 0xFFF7ECDA;
-    static final int TEXT_DARK = 0xFF2A1C12;
-    static final int TEXT_BODY = 0xFF4F3B2A;
-    static final int TEXT_BODY_LIGHT = 0xFFEADBC0;
-    static final int TEXT_MUTED = 0xFF6E553D;
-    static final int TEXT_MUTED_LIGHT = 0xFFC9B79C;
-    static final int TEXT_DIM = 0xFF8C7458;
-
-    static final int GREEN = 0xFF82E86B;
-    static final int RED = 0xFFFF7A6E;
-    static final int RED_DARK = 0xFFA63429;
-    static final int TEAL = 0xFF6CE3D8;
-
-    static final int BADGE_ACTIVE_BG = 0xFF8A2424;
-    static final int BADGE_ACTIVE_BORDER = 0xFF3D0E0E;
-    static final int BADGE_ACTIVE_TEXT = 0xFFFFEAE4;
-
-    static final int BADGE_PASSIVE_BG = 0xFF2B613E;
-    static final int BADGE_PASSIVE_BORDER = 0xFF143620;
-    static final int BADGE_PASSIVE_TEXT = 0xFFDCFFE5;
-
-    static final int BADGE_ROLE_BG = 0xFF5C4630;
-    static final int BADGE_ROLE_BORDER = 0xFF2E2115;
-    static final int BADGE_ROLE_TEXT = 0xFFF5EAD6;
+    static final int BADGE_ACTIVE_BG = 0xFF421A24;
+    static final int BADGE_ACTIVE_BORDER = 0xFFFF7366;
+    static final int BADGE_PASSIVE_BG = 0xFF143530;
+    static final int BADGE_PASSIVE_BORDER = 0xFF4BE0B8;
 
     static ResourceLocation icon(String skillId) {
         return ResourceLocation.fromNamespaceAndPath(
                 UniversalToolMod.MODID, "textures/gui/skills/" + skillId + ".png");
     }
 
-    static void frame(GuiGraphics g, int x, int y, int w, int h) {
-        // Warm Walnut + Burnished Brass + Illuminated Parchment outer window frame.
-        g.fill(x, y, x + w, y + h, OUTER_BORDER);
-        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, WALNUT);
-        g.fill(x + 1, y + 1, x + w - 2, y + 2, WALNUT_HI);
-        g.fill(x + 1, y + 1, x + 2, y + h - 2, WALNUT_HI);
-        g.fill(x + 2, y + h - 2, x + w - 1, y + h - 1, WALNUT_DARK);
-        g.fill(x + w - 2, y + 2, x + w - 1, y + h - 1, WALNUT_DARK);
+    static int withAlpha(int rgb, float alpha) {
+        int a = Math.max(0, Math.min(255, Math.round(alpha * 255.0F)));
+        return (a << 24) | (rgb & 0x00FFFFFF);
+    }
 
-        outline(g, x + 3, y + 3, w - 6, h - 6, BORDER_BRONZE);
-        g.fill(x + 4, y + 4, x + w - 4, y + h - 4, FRAME_BG);
+    static int lerpColor(int c1, int c2, float t) {
+        t = Math.max(0.0F, Math.min(1.0F, t));
+        int a1 = (c1 >>> 24) & 0xFF, r1 = (c1 >>> 16) & 0xFF, g1 = (c1 >>> 8) & 0xFF, b1 = c1 & 0xFF;
+        int a2 = (c2 >>> 24) & 0xFF, r2 = (c2 >>> 16) & 0xFF, g2 = (c2 >>> 8) & 0xFF, b2 = c2 & 0xFF;
+        int a = Math.round(a1 + (a2 - a1) * t);
+        int r = Math.round(r1 + (r2 - r1) * t);
+        int g = Math.round(g1 + (g2 - g1) * t);
+        int b = Math.round(b1 + (b2 - b1) * t);
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
 
-        // Burnished brass corner brackets
-        int arm = Math.min(10, Math.min(w, h) / 6);
+    static float easeOutCubic(float t) {
+        t = Math.max(0.0F, Math.min(1.0F, t));
+        float inv = 1.0F - t;
+        return 1.0F - inv * inv * inv;
+    }
+
+    static void outline(GuiGraphics g, int x, int y, int w, int h, int color) {
+        if (w <= 0 || h <= 0) return;
+        g.fill(x, y, x + w, y + 1, color);
+        g.fill(x, y + h - 1, x + w, y + h, color);
+        g.fill(x, y + 1, x + 1, y + h - 1, color);
+        g.fill(x + w - 1, y + 1, x + w, y + h - 1, color);
+    }
+
+    /** 深空鎏金外框与四角星仪角标。 */
+    static void astrolabeWindowFrame(GuiGraphics g, int x, int y, int w, int h) {
+        g.fillGradient(x, y, x + w, y + h, VOID_BG_TOP, VOID_BG_BOTTOM);
+        outline(g, x, y, w, h, GOLD_DARK);
+        outline(g, x + 1, y + 1, w - 2, h - 2, GOLD);
+        outline(g, x + 3, y + 3, w - 6, h - 6, BORDER_SUBTLE);
+
+        int arm = 10;
         drawCornerBracket(g, x + 1, y + 1, 1, 1, arm);
         drawCornerBracket(g, x + w - 2, y + 1, -1, 1, arm);
         drawCornerBracket(g, x + 1, y + h - 2, 1, -1, arm);
@@ -93,147 +91,156 @@ final class SkillScreenStyle {
 
     private static void drawCornerBracket(GuiGraphics g, int cx, int cy, int sx, int sy, int arm) {
         for (int i = 0; i < arm; i++) {
-            int col = i == 0 ? BORDER_GOLD_GLOW : (i < arm - 2 ? BORDER_GOLD : BORDER_BRONZE);
+            int col = i < 3 ? GOLD_BRIGHT : GOLD;
             g.fill(cx + sx * i, cy, cx + sx * i + 1, cy + 1, col);
             g.fill(cx, cy + sy * i, cx + 1, cy + sy * i + 1, col);
-            if (i < 4) {
-                g.fill(cx + sx * i, cy + sy, cx + sx * i + 1, cy + sy + 1, BORDER_BRONZE);
-                g.fill(cx + sx, cy + sy * i, cx + sx + 1, cy + sy * i + 1, BORDER_BRONZE);
+        }
+        g.fill(cx + sx * 2, cy + sy * 2, cx + sx * 2 + 1, cy + sy * 2 + 1, GOLD_BRIGHT);
+    }
+
+    static void glassCard(GuiGraphics g, int x, int y, int w, int h, int borderColor) {
+        g.fill(x, y, x + w, y + h, PANEL_CARD);
+        outline(g, x, y, w, h, borderColor);
+        g.fill(x + 1, y + 1, x + w - 1, y + 2, withAlpha(GOLD_BRIGHT, 0.14F));
+    }
+
+    static void recessedWell(GuiGraphics g, int x, int y, int w, int h, int borderColor) {
+        g.fill(x, y, x + w, y + h, PANEL_INNER);
+        outline(g, x, y, w, h, borderColor);
+    }
+
+    /** 视差动态深空群星点阵。 */
+    static void drawStarfieldBackground(GuiGraphics g, int x, int y, int w, int h, float timeSec, float camX, float camY) {
+        g.fillGradient(x, y, x + w, y + h, VOID_BG_TOP, VOID_BG_BOTTOM);
+        for (int i = 0; i < 90; i++) {
+            int hash1 = Integer.hashCode(i * 7919 + 17);
+            int hash2 = Integer.hashCode(i * 104729 + 31);
+            float depth = (i % 3 == 0) ? 0.45F : (i % 3 == 1 ? 0.25F : 0.12F);
+            int sx = x + Math.floorMod(Math.round((hash1 & 0xFFFF) - camX * depth), Math.max(1, w));
+            int sy = y + Math.floorMod(Math.round((hash2 & 0xFFFF) - camY * depth), Math.max(1, h));
+            float twinkle = 0.35F + 0.55F * (0.5F + 0.5F * (float) Math.sin(timeSec * (1.4F + (i % 5) * 0.4F) + i));
+            int base = (i % 7 == 0) ? GOLD_BRIGHT : (i % 5 == 0 ? 0xFF9AC5FF : 0xFFD9E6FF);
+            int col = withAlpha(base, twinkle);
+            g.fill(sx, sy, sx + 1, sy + 1, col);
+            if (i % 13 == 0 && sx + 1 < x + w && sy + 1 < y + h && twinkle > 0.72F) {
+                g.fill(sx - 1, sy, sx + 2, sy + 1, withAlpha(base, twinkle * 0.4F));
+                g.fill(sx, sy - 1, sx + 1, sy + 2, withAlpha(base, twinkle * 0.4F));
             }
         }
-        g.fill(cx + sx, cy + sy, cx + sx + 1, cy + sy + 1, BORDER_GOLD_GLOW);
     }
 
-    static void card(GuiGraphics g, int x, int y, int w, int h, boolean accent) {
-        int bg = accent ? PANEL_BG : PANEL_BG_ALT;
-        g.fill(x, y, x + w, y + h, bg);
-        outline(g, x, y, w, h, CARD_BORDER);
-        g.fill(x + 1, y + 1, x + w - 1, y + 2, BEVEL_HI);
-        g.fill(x + 1, y + 1, x + 2, y + h - 1, BEVEL_HI);
-    }
-
-    static void recessed(GuiGraphics g, int x, int y, int w, int h, int bg) {
-        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, bg);
-        g.fill(x, y, x + w - 1, y + 1, OUTER_BORDER);
-        g.fill(x, y, x + 1, y + h - 1, OUTER_BORDER);
-        g.fill(x + 1, y + h - 1, x + w, y + h, BORDER_BRONZE);
-        g.fill(x + w - 1, y + 1, x + w, y + h, BORDER_BRONZE);
-        g.fill(x + w - 1, y, x + w, y + 1, bg);
-        g.fill(x, y + h - 1, x + 1, y + h, bg);
-    }
-
-    static void raised(GuiGraphics g, int x, int y, int w, int h, int bg, int border) {
-        g.fill(x, y, x + w, y + h, border);
-        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, bg);
-        g.fill(x + 1, y + 1, x + w - 2, y + 2, BORDER_GOLD);
-        g.fill(x + 1, y + 1, x + 2, y + h - 2, BORDER_GOLD);
-        g.fill(x + 2, y + h - 2, x + w - 1, y + h - 1, 0xFF593E18);
-        g.fill(x + w - 2, y + 2, x + w - 1, y + h - 1, 0xFF593E18);
-    }
-
-    static void tab(GuiGraphics g, int x, int y, int w, int h, String label, boolean active, boolean hovered) {
-        Font font = Minecraft.getInstance().font;
-        if (active) {
-            g.fill(x, y, x + w, y + h, OUTER_BORDER);
-            g.fill(x + 1, y + 1, x + w - 1, y + h - 1, FRAME_BG);
-            g.fill(x + 1, y + 1, x + w - 1, y + 3, BORDER_GOLD);
-            g.fill(x + 1, y + 1, x + 2, y + h - 1, BORDER_GOLD_GLOW);
-            g.fill(x + w - 2, y + 2, x + w - 1, y + h - 1, BORDER_BRONZE);
-            drawCenteredNoShadow(g, font, label, x + w / 2, y + (h - 8) / 2, TEXT_HEADER);
-        } else {
-            int bg = hovered ? 0xFF735134 : WALNUT;
-            g.fill(x, y, x + w, y + h, OUTER_BORDER);
-            g.fill(x + 1, y + 1, x + w - 1, y + h - 1, bg);
-            g.fill(x + 1, y + 1, x + w - 1, y + 2, hovered ? BORDER_GOLD : WALNUT_HI);
-            g.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, WALNUT_DARK);
-            g.drawCenteredString(font, label, x + w / 2, y + (h - 8) / 2, hovered ? TEXT_GOLD : TEXT_WHITE);
-        }
-    }
-
-    static void closeButton(GuiGraphics g, int x, int y, int size, boolean hovered) {
-        int bg = hovered ? 0xFFA83030 : 0xFF6E4E26;
-        g.fill(x, y, x + size, y + size, hovered ? BORDER_GOLD_GLOW : OUTER_BORDER);
-        g.fill(x + 1, y + 1, x + size - 1, y + size - 1, bg);
-        g.fill(x + 1, y + 1, x + size - 2, y + 2, hovered ? 0xFFE88A7E : BORDER_GOLD);
-        g.fill(x + 1, y + 1, x + 2, y + size - 2, hovered ? 0xFFE88A7E : BORDER_GOLD);
-        g.fill(x + 2, y + size - 2, x + size - 1, y + size - 1, hovered ? 0xFF521616 : WALNUT_DARK);
-        g.fill(x + size - 2, y + 2, x + size - 1, y + size - 1, hovered ? 0xFF521616 : WALNUT_DARK);
-        Font font = Minecraft.getInstance().font;
-        g.drawCenteredString(font, "X", x + size / 2, y + (size - 8) / 2, hovered ? 0xFFFFF5E0 : TEXT_WHITE);
-    }
-
-    static void outline(GuiGraphics g, int x, int y, int w, int h, int color) {
-        g.fill(x, y, x + w, y + 1, color);
-        g.fill(x, y + h - 1, x + w, y + h, color);
-        g.fill(x, y + 1, x + 1, y + h - 1, color);
-        g.fill(x + w - 1, y + 1, x + w, y + h - 1, color);
-    }
-
-    static void drawDiamond(GuiGraphics g, int x, int y, int color, boolean filled) {
-        if (filled) {
-            g.fill(x + 2, y, x + 3, y + 1, color);
-            g.fill(x + 1, y + 1, x + 4, y + 2, color);
-            g.fill(x, y + 2, x + 5, y + 3, color);
-            g.fill(x + 1, y + 3, x + 4, y + 4, color);
-            g.fill(x + 2, y + 4, x + 3, y + 5, color);
-            g.fill(x + 2, y + 2, x + 3, y + 3, 0xFFFFF8DC);
-        } else {
-            g.fill(x + 2, y, x + 3, y + 1, color);
-            g.fill(x + 1, y + 1, x + 2, y + 2, color);
-            g.fill(x + 3, y + 1, x + 4, y + 2, color);
-            g.fill(x, y + 2, x + 1, y + 3, color);
-            g.fill(x + 4, y + 2, x + 5, y + 3, color);
-            g.fill(x + 1, y + 3, x + 2, y + 4, color);
-            g.fill(x + 3, y + 3, x + 4, y + 4, color);
-            g.fill(x + 2, y + 4, x + 3, y + 5, color);
-        }
-    }
-
-    static void masteryDiamonds(GuiGraphics g, int x, int y, int learned, int max) {
-        for (int i = 0; i < max; i++) {
-            boolean filled = i < learned;
-            int px = x + i * 7;
-            if (filled) {
-                g.fill(px, y, px + 5, y + 5, 0xFF3A281A);
-                g.fill(px + 1, y + 1, px + 4, y + 4, BORDER_GOLD);
-                g.fill(px + 1, y + 1, px + 2, y + 2, 0xFFFFF6C4);
+    /** 绘制观星仪圆形刻度环。 */
+    static void drawAstrolabeRing(GuiGraphics g, int cx, int cy, float radius, int color, int dots, float rotRad) {
+        for (int i = 0; i < dots; i++) {
+            double a = rotRad + Math.PI * 2.0 * i / dots;
+            int px = cx + (int) Math.round(Math.cos(a) * radius);
+            int py = cy + (int) Math.round(Math.sin(a) * radius);
+            if (i % 6 == 0) {
+                g.fill(px - 1, py - 1, px + 2, py + 2, color);
             } else {
-                g.fill(px, y, px + 5, y + 5, SLOT_SHADOW);
-                g.fill(px + 1, y + 1, px + 4, y + 4, 0xFF7D6954);
+                g.fill(px, py, px + 1, py + 1, withAlpha(color, 0.55F));
             }
         }
     }
 
-    static void skillIcon(GuiGraphics g, String id, int x, int y, int size, boolean locked) {
-        recessed(g, x, y, size, size, 0xFF241B14);
-        int iconInner = size - 2;
-        if (iconInner > 0) {
-            // Skill PNGs are 32x32 full-canvas sprites; sample full [0..32) cleanly.
-            g.blit(icon(id), x + 1, y + 1, iconInner, iconInner, 0.0F, 0.0F, 32, 32, 32, 32);
+    /** 绘制连接两颗星的发光星轨与能量流光脉冲。 */
+    static void drawStarTrackLine(GuiGraphics g, int x1, int y1, int x2, int y2,
+                                  int baseColor, int glowColor, boolean active, boolean highlighted, float timeSec) {
+        int steps = Math.max(8, (int) Math.hypot(x2 - x1, y2 - y1) / 2);
+        int lineColor = highlighted ? withAlpha(glowColor, 0.92F)
+                : (active ? withAlpha(baseColor, 0.65F) : withAlpha(0xFF33415C, 0.55F));
+        for (int i = 0; i <= steps; i++) {
+            float t = i / (float) steps;
+            int px = Math.round(x1 + (x2 - x1) * t);
+            int py = Math.round(y1 + (y2 - y1) * t);
+            g.fill(px, py, px + 1, py + 1, lineColor);
+            if (active || highlighted) {
+                g.fill(px, py + 1, px + 1, py + 2, withAlpha(lineColor, 0.32F));
+            }
         }
-        if (locked) {
-            g.fill(x + 1, y + 1, x + size - 1, y + size - 1, 0x991A110A);
+        if (active || highlighted) {
+            float pulseT = (timeSec * 0.65F) % 1.0F;
+            int px = Math.round(x1 + (x2 - x1) * pulseT);
+            int py = Math.round(y1 + (y2 - y1) * pulseT);
+            g.fill(px - 1, py - 1, px + 2, py + 2, withAlpha(GOLD_BRIGHT, 0.95F));
         }
     }
 
-    static void progressBar(GuiGraphics g, int x, int y, int w, int h, float ratio, String label) {
-        // Emerald-gold XP bar inside dark-walnut & brass recessed frame.
-        recessed(g, x, y, w, h, 0xFF241B14);
-        int filled = Math.max(0, Math.min(w - 2, Math.round((w - 2) * ratio)));
+    static void drawStarGlyph(GuiGraphics g, int cx, int cy, int r, int color) {
+        g.fill(cx, cy - r, cx + 1, cy + r + 1, color);
+        g.fill(cx - r, cy, cx + r + 1, cy + 1, color);
+        g.fill(cx - 1, cy - 1, cx + 2, cy + 2, GOLD_BRIGHT);
+    }
+
+    static void skillIcon(GuiGraphics g, String id, int x, int y, int size, boolean dimmed) {
+        recessedWell(g, x, y, size, size, GOLD_DIM);
+        int inner = size - 2;
+        if (inner > 0) {
+            g.blit(icon(id), x + 1, y + 1, inner, inner, 0.0F, 0.0F, 32, 32, 32, 32);
+        }
+        if (dimmed) {
+            g.fill(x + 1, y + 1, x + size - 1, y + size - 1, 0x99060912);
+        }
+    }
+
+    static void masteryDiamonds(GuiGraphics g, int x, int y, int learned, int max, int accentColor) {
+        for (int i = 0; i < max; i++) {
+            int px = x + i * 7;
+            if (i < learned) {
+                g.fill(px, y, px + 5, y + 5, GOLD_DARK);
+                g.fill(px + 1, y + 1, px + 4, y + 4, learned >= max ? GOLD_BRIGHT : accentColor);
+                g.fill(px + 2, y + 2, px + 3, y + 3, 0xFFFFFFFF);
+            } else {
+                g.fill(px, y, px + 5, y + 5, 0xFF1A2238);
+                g.fill(px + 1, y + 1, px + 4, y + 4, 0xFF394666);
+            }
+        }
+    }
+
+    static void progressBar(GuiGraphics g, int x, int y, int w, int h, float ratio, int fillStart, int fillEnd, String label) {
+        recessedWell(g, x, y, w, h, GOLD_DIM);
+        int innerW = Math.max(0, w - 2);
+        int filled = Math.max(0, Math.min(innerW, Math.round(innerW * Math.max(0.0F, Math.min(1.0F, ratio)))));
         if (filled > 0) {
-            g.fill(x + 1, y + 1, x + 1 + filled, y + h - 1, 0xFF3E9C4B);
-            if (h >= 5) {
-                g.fill(x + 1, y + 1, x + 1 + filled, y + 2, 0xFF7CE871);
-                g.fill(x + 1, y + h - 2, x + 1 + filled, y + h - 1, 0xFF286932);
+            for (int px = 0; px < filled; px++) {
+                float t = px / (float) Math.max(1, innerW);
+                int col = lerpColor(fillStart, fillEnd, t);
+                g.fill(x + 1 + px, y + 1, x + 2 + px, y + h - 1, col);
             }
-            // Gilded tip cap at the progress frontier
-            int capX = x + filled;
-            g.fill(capX, y + 1, capX + 1, y + h - 1, BORDER_GOLD_GLOW);
+            if (h >= 5) {
+                g.fill(x + 1, y + 1, x + 1 + filled, y + 2, withAlpha(0xFFFFFFFF, 0.35F));
+            }
+            g.fill(x + filled, y + 1, x + filled + 1, y + h - 1, GOLD_BRIGHT);
         }
         if (label != null && !label.isEmpty()) {
             Font font = Minecraft.getInstance().font;
             g.drawCenteredString(font, label, x + w / 2, y + (h - 8) / 2, TEXT_WHITE);
         }
+    }
+
+    static void button(GuiGraphics g, int x, int y, int w, int h, String text, boolean enabled, boolean hovered, int accentColor) {
+        int border = !enabled ? BORDER_SUBTLE : (hovered ? GOLD_BRIGHT : accentColor);
+        int bgTop = !enabled ? 0xFF141A2C : (hovered ? 0xFF2B3554 : 0xFF1B233D);
+        int bgBot = !enabled ? 0xFF0E1322 : (hovered ? 0xFF1D2540 : 0xFF11172B);
+        int textCol = !enabled ? TEXT_MUTED : (hovered ? GOLD_BRIGHT : TEXT_WHITE);
+
+        g.fillGradient(x, y, x + w, y + h, bgTop, bgBot);
+        outline(g, x, y, w, h, border);
+        if (enabled && hovered) {
+            g.fill(x + 1, y + 1, x + w - 1, y + 2, withAlpha(GOLD_BRIGHT, 0.45F));
+        }
+
+        Font font = Minecraft.getInstance().font;
+        g.drawCenteredString(font, trim(font, text, Math.max(8, w - 8)), x + w / 2, y + (h - 8) / 2, textCol);
+    }
+
+    static void closeButton(GuiGraphics g, int x, int y, int size, boolean hovered) {
+        int bg = hovered ? 0xFF7B2330 : 0xFF232B45;
+        int border = hovered ? 0xFFFF8C8C : GOLD;
+        g.fill(x, y, x + size, y + size, bg);
+        outline(g, x, y, size, size, border);
+        Font font = Minecraft.getInstance().font;
+        g.drawCenteredString(font, "×", x + size / 2, y + (size - 8) / 2, hovered ? 0xFFFFF0F0 : GOLD_BRIGHT);
     }
 
     static void badge(GuiGraphics g, int x, int y, int w, int h, String text, int bg, int border, int textColor) {
@@ -243,49 +250,10 @@ final class SkillScreenStyle {
         g.drawCenteredString(font, text, x + w / 2, y + (h - 8) / 2, textColor);
     }
 
-    static void button(GuiGraphics g, int x, int y, int w, int h, String text, boolean enabled, boolean hovered) {
-        int border = !enabled ? 0xFF2B2017 : (hovered ? BORDER_GOLD_GLOW : OUTER_BORDER);
-        int bg = !enabled ? 0xFF47382B : (hovered ? 0xFFA37028 : 0xFF7D541E);
-        int hi = !enabled ? 0xFF635040 : (hovered ? 0xFFF7DC88 : BORDER_GOLD);
-        int lo = !enabled ? 0xFF2E231A : (hovered ? 0xFF5C3D12 : 0xFF422B0C);
-        int textColor = !enabled ? 0xFF9C8B7A : (hovered ? 0xFFFFF8D6 : TEXT_WHITE);
-
-        g.fill(x, y, x + w, y + h, border);
-        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, bg);
-        g.fill(x + 1, y + 1, x + w - 2, y + 2, hi);
-        g.fill(x + 1, y + 1, x + 2, y + h - 2, hi);
-        g.fill(x + 2, y + h - 2, x + w - 1, y + h - 1, lo);
-        g.fill(x + w - 2, y + 2, x + w - 1, y + h - 1, lo);
-
-        Font font = Minecraft.getInstance().font;
-        g.drawCenteredString(font, trim(font, text, w - 8), x + w / 2, y + (h - 8) / 2, textColor);
-    }
-
-    static void scrollbarVertical(GuiGraphics g, int x, int y, int w, int h,
-                                  int scroll, int maxScroll, int visible, int total, boolean active) {
-        recessed(g, x, y, w, h, 0xFF261B13);
-        if (maxScroll <= 0 || total <= 0) return;
-
-        int thumbH = Math.max(16, Math.round(h * ((float) visible / total)));
-        int travel = h - thumbH;
-        int thumbY = y + Math.round(travel * ((float) scroll / maxScroll));
-
-        int thumbBg = active ? BORDER_GOLD : 0xFFB5863B;
-        g.fill(x, thumbY, x + w, thumbY + thumbH, OUTER_BORDER);
-        g.fill(x + 1, thumbY + 1, x + w - 1, thumbY + thumbH - 1, thumbBg);
-        g.fill(x + 1, thumbY + 1, x + w - 1, thumbY + 2, BORDER_GOLD_GLOW);
-        g.fill(x + 1, thumbY + thumbH - 2, x + w - 1, thumbY + thumbH - 1, 0xFF593E18);
-    }
-
-    static void drawCenteredNoShadow(GuiGraphics g, Font font, String text, int centerX, int y, int color) {
-        g.drawString(font, text, centerX - font.width(text) / 2, y, color, false);
-    }
-
     static String trim(Font font, String text, int width) {
         if (font.width(text) <= width) return text;
         return font.plainSubstrByWidth(text, Math.max(0, width - font.width("..."))) + "...";
     }
 
-    private SkillScreenStyle() {
-    }
+    private SkillScreenStyle() {}
 }

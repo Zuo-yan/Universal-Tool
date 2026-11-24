@@ -252,6 +252,7 @@ public final class PrivateSpaceManager {
             player.teleportTo(targetLevel, spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5,
                     player.getYRot(), player.getXRot());
             data.setResumePosition(player.getUUID(), positionOf(player));
+            org.gwfx.universaltool.skill.SkillModSynergyHandler.onPocketRealmEntered(player);
             if (fresh) {
                 player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.created"), true);
             }
@@ -287,6 +288,7 @@ public final class PrivateSpaceManager {
             player.teleportTo(targetLevel, 0.5, StarryPocketChunkGenerator.INTERIOR_MIN_Y, 0.5,
                     player.getYRot(), player.getXRot());
             data.setResumePosition(playerUuid, positionOf(player));
+            org.gwfx.universaltool.skill.SkillModSynergyHandler.onPocketRealmEntered(player);
             player.displayClientMessage(Component.translatable("message.universal_tool.personal_space.entered_private"), true);
         });
     }

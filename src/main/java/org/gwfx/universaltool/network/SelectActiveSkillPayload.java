@@ -26,6 +26,9 @@ public record SelectActiveSkillPayload(int slot) implements CustomPacketPayload 
     public static void handle(SelectActiveSkillPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer player) {
+                if (!SkillManager.isEnabled(player.serverLevel())) {
+                    return;
+                }
                 PlayerSkillData data = SkillManager.data(player);
                 if (!data.setSelectedActive(payload.slot())) {
                     return;

@@ -16,6 +16,17 @@ public final class ModSounds {
                     ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
                             "skill.lightning_spear_throw")));
 
+    public static final DeferredHolder<SoundEvent, SoundEvent> PHAINON_NORMAL_SKILL_VOICE =
+            SOUNDS.register("skill.phainon_normal_skill_voice", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,
+                            "skill.phainon_normal_skill_voice")));
+    public static final DeferredHolder<SoundEvent, SoundEvent> PHAINON_ULTIMATE_ACTIVATE =
+            SOUNDS.register("skill.phainon_ultimate_activate", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "skill.phainon_ultimate_activate")));
+    public static final DeferredHolder<SoundEvent, SoundEvent> PHAINON_ULTIMATE_RELEASE =
+            SOUNDS.register("skill.phainon_ultimate_release", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "skill.phainon_ultimate_release")));
+
     public static final DeferredHolder<SoundEvent, SoundEvent> NAIWA_LAUGH =
             SOUNDS.register("entity.naiwa.laugh", () -> SoundEvent.createVariableRangeEvent(
                     ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID,

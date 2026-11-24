@@ -1,6 +1,7 @@
 package org.gwfx.universaltool.network;
 
 import io.netty.buffer.ByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -11,10 +12,7 @@ import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.skill.SkillManager;
 
 /**
- * Cast intent from the client.
- *
- * <p>{@code releasing} distinguishes the key release that finishes a charge from the initial press
- * that starts one, so charged skills do not fire on the same edge as instant skills.
+ * 客户端施放主动技能的按键状态包（按下起手 / 松开蓄力释放）。
  */
 public record CastActiveSkillPayload(boolean releasing) implements CustomPacketPayload {
     public static final CastActiveSkillPayload PRESS = new CastActiveSkillPayload(false);
@@ -34,6 +32,12 @@ public record CastActiveSkillPayload(boolean releasing) implements CustomPacketP
     public static void handle(CastActiveSkillPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer player) {
+                if (!SkillManager.isEnabled(player.serverLevel())) {
+                    if (!payload.releasing()) {
+                        player.displayClientMessage(Component.translatable("message.universal_tool.skills.disabled"), true);
+                    }
+                    return;
+                }
                 SkillManager.handleCast(player, payload.releasing());
             }
         });

@@ -1,0 +1,13 @@
+{
+  "entries": [
+    {
+      "enum": "net/minecraft/world/item/Rarity",
+      "name": "UNIVERSAL_TOOL_MYTHIC",
+      "constructor": "(ILjava/lang/String;Ljava/util/function/UnaryOperator;)V",
+      "parameters": {
+        "class": "org/gwfx/universaltool/item/ModRarities",
+        "field": "MYTHIC"
+      }
+    }
+  ]
+}

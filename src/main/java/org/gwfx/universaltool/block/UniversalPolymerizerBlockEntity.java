@@ -92,7 +92,9 @@ public class UniversalPolymerizerBlockEntity extends BlockEntity implements Menu
         }
 
         if (be.craftingProgress > 0) {
-            be.craftingProgress--;
+            int extra = org.gwfx.universaltool.skill.SkillModSynergyHandler
+                    .polymerizerExtraProgressTicks((ServerLevel) level, pos);
+            be.craftingProgress = Math.max(0, be.craftingProgress - 1 - extra);
             // Mark chunk dirty without spamming block update packets every tick; start/finish syncs state.
             level.blockEntityChanged(pos);
 
@@ -157,6 +159,7 @@ public class UniversalPolymerizerBlockEntity extends BlockEntity implements Menu
             // 聚合成功声效
             serverLevel.playSound(null, pos, SoundEvents.ANVIL_USE, SoundSource.BLOCKS, 0.8F, 1.1F);
             serverLevel.playSound(null, pos, SoundEvents.PLAYER_LEVELUP, SoundSource.BLOCKS, 0.6F, 1.4F);
+            org.gwfx.universaltool.skill.SkillModSynergyHandler.onPolymerizerFinished(serverLevel, pos);
             setChanged();
         } else {
             setChanged();

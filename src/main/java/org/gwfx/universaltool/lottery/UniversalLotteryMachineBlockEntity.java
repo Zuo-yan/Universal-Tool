@@ -296,7 +296,10 @@ public class UniversalLotteryMachineBlockEntity extends BlockEntity implements M
 
         this.betCount = actualBet;
         ItemStack betStack = input.copyWithCount(actualBet);
-        this.totalPointsSacrificed = LotteryValuator.evaluate(betStack);
+        long basePoints = LotteryValuator.evaluate(betStack);
+        this.totalPointsSacrificed = player instanceof net.minecraft.server.level.ServerPlayer sp
+                ? org.gwfx.universaltool.skill.SkillModSynergyHandler.adjustLotteryPoints(sp, basePoints)
+                : basePoints;
         this.singleRollPoints = LotteryValuator.getUnitValue(input);
 
         // 扣除下注物品
@@ -360,6 +363,8 @@ public class UniversalLotteryMachineBlockEntity extends BlockEntity implements M
 
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        org.gwfx.universaltool.skill.SkillModSynergyHandler.onLotteryRollCompleted(
+                serverLevel, worldPosition, player instanceof net.minecraft.server.level.ServerPlayer sp ? sp : null);
         return true;
     }
 

@@ -4,24 +4,21 @@ import net.minecraft.resources.ResourceLocation;
 import org.gwfx.universaltool.UniversalToolMod;
 
 /**
- * Static skill metadata.
- *
- * @param id            stable identifier, also the translation key suffix
- * @param type          active or passive
- * @param maxLevel      number of purchasable levels
- * @param levelCosts    point cost of each level, indexed from level 1
- * @param cooldownTicks cooldown in ticks after a successful cast; 0 for passives
- * @param chargeTicks   hold time before release; 0 means the skill fires instantly
- * @param unlockKey     translation key describing the unlock condition
+ * 技能静态元数据定义（星图节点、派系、前置关系与试炼条件）。
  */
 public record SkillDefinition(
         String id,
+        SkillConstellation constellation,
         SkillType type,
+        SkillTier tier,
         int maxLevel,
         int[] levelCosts,
         int cooldownTicks,
         int chargeTicks,
-        String unlockKey
+        String prerequisiteId,
+        SkillTrialSpec trial,
+        float mapX,
+        float mapY
 ) {
     public ResourceLocation location() {
         return ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, id);
@@ -42,8 +39,16 @@ public record SkillDefinition(
         return translationKey() + ".desc";
     }
 
+    public String awakeningKey() {
+        return translationKey() + ".awakening";
+    }
+
     public String unlockKey() {
-        return unlockKey == null ? "" : unlockKey;
+        return trial != null ? trial.descKey() : "";
+    }
+
+    public boolean hasPrerequisite() {
+        return prerequisiteId != null && !prerequisiteId.isEmpty();
     }
 
     public boolean charged() {
