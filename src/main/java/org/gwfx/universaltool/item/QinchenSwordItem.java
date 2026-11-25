@@ -14,6 +14,7 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.component.Unbreakable;
 import net.minecraft.world.level.Level;
 import org.gwfx.universaltool.init.ModDataComponents;
+import org.gwfx.universaltool.phainon.PhainonMeteor;
 import org.gwfx.universaltool.phainon.PhainonNormalSkillHandler;
 import org.gwfx.universaltool.phainon.PhainonUltimateHandler;
 import org.gwfx.universaltool.phainon.PhainonWeaponState;
@@ -35,7 +36,9 @@ public final class QinchenSwordItem extends SwordItem {
 
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
-        if (ModDataComponents.getPhainonWeaponState(player.getItemInHand(hand)).canAwaken()) {
+        var state = ModDataComponents.getPhainonWeaponState(player.getItemInHand(hand));
+        if (state.transformed()) return PhainonMeteor.use(level, player, hand);
+        if (state.canAwaken()) {
             return PhainonUltimateHandler.tryStart(level, player, hand);
         }
         return PhainonNormalSkillHandler.tryStartCast(level, player, hand);
@@ -69,6 +72,8 @@ public final class QinchenSwordItem extends SwordItem {
         tooltipComponents.add(Component.translatable("tooltip.universal_tool.qinchen_sword.normal_skill_title"));
         tooltipComponents.add(Component.translatable("tooltip.universal_tool.qinchen_sword.normal_skill_usage"));
         tooltipComponents.add(Component.translatable("tooltip.universal_tool.qinchen_sword.ultimate_usage"));
+        tooltipComponents.add(Component.translatable("tooltip.universal_tool.qinchen_sword.enhanced_basic_usage"));
+        tooltipComponents.add(Component.translatable("tooltip.universal_tool.qinchen_sword.meteor_usage"));
         tooltipComponents.add(Component.translatable(
                 "tooltip.universal_tool.qinchen_sword.coreflame",
                 state.coreflame(),

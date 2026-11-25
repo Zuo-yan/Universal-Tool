@@ -12,7 +12,7 @@ import org.gwfx.universaltool.UniversalToolMod;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 侵晨普通战技与终结技的服务端表现事件。
+ * 侵晨战技、终结技与觉醒普攻的服务端表现事件。
  */
 public record PhainonSkillEffectPayload(
         int casterId,
@@ -24,6 +24,8 @@ public record PhainonSkillEffectPayload(
         float yawDeg,
         float pitchDeg,
         float hoverHeight,
+        float dashDistance,
+        float strikeReach,
         int totalTicks,
         long sequence
 ) implements CustomPacketPayload {
@@ -33,7 +35,8 @@ public record PhainonSkillEffectPayload(
         SLASH,
         CANCEL,
         ULTIMATE_START,
-        ULTIMATE_CANCEL
+        ULTIMATE_CANCEL,
+        ENHANCED_BASIC
     }
 
     private static final AtomicLong EFFECT_SEQUENCE = new AtomicLong();
@@ -55,6 +58,8 @@ public record PhainonSkillEffectPayload(
         buf.writeFloat(payload.yawDeg);
         buf.writeFloat(payload.pitchDeg);
         buf.writeFloat(payload.hoverHeight);
+        buf.writeFloat(payload.dashDistance);
+        buf.writeFloat(payload.strikeReach);
         buf.writeInt(payload.totalTicks);
         buf.writeLong(payload.sequence);
     }
@@ -69,10 +74,13 @@ public record PhainonSkillEffectPayload(
         float yawDeg = buf.readFloat();
         float pitchDeg = buf.readFloat();
         float hoverHeight = buf.readFloat();
+        float dashDistance = buf.readFloat();
+        float strikeReach = buf.readFloat();
         int totalTicks = buf.readInt();
         long sequence = buf.readLong();
         return new PhainonSkillEffectPayload(
-                casterId, action, mainHand, originX, originY, originZ, yawDeg, pitchDeg, hoverHeight, totalTicks, sequence
+                casterId, action, mainHand, originX, originY, originZ, yawDeg, pitchDeg,
+                hoverHeight, dashDistance, strikeReach, totalTicks, sequence
         );
     }
 
@@ -86,10 +94,24 @@ public record PhainonSkillEffectPayload(
     }
 
     static void broadcast(ServerPlayer caster, Action action, InteractionHand hand, int totalTicks, float hoverHeight) {
+        broadcast(caster, action, hand, totalTicks, hoverHeight, 0.0F, 0.0F);
+    }
+
+    static void broadcastEnhancedBasic(ServerPlayer caster, float dashDistance, float strikeReach) {
+        broadcast(caster, Action.ENHANCED_BASIC, InteractionHand.MAIN_HAND,
+                PhainonEnhancedBasic.EFFECT_TICKS, 0.0F, dashDistance, strikeReach);
+    }
+
+    private static void broadcast(ServerPlayer caster, Action action, InteractionHand hand, int totalTicks,
+                                  float hoverHeight, float dashDistance, float strikeReach) {
         var payload = new PhainonSkillEffectPayload(
                 caster.getId(), action, hand == InteractionHand.MAIN_HAND,
                 caster.getX(), caster.getY(), caster.getZ(), caster.getYRot(), caster.getXRot(),
-                hoverHeight, totalTicks, EFFECT_SEQUENCE.incrementAndGet());
+                hoverHeight, dashDistance, strikeReach, totalTicks, EFFECT_SEQUENCE.incrementAndGet());
+        sendNearby(caster, payload);
+    }
+
+    private static void sendNearby(ServerPlayer caster, PhainonSkillEffectPayload payload) {
         for (ServerPlayer recipient : caster.serverLevel().players()) {
             if (recipient == caster || recipient.distanceToSqr(caster) <= 64.0 * 64.0) {
                 PacketDistributor.sendToPlayer(recipient, payload);

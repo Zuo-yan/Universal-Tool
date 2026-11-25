@@ -17,7 +17,9 @@
   "client": [
     "ClientOptionsMixin",
     "PhoneKeyDefaultsMixin",
-    "PhainonPlayerPoseMixin"
+    "PhainonPlayerPoseMixin",
+    "MeteorSkyColorMixin",
+    "MeteorLightTextureMixin"
   ],
   "injectors": {
     "defaultRequire": 1

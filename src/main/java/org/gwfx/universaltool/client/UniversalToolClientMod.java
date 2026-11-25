@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -18,6 +19,9 @@ import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.client.phainon.PhainonBloodthornVisuals;
+import org.gwfx.universaltool.client.phainon.PhainonMeteorVisuals;
+import org.gwfx.universaltool.client.phainon.PhainonEnhancedBasicEffects;
 import org.gwfx.universaltool.client.phainon.PhainonSkillEffectRenderer;
 import org.gwfx.universaltool.client.phainon.PhainonSwordClientExtensions;
 import org.gwfx.universaltool.client.phainon.PhainonUltimateMeshes;
@@ -72,6 +76,12 @@ public final class UniversalToolClientMod {
             ResourceLocation awakenedSword = ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "qinchen_awakened");
             ItemProperties.register(ModItems.QINCHEN_SWORD.get(), awakenedSword,
                     (stack, level, entity, seed) -> ModDataComponents.getPhainonWeaponState(stack).transformed() ? 1.0F : 0.0F);
+            ResourceLocation litBlade = ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "qinchen_bloodthorn_lit");
+            ItemProperties.register(ModItems.QINCHEN_SWORD.get(), litBlade, (stack, level, entity, seed) -> {
+                float partial = Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false);
+                return entity instanceof Player player && PhainonEnhancedBasicEffects.isBladeLit(player, stack, partial)
+                        ? 1.0F : 0.0F;
+            });
         });
     }
 
@@ -130,6 +140,8 @@ public final class UniversalToolClientMod {
             SportsCarModelData.invalidate();
             PhainonVfxModelData.invalidate();
             PhainonUltimateMeshes.reload(resourceManager);
+            PhainonBloodthornVisuals.reload(resourceManager);
+            PhainonMeteorVisuals.reload(resourceManager);
         });
     }
 

@@ -1,0 +1,13 @@
+{
+  "loader": "neoforge:obj",
+  "model": "universal_tool:models/item/qinchen_sword_awakened.obj",
+  "mtl_override": "qinchen_sword_bloodthorn.mtl",
+  "automatic_culling": false,
+  "flip_v": true,
+  "emissive_ambient": true,
+  "gui_light": "front",
+  "textures": {
+    "particle": "universal_tool:item/qinchen_sword_awakened"
+  },
+  "parent": "universal_tool:item/qinchen_sword_display"
+}

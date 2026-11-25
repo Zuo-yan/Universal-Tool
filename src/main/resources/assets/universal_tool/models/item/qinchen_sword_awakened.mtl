@@ -1,39 +1,24 @@
-newmtl obsidian
+newmtl body
 Ka 0 0 0
 Kd 1 1 1
 map_Kd universal_tool:item/qinchen_sword_awakened
 
-newmtl slate
+newmtl edge
 Ka 0 0 0
 Kd 1 1 1
 map_Kd universal_tool:item/qinchen_sword_awakened
 
-newmtl shadow
-Ka 0 0 0
+newmtl vein
+Ka 0.37 0.37 0.37
 Kd 1 1 1
 map_Kd universal_tool:item/qinchen_sword_awakened
 
-newmtl brass
-Ka 0 0 0
+newmtl halo
+Ka 0.54 0.54 0.54
 Kd 1 1 1
 map_Kd universal_tool:item/qinchen_sword_awakened
 
-newmtl gold
-Ka 0 0 0
-Kd 1 1 1
-map_Kd universal_tool:item/qinchen_sword_awakened
-
-newmtl core
-Ka 1 1 1
-Kd 1 1 1
-map_Kd universal_tool:item/qinchen_sword_awakened
-
-newmtl tip
-Ka 1 1 1
-Kd 1 1 1
-map_Kd universal_tool:item/qinchen_sword_awakened
-
-newmtl binding
-Ka 0 0 0
+newmtl lens
+Ka 0.83 0.83 0.83
 Kd 1 1 1
 map_Kd universal_tool:item/qinchen_sword_awakened

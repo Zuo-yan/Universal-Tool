@@ -41,6 +41,14 @@ public final class PhainonSwordClientExtensions implements IClientItemExtensions
             applyUltimateOpening(poseStack, arm, openingAge, equipProcess);
             return true;
         }
+        if (hand == InteractionHand.MAIN_HAND) {
+            float basicAge = PhainonEnhancedBasicEffects.poseAge(player, partialTick);
+            if (basicAge >= 0.0F) {
+                PhainonEnhancedBasicPose.applyHand(poseStack, arm, equipProcess, basicAge);
+                return true;
+            }
+        }
+        if (PhainonMeteorEffects.applyHand(poseStack, player, hand, arm, partialTick, equipProcess)) return true;
         if (!PhainonSkillEffectRenderer.isCastingWithHand(player.getId(), hand)) {
             return false;
         }

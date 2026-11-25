@@ -1,0 +1,24 @@
+newmtl body
+Ka 0 0 0
+Kd 1 1 1
+map_Kd universal_tool:item/qinchen_sword_awakened
+
+newmtl edge
+Ka 0.76 0.76 0.76
+Kd 1 1 1
+map_Kd universal_tool:item/qinchen_sword_bloodthorn
+
+newmtl vein
+Ka 1 1 1
+Kd 1 1 1
+map_Kd universal_tool:item/qinchen_sword_bloodthorn
+
+newmtl halo
+Ka 1 1 1
+Kd 1 1 1
+map_Kd universal_tool:item/qinchen_sword_bloodthorn
+
+newmtl lens
+Ka 1 1 1
+Kd 1 1 1
+map_Kd universal_tool:item/qinchen_sword_bloodthorn

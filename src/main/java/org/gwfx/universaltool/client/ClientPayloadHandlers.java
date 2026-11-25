@@ -5,8 +5,10 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.gwfx.universaltool.naiwa.NaiwaLaughSoundPayload;
 import org.gwfx.universaltool.naiwa.DidiStatusPayload;
 import org.gwfx.universaltool.client.phainon.PhainonSkillEffectRenderer;
+import org.gwfx.universaltool.client.phainon.PhainonMeteorEffects;
 import org.gwfx.universaltool.network.CounterGuardEffectPayload;
 import org.gwfx.universaltool.phainon.PhainonSkillEffectPayload;
+import org.gwfx.universaltool.phainon.MeteorShowerPayload;
 import org.gwfx.universaltool.network.ModPacketHandler;
 import org.gwfx.universaltool.network.OpenSkillScreenPayload;
 import org.gwfx.universaltool.network.SanctuaryDomeEffectPayload;
@@ -52,6 +54,8 @@ public final class ClientPayloadHandlers {
                 (payload, context) -> context.enqueueWork(() -> DidiDaidaPage.receiveStatus(payload)));
         ModPacketHandler.registerClientHandler(SanctuaryDomeEffectPayload.TYPE,
                 (payload, context) -> context.enqueueWork(() -> SanctuaryDomeEffectRenderer.apply(payload)));
+        ModPacketHandler.registerClientHandler(MeteorShowerPayload.TYPE,
+                (payload, context) -> context.enqueueWork(() -> PhainonMeteorEffects.start(payload)));
         ModPacketHandler.registerClientHandler(PhainonSkillEffectPayload.TYPE,
                 (payload, context) -> context.enqueueWork(() -> PhainonSkillEffectRenderer.apply(payload)));
     }

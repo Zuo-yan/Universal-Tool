@@ -3,6 +3,8 @@ package org.gwfx.universaltool.mixin;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import org.gwfx.universaltool.client.phainon.PhainonEnhancedBasicPose;
+import org.gwfx.universaltool.client.phainon.PhainonMeteorEffects;
 import org.gwfx.universaltool.client.phainon.PhainonUltimatePlayerPose;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -16,6 +18,8 @@ abstract class PhainonPlayerPoseMixin {
                                               float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo callback) {
         if (entity instanceof Player player) {
             PhainonUltimatePlayerPose.apply((PlayerModel<?>) (Object) this, player);
+            PhainonMeteorEffects.applyPose((PlayerModel<?>) (Object) this, player);
+            PhainonEnhancedBasicPose.apply((PlayerModel<?>) (Object) this, player);
         }
     }
 }

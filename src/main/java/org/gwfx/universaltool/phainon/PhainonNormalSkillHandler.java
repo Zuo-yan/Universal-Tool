@@ -401,7 +401,7 @@ public final class PhainonNormalSkillHandler {
         return dot >= cosHalfAngle;
     }
 
-    private static boolean canHitTarget(ServerPlayer source, LivingEntity target) {
+    static boolean canHitTarget(ServerPlayer source, LivingEntity target) {
         if (target == source || !target.isAlive() || target.isSpectator()) {
             return false;
         }

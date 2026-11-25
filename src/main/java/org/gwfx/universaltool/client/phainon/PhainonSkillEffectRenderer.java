@@ -85,6 +85,7 @@ public final class PhainonSkillEffectRenderer {
         ACTIVE.clear();
         lastSequence = 0L;
         PhainonUltimateEffectRenderer.clear();
+        PhainonEnhancedBasicEffects.clear();
     }
 
     /**
@@ -122,6 +123,7 @@ public final class PhainonSkillEffectRenderer {
             }
             case CANCEL -> ACTIVE.remove(payload.casterId());
             case ULTIMATE_START, ULTIMATE_CANCEL -> PhainonUltimateEffectRenderer.apply(payload);
+            case ENHANCED_BASIC -> PhainonEnhancedBasicEffects.apply(payload);
         }
     }
 

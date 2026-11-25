@@ -15,7 +15,9 @@ import org.gwfx.universaltool.klein.KleinSyncPayload;
 import org.gwfx.universaltool.naiwa.DidiOrderPayload;
 import org.gwfx.universaltool.naiwa.DidiStatusPayload;
 import org.gwfx.universaltool.naiwa.NaiwaLaughSoundPayload;
+import org.gwfx.universaltool.phainon.PhainonEmptySwingPayload;
 import org.gwfx.universaltool.phainon.PhainonSkillEffectPayload;
+import org.gwfx.universaltool.phainon.MeteorShowerPayload;
 import org.gwfx.universaltool.sportscar.SportsCarInputPayload;
 import org.gwfx.universaltool.wheelchair.WheelchairInputPayload;
 
@@ -42,7 +44,7 @@ public final class ModPacketHandler {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("22");
+        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("27");
 
         // 客户端发往服务端
         registrar.playToServer(SaveWaypointPayload.TYPE, SaveWaypointPayload.STREAM_CODEC, SaveWaypointPayload::handle);
@@ -78,6 +80,8 @@ public final class ModPacketHandler {
                 SportsCarInputPayload::handle);
         registrar.playToServer(DidiOrderPayload.TYPE, DidiOrderPayload.STREAM_CODEC,
                 DidiOrderPayload::handle);
+        registrar.playToServer(PhainonEmptySwingPayload.TYPE, PhainonEmptySwingPayload.STREAM_CODEC,
+                PhainonEmptySwingPayload::handle);
 
         // 服务端发往客户端 (dispatched to ClientPayloadHandlers registered on client setup)
         registrar.playToClient(OreSightPayload.TYPE, OreSightPayload.STREAM_CODEC,
@@ -106,6 +110,8 @@ public final class ModPacketHandler {
                 dispatchClient(NaiwaLaughSoundPayload.TYPE));
         registrar.playToClient(DidiStatusPayload.TYPE, DidiStatusPayload.STREAM_CODEC,
                 dispatchClient(DidiStatusPayload.TYPE));
+        registrar.playToClient(MeteorShowerPayload.TYPE, MeteorShowerPayload.STREAM_CODEC,
+                dispatchClient(MeteorShowerPayload.TYPE));
         registrar.playToClient(PhainonSkillEffectPayload.TYPE, PhainonSkillEffectPayload.STREAM_CODEC,
                 dispatchClient(PhainonSkillEffectPayload.TYPE));
         registrar.optional().playToClient(SanctuaryDomeEffectPayload.TYPE, SanctuaryDomeEffectPayload.STREAM_CODEC,

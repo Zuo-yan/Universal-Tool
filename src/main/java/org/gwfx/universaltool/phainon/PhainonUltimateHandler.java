@@ -10,8 +10,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -25,6 +27,8 @@ import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.init.ModDataComponents;
 import org.gwfx.universaltool.init.ModSounds;
 
+import javax.annotation.Nullable;
+
 @EventBusSubscriber(modid = UniversalToolMod.MODID)
 public final class PhainonUltimateHandler {
     public static final int AWAKEN_TICK = 82;
@@ -33,7 +37,12 @@ public final class PhainonUltimateHandler {
     public static final int TOTAL_TICKS = OPENING_TICKS + 400;
 
     private record Cast(InteractionHand hand, ItemStack sword, ServerLevel level, long startTick,
-                        PhainonUltimateMotion motion) {}
+                        PhainonUltimateMotion motion, long nextBasicVisualTick,
+                        @Nullable PhainonEnhancedBasicMotion basicMotion) {
+        Cast withBasic(long nextTick, @Nullable PhainonEnhancedBasicMotion basicMotion) {
+            return new Cast(hand, sword, level, startTick, motion, nextTick, basicMotion);
+        }
+    }
 
     private static final Map<UUID, Cast> ACTIVE = new HashMap<>();
 
@@ -41,6 +50,42 @@ public final class PhainonUltimateHandler {
 
     static boolean isActive(UUID casterId) {
         return ACTIVE.containsKey(casterId);
+    }
+
+    static boolean canCastMeteor(ServerPlayer player, InteractionHand hand) {
+        Cast cast = ACTIVE.get(player.getUUID());
+        return cast != null && cast.level() == player.serverLevel() && cast.hand() == hand
+                && cast.sword() == player.getItemInHand(hand) && !cast.motion().locked()
+                && cast.basicMotion() == null;
+    }
+
+    static void cueEnhancedBasic(ServerPlayer caster, @Nullable Entity target) {
+        Cast cast = ACTIVE.get(caster.getUUID());
+        if (cast == null || cast.hand() != InteractionHand.MAIN_HAND || caster.serverLevel() != cast.level()
+                || !PhainonEnhancedBasic.isInForm(caster) || cast.sword() != caster.getMainHandItem()
+                || cast.motion().locked()) {
+            return;
+        }
+        long now = cast.level().getGameTime();
+        long remaining = cast.startTick() + TOTAL_TICKS - now;
+        if (remaining <= 0 || now < cast.nextBasicVisualTick() || cast.basicMotion() != null) {
+            return;
+        }
+        var dash = remaining >= PhainonEnhancedBasicMotion.END_TICK
+                ? PhainonEnhancedBasicMotion.plan(caster, target, now) : null;
+        ACTIVE.put(caster.getUUID(), cast.withBasic(now + PhainonEnhancedBasic.POSE_TICKS, dash));
+        float travel = dash == null ? 0 : dash.distance();
+        float strikeReach = target == null ? Math.max(2.35F, travel + 1.30F)
+                : (float) target.getBoundingBox().getCenter().subtract(caster.position())
+                        .dot(PhainonEnhancedBasicMotion.forward(caster.getYRot()));
+        PhainonSkillEffectPayload.broadcastEnhancedBasic(caster, travel, Mth.clamp(strikeReach, 0.85F, 4.4F));
+        play(caster, SoundEvents.AMETHYST_BLOCK_RESONATE, 0.24F, 1.50F);
+    }
+
+    public static boolean controlsEnhancedBasicMovement(ServerPlayer caster) {
+        Cast cast = ACTIVE.get(caster.getUUID());
+        return cast != null && cast.level() == caster.serverLevel() && cast.sword() == caster.getMainHandItem()
+                && cast.basicMotion() != null && cast.basicMotion().ownsPosition();
     }
 
     public static boolean isMovementLocked(ServerPlayer caster) {
@@ -67,7 +112,8 @@ public final class PhainonUltimateHandler {
 
         ServerLevel serverLevel = caster.serverLevel();
         var motion = new PhainonUltimateMotion(caster);
-        ACTIVE.put(caster.getUUID(), new Cast(hand, sword, serverLevel, serverLevel.getGameTime(), motion));
+        long now = serverLevel.getGameTime();
+        ACTIVE.put(caster.getUUID(), new Cast(hand, sword, serverLevel, now, motion, now + OPENING_TICKS, null));
         caster.getCooldowns().addCooldown(sword.getItem(), OPENING_TICKS);
         PhainonSkillEffectPayload.broadcast(caster, PhainonSkillEffectPayload.Action.ULTIMATE_START,
                 hand, TOTAL_TICKS, motion.height);
@@ -95,7 +141,11 @@ public final class PhainonUltimateHandler {
             return;
         }
 
-        long age = cast.level().getGameTime() - cast.startTick();
+        long now = cast.level().getGameTime();
+        long age = now - cast.startTick();
+        if (cast.basicMotion() != null && !cast.basicMotion().tick(now)) {
+            ACTIVE.put(caster.getUUID(), cast.withBasic(cast.nextBasicVisualTick(), null));
+        }
         if (cast.motion().locked()) {
             if (!cast.motion().positionAt(Math.min(age, OPENING_TICKS))) {
                 end(caster, true);
@@ -155,6 +205,9 @@ public final class PhainonUltimateHandler {
         if (cast == null) return;
         cast.motion().release();
         clearForm(cast.sword());
+        if (cast.basicMotion() != null && caster.serverLevel() == cast.level()) {
+            cast.basicMotion().syncPosition();
+        }
         if (cancelled && caster.serverLevel() == cast.level()) {
             PhainonSkillEffectPayload.broadcast(caster, PhainonSkillEffectPayload.Action.ULTIMATE_CANCEL,
                     cast.hand(), TOTAL_TICKS);

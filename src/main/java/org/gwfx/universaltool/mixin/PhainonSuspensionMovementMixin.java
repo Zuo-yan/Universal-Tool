@@ -22,7 +22,8 @@ abstract class PhainonSuspensionMovementMixin {
             target = "Lnet/minecraft/server/level/ServerPlayer;serverLevel()Lnet/minecraft/server/level/ServerLevel;",
             ordinal = 1), cancellable = true)
     private void universalTool$holdAwakeningPosition(ServerboundMovePlayerPacket packet, CallbackInfo callback) {
-        if (!PhainonUltimateHandler.isMovementLocked(player)) return;
+        if (!PhainonUltimateHandler.isMovementLocked(player)
+                && !PhainonUltimateHandler.controlsEnhancedBasicMovement(player)) return;
         player.setYRot(Mth.wrapDegrees(packet.getYRot(player.getYRot())));
         player.setXRot(Mth.wrapDegrees(packet.getXRot(player.getXRot())));
         this.clientIsFloating = false;
