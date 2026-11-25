@@ -19,6 +19,7 @@ abstract class PhainonPlayerPoseMixin {
         if (entity instanceof Player player) {
             PhainonUltimatePlayerPose.apply((PlayerModel<?>) (Object) this, player);
             PhainonMeteorEffects.applyPose((PlayerModel<?>) (Object) this, player);
+            org.gwfx.universaltool.client.phainon.PhainonCounterEffects.pose((PlayerModel<?>) (Object) this, player);
             PhainonEnhancedBasicPose.apply((PlayerModel<?>) (Object) this, player);
         }
     }

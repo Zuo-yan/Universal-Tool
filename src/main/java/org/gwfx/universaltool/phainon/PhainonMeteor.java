@@ -18,7 +18,7 @@ public final class PhainonMeteor {
     public static final int GIANT = 80;
     public static final int IMPACT = 121;
     public static final int DURATION = 152;
-    private static final double RANGE = 24;
+    private static final double RANGE = 96;
 
     private PhainonMeteor() {}
 
@@ -28,7 +28,7 @@ public final class PhainonMeteor {
             return InteractionResultHolder.fail(sword);
         }
         if (player instanceof ServerPlayer caster) {
-            if (!PhainonUltimateHandler.canCastMeteor(caster, hand)) return InteractionResultHolder.fail(sword);
+            if (!PhainonUltimateHandler.canUseAwakenedSkill(caster, hand)) return InteractionResultHolder.fail(sword);
             PhainonMeteorDamage.start(caster, hand, impactPoint(caster));
             player.getCooldowns().addCooldown(sword.getItem(), DURATION);
         }
@@ -47,7 +47,7 @@ public final class PhainonMeteor {
         if (block.getType() != HitResult.Type.MISS) return end;
 
         Vec3 forward = PhainonEnhancedBasicMotion.forward(caster.getYRot());
-        Vec3 ahead = caster.position().add(forward.scale(14));
+        Vec3 ahead = caster.position().add(forward.scale(48));
         var floor = caster.level().clip(new ClipContext(ahead.add(0, 5, 0), ahead.add(0, -16, 0),
                 ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, caster));
         return floor.getType() == HitResult.Type.MISS ? ahead : floor.getLocation();

@@ -11,6 +11,7 @@ import net.minecraft.world.phys.Vec3;
 /** Snapshot of the terrain beneath the volley, shared by damage and rendering. */
 public record MeteorShower(Vec3 center, List<Vec3> landings) {
     public static final int COUNT = 18;
+    public static final float MINOR_RADIUS = 12, GIANT_RADIUS = 48, VISIBLE_RADIUS = 144;
     public static final int FLIGHT = 21;
 
     public MeteorShower {
@@ -31,7 +32,7 @@ public record MeteorShower(Vec3 center, List<Vec3> landings) {
         var landings = new ArrayList<Vec3>(COUNT);
         for (int i = 0; i < COUNT; i++) {
             float angle = i * 2.39996F;
-            float radius = 1.65F + i % 5 * .72F;
+            float radius = 40 * Mth.sqrt((i + .5F) / COUNT);
             landings.add(findSurface(caster, center.add(radius * Mth.cos(angle), 0, radius * Mth.sin(angle)), 6));
         }
         return new MeteorShower(center, landings);

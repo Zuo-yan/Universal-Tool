@@ -261,7 +261,7 @@
   "tooltip.universal_tool.qinchen_sword.ultimate_usage": "§7终结技「永劫燔世，其将背负」：集齐 12 点火种后，待冷却结束右键觉醒。",
   "death.attack.universal_tool.phainon_meteor": "%1$s 被 %2$s 召下的陨石击中",
   "death.attack.universal_tool.phainon_meteor.item": "%1$s 被 %2$s 用 %3$s 召下的陨石击中",
-  "tooltip.universal_tool.qinchen_sword.meteor_usage": "§7觉醒后右键施放：支柱·死星天裁。",
+  "tooltip.universal_tool.qinchen_sword.meteor_usage": "§7觉醒后右键：支柱·死星天裁。潜行右键：灾厄·弑魂焚诏。",
   "tooltip.universal_tool.qinchen_sword.enhanced_basic_usage": "§7觉醒后左键普攻：创生·血棘渡亡。",
   "message.universal_tool.phainon.ultimate_ready": "§6火种 12 / 12 §f· 冷却结束后，右键释放「永劫燔世，其将背负」",
   "message.universal_tool.phainon.ultimate_awakened": "§6永劫燔世，其将背负 §f· 觉醒",

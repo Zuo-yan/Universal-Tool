@@ -15,6 +15,7 @@ import net.minecraft.world.item.component.Unbreakable;
 import net.minecraft.world.level.Level;
 import org.gwfx.universaltool.init.ModDataComponents;
 import org.gwfx.universaltool.phainon.PhainonMeteor;
+import org.gwfx.universaltool.phainon.PhainonCounter;
 import org.gwfx.universaltool.phainon.PhainonNormalSkillHandler;
 import org.gwfx.universaltool.phainon.PhainonUltimateHandler;
 import org.gwfx.universaltool.phainon.PhainonWeaponState;
@@ -37,7 +38,8 @@ public final class QinchenSwordItem extends SwordItem {
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         var state = ModDataComponents.getPhainonWeaponState(player.getItemInHand(hand));
-        if (state.transformed()) return PhainonMeteor.use(level, player, hand);
+        if (state.transformed()) return player.isShiftKeyDown()
+                ? PhainonCounter.use(player, hand) : PhainonMeteor.use(level, player, hand);
         if (state.canAwaken()) {
             return PhainonUltimateHandler.tryStart(level, player, hand);
         }

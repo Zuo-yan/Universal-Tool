@@ -261,7 +261,7 @@
   "tooltip.universal_tool.qinchen_sword.ultimate_usage": "§7Ultimate · He Who Bears the World Must Burn. At 12 Coreflame, right-click after the cooldown to awaken.",
   "death.attack.universal_tool.phainon_meteor": "%1$s was struck by %2$s\u0027s meteor",
   "death.attack.universal_tool.phainon_meteor.item": "%1$s was struck by a meteor called down by %2$s with %3$s",
-  "tooltip.universal_tool.qinchen_sword.meteor_usage": "§7Use while awakened: Foundation: Stardeath Verdict.",
+  "tooltip.universal_tool.qinchen_sword.meteor_usage": "§7Use while awakened: Foundation: Stardeath Verdict. Sneak + use: Calamity: Soulscorch Edict.",
   "tooltip.universal_tool.qinchen_sword.enhanced_basic_usage": "§7Basic Attack while awakened: Creation: Bloodthorn Ferry.",
   "message.universal_tool.phainon.ultimate_ready": "§6Coreflame 12 / 12 §f· Right-click after cooldown to unleash He Who Bears the World Must Burn",
   "message.universal_tool.phainon.ultimate_awakened": "§6He Who Bears the World Must Burn §f· Awakened",

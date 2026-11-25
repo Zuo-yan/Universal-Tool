@@ -12,7 +12,8 @@
     "PersonalMappedRegistryMixin",
     "PersonalHolderSetNamedMixin",
     "PersonalReloadableResourcesMixin",
-    "PhainonSuspensionMovementMixin"
+    "PhainonSuspensionMovementMixin",
+    "PhainonMeleeDamageMixin"
   ],
   "client": [
     "ClientOptionsMixin",

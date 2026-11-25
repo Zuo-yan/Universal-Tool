@@ -142,6 +142,7 @@ public final class UniversalToolClientMod {
             PhainonUltimateMeshes.reload(resourceManager);
             PhainonBloodthornVisuals.reload(resourceManager);
             PhainonMeteorVisuals.reload(resourceManager);
+            org.gwfx.universaltool.client.phainon.PhainonCounterEffects.reload(resourceManager);
         });
     }
 

@@ -227,6 +227,8 @@ public final class PhainonNormalSkillGameTests {
             throw new IllegalStateException("Failed to create Husk entity");
         }
         husk.moveTo(x, y, z, 180.0F, 0.0F);
+        husk.getAttribute(Attributes.MAX_HEALTH).setBaseValue(120);
+        husk.setHealth(120);
         husk.setNoAi(true);
         husk.setPersistenceRequired();
         level.addFreshEntity(husk);

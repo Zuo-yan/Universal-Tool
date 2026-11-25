@@ -123,6 +123,7 @@ public final class PhainonSkillEffectRenderer {
             }
             case CANCEL -> ACTIVE.remove(payload.casterId());
             case ULTIMATE_START, ULTIMATE_CANCEL -> PhainonUltimateEffectRenderer.apply(payload);
+            case GUARD, RIPOSTE, GUARD_END -> PhainonCounterEffects.apply(payload);
             case ENHANCED_BASIC -> PhainonEnhancedBasicEffects.apply(payload);
         }
     }

@@ -37,7 +37,7 @@ final class PhainonMeteorSky {
         float blast = Math.max(0, age - IMPACT);
         pose.pushPose();
         pose.mulPose(Axis.YP.rotationDegrees(age * .28F + descent * 13));
-        float radius = 29 + 11 * cover + 7 * smooth(blast / 18);
+        float radius = 41 + 23 * cover + 7 * smooth(blast / 18);
         pose.scale(radius, 1, radius);
         var buffer = buffers.getBuffer(CLOUDS);
         for (int ring = 0; ring < RINGS; ring++) {

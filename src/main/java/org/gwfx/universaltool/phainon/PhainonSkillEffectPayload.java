@@ -36,7 +36,7 @@ public record PhainonSkillEffectPayload(
         CANCEL,
         ULTIMATE_START,
         ULTIMATE_CANCEL,
-        ENHANCED_BASIC
+        ENHANCED_BASIC, GUARD, RIPOSTE, GUARD_END
     }
 
     private static final AtomicLong EFFECT_SEQUENCE = new AtomicLong();
@@ -95,6 +95,12 @@ public record PhainonSkillEffectPayload(
 
     static void broadcast(ServerPlayer caster, Action action, InteractionHand hand, int totalTicks, float hoverHeight) {
         broadcast(caster, action, hand, totalTicks, hoverHeight, 0.0F, 0.0F);
+    }
+
+    static void counter(ServerPlayer caster, InteractionHand hand, net.minecraft.world.phys.Vec3 point) {
+        sendNearby(caster, new PhainonSkillEffectPayload(caster.getId(), Action.RIPOSTE, hand == InteractionHand.MAIN_HAND,
+                point.x, point.y, point.z, caster.getYRot(), 0, 0, 0, 0,
+                PhainonCounter.RECOVERY, EFFECT_SEQUENCE.incrementAndGet()));
     }
 
     static void broadcastEnhancedBasic(ServerPlayer caster, float dashDistance, float strikeReach) {

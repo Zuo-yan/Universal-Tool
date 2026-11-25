@@ -69,9 +69,11 @@ public final class PhainonMeteorVisuals {
             float portal = smooth((age - RELEASE + 15) / 22) * (1 - smooth((age - IMPACT + 10) / 10));
             var fire = buffers.getBuffer(FIRE);
             for (int i = 0; i < 3; i++) {
-                float r = (3 + 1.75F * i) * (.35F + .65F * portal);
+                float r = (6 + 4F * i) * (.35F + .65F * portal);
                 band(p, fire, r, r + 1.8F, 12.4F + i * .65F, 1.2F, age * .042F + i, portal * .9F);
             }
+            float warning = .32F * smooth((age - RELEASE + 8) / 16);
+            band(p, fire, MeteorShower.GIANT_RADIUS - 1, MeteorShower.GIANT_RADIUS, .10F, .32F, age * .035F, warning);
             buffers.endBatch(FIRE);
         }
         if (age < IMPACT + 6) {
@@ -93,7 +95,7 @@ public final class PhainonMeteorVisuals {
                     float splash = (t - 1) / .28F;
                     p.pushPose();
                     p.translate(offset.x, offset.y + .1, offset.z);
-                    band(p, buf, .15F + splash * .7F, .4F + splash, 0, .65F, i, 1 - splash);
+                    band(p, buf, splash * MeteorShower.MINOR_RADIUS * .64F, .4F + splash * (MeteorShower.MINOR_RADIUS - .4F), 0, .65F, i, 1 - splash);
                     p.popPose();
                 }
                 continue;
@@ -105,8 +107,8 @@ public final class PhainonMeteorVisuals {
         }
         if (age > GIANT && age < IMPACT) {
             float t = Mth.clamp((age - GIANT) / (IMPACT - GIANT), 0, 1);
-            float size = (.35F + 1.8F * smooth(t * 2.8F)) * smooth(t * 9);
-            body(p, buf, (1 - t) * 1.8F, 14 * (1 - t * t) + 1.3F, 0, size, age, 21, flames);
+            float size = (.35F + 4.5F * smooth(t * 2.8F)) * smooth(t * 9);
+            body(p, buf, (1 - t) * 1.8F, 25 * (1 - t * t) + 4F, 0, size, age, 21, flames);
         }
         buffers.endBatch(layer);
     }
@@ -136,7 +138,7 @@ public final class PhainonMeteorVisuals {
         var rock = buffers.getBuffer(CRUST);
         for (int i = 0; i < 20; i++) {
             float a = i * 2.39996F;
-            float dist = expand * (2.2F + i % 7);
+            float dist = expand * (4F + i % 7 * 5.8F);
             float y = .4F + (3.0F + i % 5) * 4 * t * (1 - t);
             float size = (.12F + (i % 4) * .085F) * fade;
             if (size < .01F) continue;
@@ -149,7 +151,7 @@ public final class PhainonMeteorVisuals {
         }
         buffers.endBatch(CRUST);
         var fire = buffers.getBuffer(FIRE);
-        float radius = 1 + 7.7F * expand;
+        float radius = 1 + (MeteorShower.GIANT_RADIUS - 1) * expand;
         band(p, fire, radius * .60F, radius, .1F, .45F, t, fade);
         band(p, fire, radius * .24F, radius * .92F, .15F, .6F + 4.9F * expand, 2 + t, fade);
         band(p, fire, radius * .92F, radius * .52F, .75F + 4.9F * expand, 1.3F, 2 + t, fade * .76F);

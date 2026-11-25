@@ -36,6 +36,7 @@ public final class PhainonSwordClientExtensions implements IClientItemExtensions
         InteractionHand hand = arm == player.getMainArm()
                 ? InteractionHand.MAIN_HAND
                 : InteractionHand.OFF_HAND;
+        if (PhainonCounterEffects.hand(poseStack, player, hand, arm, partialTick, equipProcess)) return true;
         float openingAge = PhainonUltimateEffectRenderer.openingAge(player.getId(), hand, partialTick);
         if (openingAge >= 0.0F) {
             applyUltimateOpening(poseStack, arm, openingAge, equipProcess);

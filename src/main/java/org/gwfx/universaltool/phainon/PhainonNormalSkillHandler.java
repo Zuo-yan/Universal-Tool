@@ -66,9 +66,9 @@ public final class PhainonNormalSkillHandler {
     public static final double SWEEP_HALF_ANGLE_DEGREES = 65.0D;
 
     /** 主目标物理伤害 */
-    public static final float PRIMARY_DAMAGE = 14.0F;
+    public static final float PRIMARY_DAMAGE = 63.0F;
     /** 相邻扩散目标物理伤害 */
-    public static final float ADJACENT_DAMAGE = 10.5F;
+    public static final float ADJACENT_DAMAGE = 47.25F;
 
     private static final Map<UUID, ActiveCast> ACTIVE_CASTS = new ConcurrentHashMap<>();
 

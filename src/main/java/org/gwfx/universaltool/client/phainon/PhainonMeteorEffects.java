@@ -21,6 +21,7 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.event.ViewportEvent;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.phainon.MeteorShowerPayload;
+import org.gwfx.universaltool.phainon.MeteorShower;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -62,7 +63,7 @@ public final class PhainonMeteorEffects {
         for (var cast : casts.values()) {
             float age = level.getGameTime() - cast.start() + partial;
             float distance = (float) camera.distanceTo(cast.shower().center());
-            float weight = PhainonEnhancedBasicEffects.smooth((72 - distance) / 40)
+            float weight = PhainonEnhancedBasicEffects.smooth((MeteorShower.VISIBLE_RADIUS - distance) / 48)
                     * PhainonEnhancedBasicEffects.smooth(age / 19)
                     * PhainonEnhancedBasicEffects.smooth((DURATION - age) / 18);
             if (weight > strongest) {

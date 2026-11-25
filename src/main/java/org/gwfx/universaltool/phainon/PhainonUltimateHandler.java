@@ -52,7 +52,7 @@ public final class PhainonUltimateHandler {
         return ACTIVE.containsKey(casterId);
     }
 
-    static boolean canCastMeteor(ServerPlayer player, InteractionHand hand) {
+    static boolean canUseAwakenedSkill(ServerPlayer player, InteractionHand hand) {
         Cast cast = ACTIVE.get(player.getUUID());
         return cast != null && cast.level() == player.serverLevel() && cast.hand() == hand
                 && cast.sword() == player.getItemInHand(hand) && !cast.motion().locked()
@@ -61,7 +61,7 @@ public final class PhainonUltimateHandler {
 
     static void cueEnhancedBasic(ServerPlayer caster, @Nullable Entity target) {
         Cast cast = ACTIVE.get(caster.getUUID());
-        if (cast == null || cast.hand() != InteractionHand.MAIN_HAND || caster.serverLevel() != cast.level()
+        if (PhainonCounter.active(caster) || cast == null || cast.hand() != InteractionHand.MAIN_HAND || caster.serverLevel() != cast.level()
                 || !PhainonEnhancedBasic.isInForm(caster) || cast.sword() != caster.getMainHandItem()
                 || cast.motion().locked()) {
             return;
@@ -201,6 +201,7 @@ public final class PhainonUltimateHandler {
     }
 
     private static void end(ServerPlayer caster, boolean cancelled) {
+        PhainonCounter.clear(caster);
         Cast cast = ACTIVE.remove(caster.getUUID());
         if (cast == null) return;
         cast.motion().release();

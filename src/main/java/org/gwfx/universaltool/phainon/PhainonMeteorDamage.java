@@ -27,8 +27,7 @@ import org.gwfx.universaltool.UniversalToolMod;
 
 @EventBusSubscriber(modid = UniversalToolMod.MODID)
 public final class PhainonMeteorDamage {
-    private static final float MINOR_DAMAGE = 4, GIANT_DAMAGE = 24;
-    private static final double MINOR_RADIUS = 2.25, GIANT_RADIUS = 7.5;
+    private static final float MINOR_DAMAGE = 24, GIANT_DAMAGE = 144;
     private static final ResourceKey<DamageType> DAMAGE_TYPE = ResourceKey.create(Registries.DAMAGE_TYPE,
             ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "phainon_meteor"));
     private static final Map<ServerLevel, List<Volley>> ACTIVE = new HashMap<>();
@@ -58,7 +57,7 @@ public final class PhainonMeteorDamage {
         void syncObservers(ServerLevel level) {
             observers.removeIf(id -> level.getPlayerByUUID(id) == null);
             for (ServerPlayer player : level.players()) {
-                if (player.position().distanceToSqr(cast.shower().center()) <= 72 * 72 && observers.add(player.getUUID())) {
+                if (player.position().distanceToSqr(cast.shower().center()) <= MeteorShower.VISIBLE_RADIUS * MeteorShower.VISIBLE_RADIUS && observers.add(player.getUUID())) {
                     PacketDistributor.sendToPlayer(player, cast);
                 }
             }
@@ -78,11 +77,11 @@ public final class PhainonMeteorDamage {
             }
             syncObservers(level);
             while (nextImpact < MeteorShower.COUNT && age >= MeteorShower.impactTick(nextImpact)) {
-                strike(caster, cast.shower().landings().get(nextImpact++), MINOR_RADIUS, MINOR_DAMAGE);
+                strike(caster, cast.shower().landings().get(nextImpact++), MeteorShower.MINOR_RADIUS, MINOR_DAMAGE);
             }
             if (!giantHit && age >= PhainonMeteor.IMPACT) {
                 giantHit = true;
-                strike(caster, cast.shower().center(), GIANT_RADIUS, GIANT_DAMAGE);
+                strike(caster, cast.shower().center(), MeteorShower.GIANT_RADIUS, GIANT_DAMAGE);
             }
             return false;
         }
