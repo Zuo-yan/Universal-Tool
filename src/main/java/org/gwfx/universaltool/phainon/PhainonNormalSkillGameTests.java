@@ -33,12 +33,10 @@ import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
-import org.gwfx.universaltool.init.ModAttachments;
 import org.gwfx.universaltool.init.ModDataComponents;
 import org.gwfx.universaltool.init.ModItems;
 import org.gwfx.universaltool.init.ModSounds;
 import org.gwfx.universaltool.item.QinchenSwordItem;
-import org.gwfx.universaltool.network.SnakeScoreRewardPayload;
 
 import java.util.UUID;
 
@@ -237,7 +235,9 @@ public final class PhainonNormalSkillGameTests {
         helper.succeed();
     }
 
-    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 260)
+    // The two positioned targets extend beyond the empty template's bounds.
+    // A separate batch keeps neighboring tests' entity cleanup away from this arena.
+    @GameTest(templateNamespace = "universal_tool", template = "empty", batch = "phainon_counter", timeoutTicks = 260)
     public static void counterGrantsEightyPercentReductionAndScalesWithIncomingDamage(GameTestHelper helper) {
         helper.assertTrue(ModSounds.PHAINON_METEOR_VOICE.get() != null
                         && ModSounds.PHAINON_COUNTER_GUARD_VOICE.get() != null
@@ -328,6 +328,10 @@ public final class PhainonNormalSkillGameTests {
                     PhainonCounter.tick(new PlayerTickEvent.Post(lowHitPlayer));
                     PhainonCounter.tick(new PlayerTickEvent.Post(highHitPlayer));
 
+                    helper.assertTrue(level.getEntity(lowAttacker.getUUID()) == lowAttacker,
+                            "Low-damage attacker missing from the test world: " + lowAttacker.getRemovalReason());
+                    helper.assertTrue(level.getEntity(highAttacker.getUUID()) == highAttacker,
+                            "High-damage attacker missing from the test world: " + highAttacker.getRemovalReason());
                     float lowDealt = 400.0F - lowAttacker.getHealth();
                     float highDealt = 400.0F - highAttacker.getHealth();
                     helper.assertTrue(lowDealt > PhainonCounter.BASE_COUNTER_DAMAGE + 10.0F,
@@ -352,33 +356,6 @@ public final class PhainonNormalSkillGameTests {
                     highAttacker.discard();
                 })
                 .thenSucceed();
-    }
-
-    @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 40)
-    public static void snakeFiveHundredScoreGrantsQinchenSwordOnce(GameTestHelper helper) {
-        ServerLevel level = helper.getLevel();
-        ServerPlayer player = mockPlayer(level.getServer(), level, "snake-reward-tester");
-
-        helper.assertTrue(!SnakeScoreRewardPayload.tryGrantReward(player, 490),
-                "Scores below 500 must not grant Dawnmaker");
-        helper.assertTrue(!Boolean.TRUE.equals(player.getData(ModAttachments.SNAKE_QINCHEN_CLAIMED)),
-                "Claimed flag must remain false below 500");
-
-        helper.assertTrue(SnakeScoreRewardPayload.tryGrantReward(player, 500),
-                "Score 500 must grant Dawnmaker once");
-        helper.assertTrue(Boolean.TRUE.equals(player.getData(ModAttachments.SNAKE_QINCHEN_CLAIMED)),
-                "Claimed flag must become true after reward");
-
-        int swordCount = countQinchenSwords(player);
-        helper.assertTrue(swordCount == 1,
-                "Player must receive exactly 1 Dawnmaker, got " + swordCount);
-
-        helper.assertTrue(!SnakeScoreRewardPayload.tryGrantReward(player, 620),
-                "Duplicate claim attempts must be rejected to prevent sword farming");
-        helper.assertTrue(countQinchenSwords(player) == 1,
-                "Duplicate claim must not grant a second Dawnmaker");
-
-        helper.succeed();
     }
 
     @GameTest(templateNamespace = "universal_tool", template = "empty", timeoutTicks = 90)
@@ -465,17 +442,6 @@ public final class PhainonNormalSkillGameTests {
             player.doTick();
             tickKillGrowthSkillCheck(helper, player, target, maxHp, step + 1);
         });
-    }
-
-    private static int countQinchenSwords(ServerPlayer player) {
-        int total = 0;
-        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-            ItemStack stack = player.getInventory().getItem(i);
-            if (stack.is(ModItems.QINCHEN_SWORD.get())) {
-                total += stack.getCount();
-            }
-        }
-        return total;
     }
 
     private static double mainHandModifierAmount(ItemStack stack,

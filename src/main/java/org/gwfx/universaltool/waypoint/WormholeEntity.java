@@ -228,7 +228,7 @@ public class WormholeEntity extends Entity {
                     item -> item.isAlive() && !item.getItem().isEmpty()
             );
             for (ItemEntity item : items) {
-                if (TeleportManager.teleportItem(item, target) && level() instanceof ServerLevel serverLevel) {
+                if (TeleportManager.teleportItem(item, target, ownerUuid) && level() instanceof ServerLevel serverLevel) {
                     serverLevel.sendParticles(ModParticles.WORMHOLE_SPARK.get(),
                             getX(), getY() + 1.2D, getZ(), 12, 0.3D, 0.45D, 0.3D, 0.04D);
                     serverLevel.playSound(null, getX(), getY() + 1.0D, getZ(),
@@ -241,7 +241,9 @@ public class WormholeEntity extends Entity {
             List<ServerPlayer> players = level().getEntitiesOfClass(
                     ServerPlayer.class,
                     getBoundingBox().inflate(0.55D),
-                    p -> !p.isSpectator() && (!isCorridorExit() || ownerUuid == null || p.getUUID().equals(ownerUuid))
+                    p -> !p.isSpectator() && (isCorridorExit()
+                            ? p.getUUID().equals(ownerUuid)
+                            : !WormholeCorridorManager.hasActiveSession(p.getUUID()))
             );
             if (!players.isEmpty()) {
                 ServerPlayer entered = players.get(0);

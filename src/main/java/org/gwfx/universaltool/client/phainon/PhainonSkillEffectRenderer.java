@@ -263,9 +263,12 @@ public final class PhainonSkillEffectRenderer {
         }
     }
 
-    @SubscribeEvent
-    public static void onRenderLevelStage(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES || ACTIVE.isEmpty()) {
+    static boolean hasWorldEffects() {
+        return !ACTIVE.isEmpty();
+    }
+
+    static void renderWorld(RenderLevelStageEvent event) {
+        if (ACTIVE.isEmpty()) {
             return;
         }
         Minecraft mc = Minecraft.getInstance();

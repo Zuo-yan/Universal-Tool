@@ -265,10 +265,13 @@ public final class PhainonMeteorEffects {
         gui.fill(0, 0, gui.guiWidth(), gui.guiHeight(), color);
     }
 
-    @SubscribeEvent
-    public static void render(RenderLevelStageEvent event) {
+    static boolean hasWorldEffects() {
+        return !casts.isEmpty();
+    }
+
+    static void renderWorld(RenderLevelStageEvent event) {
         Minecraft mc = Minecraft.getInstance();
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES || level != mc.level || casts.isEmpty()) {
+        if (level != mc.level || casts.isEmpty()) {
             return;
         }
         float partial = event.getPartialTick().getGameTimeDeltaPartialTick(false);

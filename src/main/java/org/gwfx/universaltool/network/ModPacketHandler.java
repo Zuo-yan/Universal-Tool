@@ -19,6 +19,8 @@ import org.gwfx.universaltool.phainon.PhainonEmptySwingPayload;
 import org.gwfx.universaltool.phainon.PhainonSkillEffectPayload;
 import org.gwfx.universaltool.phainon.MeteorShowerPayload;
 import org.gwfx.universaltool.sportscar.SportsCarInputPayload;
+import org.gwfx.universaltool.snake.SnakeInputPayload;
+import org.gwfx.universaltool.snake.SnakeStatePayload;
 import org.gwfx.universaltool.wheelchair.WheelchairInputPayload;
 
 import java.util.Map;
@@ -44,7 +46,7 @@ public final class ModPacketHandler {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("30");
+        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("31");
 
         // 客户端发往服务端
         registrar.playToServer(SaveWaypointPayload.TYPE, SaveWaypointPayload.STREAM_CODEC, SaveWaypointPayload::handle);
@@ -82,10 +84,11 @@ public final class ModPacketHandler {
                 DidiOrderPayload::handle);
         registrar.playToServer(PhainonEmptySwingPayload.TYPE, PhainonEmptySwingPayload.STREAM_CODEC,
                 PhainonEmptySwingPayload::handle);
-        registrar.playToServer(SnakeScoreRewardPayload.TYPE, SnakeScoreRewardPayload.STREAM_CODEC,
-                SnakeScoreRewardPayload::handle);
+        registrar.playToServer(SnakeInputPayload.TYPE, SnakeInputPayload.STREAM_CODEC, SnakeInputPayload::handle);
 
         // 服务端发往客户端 (dispatched to ClientPayloadHandlers registered on client setup)
+        registrar.playToClient(SnakeStatePayload.TYPE, SnakeStatePayload.STREAM_CODEC,
+                dispatchClient(SnakeStatePayload.TYPE));
         registrar.playToClient(OreSightPayload.TYPE, OreSightPayload.STREAM_CODEC,
                 dispatchClient(OreSightPayload.TYPE));
         registrar.playToClient(CounterGuardEffectPayload.TYPE, CounterGuardEffectPayload.STREAM_CODEC,

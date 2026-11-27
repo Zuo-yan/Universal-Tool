@@ -59,6 +59,8 @@ public class UniversalToolMod {
                 event.register(org.gwfx.universaltool.naiwa.NaiwaGameTests.class);
                 event.register(org.gwfx.universaltool.sportscar.SportsCarGameTests.class);
                 event.register(org.gwfx.universaltool.phainon.PhainonNormalSkillGameTests.class);
+                event.register(org.gwfx.universaltool.snake.SnakeGameTests.class);
+                event.register(org.gwfx.universaltool.waypoint.WaypointLandingGameTests.class);
             });
         }
         ModAttachments.register(modEventBus);

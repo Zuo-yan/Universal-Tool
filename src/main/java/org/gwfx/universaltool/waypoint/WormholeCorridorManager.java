@@ -91,10 +91,11 @@ public final class WormholeCorridorManager {
     }
 
     public static void enterCorridor(ServerPlayer player, Waypoint target, boolean fromScroll, String vistaId) {
+        if (hasActiveSession(player.getUUID())) return;
         MinecraftServer server = player.server;
         ServerLevel transitLevel = getOrCreateTransitLevel(server);
         if (transitLevel == null) {
-            TeleportManager.executeTeleport(player, target, fromScroll);
+            if (!TeleportManager.executeTeleport(player, target) && fromScroll) refundScroll(player, target);
             return;
         }
 
@@ -127,15 +128,24 @@ public final class WormholeCorridorManager {
     }
 
     public static void completeTransit(ServerPlayer player) {
-        TransitSession session = SESSIONS.remove(player.getUUID());
-        if (session == null) {
-            return;
-        }
+        TransitSession session = SESSIONS.get(player.getUUID());
+        if (session != null && finishTransit(player, session)) SESSIONS.remove(player.getUUID());
+    }
+
+    private static boolean finishTransit(ServerPlayer player, TransitSession session) {
+        ServerLevel corridor = player.serverLevel();
+        boolean arrived = TeleportManager.executeTeleport(player, session.target());
+        if (!arrived && !TeleportManager.returnToOrigin(player, session.originDim(), session.originPos(),
+                session.originYaw(), session.originPitch())) return false;
         player.removeEffect(MobEffects.MOVEMENT_SPEED);
-        if (player.serverLevel().dimension().equals(TRANSIT_DIM_KEY)) {
-            discardLaneWormholes(player.serverLevel(), session.laneX());
-        }
-        TeleportManager.executeTeleport(player, session.target(), session.fromScroll());
+        if (corridor.dimension().equals(TRANSIT_DIM_KEY)) discardLaneWormholes(corridor, session.laneX());
+        if (!arrived && session.fromScroll()) refundScroll(player, session.target());
+        return true;
+    }
+
+    private static void refundScroll(ServerPlayer player, Waypoint target) {
+        var scroll = org.gwfx.universaltool.item.TeleportScrollItem.createScroll(target);
+        if (!player.getInventory().add(scroll)) player.drop(scroll, false);
     }
 
     private static ServerLevel getOrCreateTransitLevel(MinecraftServer server) {
@@ -270,11 +280,9 @@ public final class WormholeCorridorManager {
                 player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, SPEED_EFFECT_TICKS, 1, false, false, false));
             }
 
-            if (player.getZ() >= COMPLETE_Z) {
+            if (player.getZ() >= COMPLETE_Z && session.ticksInCorridor() % 20 == 0
+                    && finishTransit(player, session)) {
                 it.remove();
-                player.removeEffect(MobEffects.MOVEMENT_SPEED);
-                discardLaneWormholes(player.serverLevel(), session.laneX());
-                TeleportManager.executeTeleport(player, session.target(), session.fromScroll());
             }
         }
     }
@@ -290,11 +298,9 @@ public final class WormholeCorridorManager {
         }
         player.removeEffect(MobEffects.MOVEMENT_SPEED);
         if (player.serverLevel().dimension().equals(TRANSIT_DIM_KEY)) {
-            ServerLevel origin = player.server.getLevel(session.originDim());
-            if (origin != null) {
-                player.teleportTo(origin, session.originPos().x, session.originPos().y, session.originPos().z,
-                        session.originYaw(), session.originPitch());
-            }
+            discardLaneWormholes(player.serverLevel(), session.laneX());
+            TeleportManager.returnToOrigin(player, session.originDim(), session.originPos(),
+                    session.originYaw(), session.originPitch());
         }
     }
 }

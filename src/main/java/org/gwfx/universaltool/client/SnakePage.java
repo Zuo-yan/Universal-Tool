@@ -15,28 +15,25 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.neoforged.neoforge.network.PacketDistributor;
-import org.gwfx.universaltool.network.SnakeScoreRewardPayload;
+import org.gwfx.universaltool.snake.SnakeBoard;
+import org.gwfx.universaltool.snake.SnakeBoard.Cell;
+import org.gwfx.universaltool.snake.SnakeBoard.Dir;
+import org.gwfx.universaltool.snake.SnakeBoard.State;
+import org.gwfx.universaltool.snake.SnakeInputPayload;
+import org.gwfx.universaltool.snake.SnakeInputPayload.Action;
+import org.gwfx.universaltool.snake.SnakeStatePayload;
 import org.lwjgl.glfw.GLFW;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.List;
-import java.util.Random;
+import static org.gwfx.universaltool.snake.SnakeBoard.BONUS_DURATION_TICKS;
+import static org.gwfx.universaltool.snake.SnakeBoard.GRID_COLS;
+import static org.gwfx.universaltool.snake.SnakeBoard.GRID_ROWS;
+import static org.gwfx.universaltool.snake.SnakeBoard.REWARD_TARGET_SCORE;
 
 /**
  * Playable retro Snake mini-game page inside MCphone, adapting cleanly to both
  * portrait Phone (120x176) and landscape Tablet (226x158) screen layouts.
  */
 public final class SnakePage implements IPhonePage {
-
-    private static final int GRID_COLS = 14;
-    private static final int GRID_ROWS = 14;
-    private static final int NORMAL_FOOD_POINTS = 10;
-    private static final int BONUS_FOOD_POINTS = 30;
-    private static final int BONUS_DURATION_TICKS = 140;
-    private static final int BONUS_SPAWN_INTERVAL = 5;
-    private static final int REWARD_TARGET_SCORE = SnakeScoreRewardPayload.REQUIRED_SCORE;
 
     private static final int GRID_BG_DARK = 0xFF0E1B14;
     private static final int GRID_BG_LIGHT = 0xFF13241B;
@@ -52,52 +49,13 @@ public final class SnakePage implements IPhonePage {
     private static final int BTN_ACCENT = 0xFF1E8C4E;
     private static final int BTN_ACCENT_HOVER = 0xFF28B064;
 
-    private static int bestScore;
+    private static SnakePage activePage;
+    private static int nextPageId;
 
-    private enum State {
-        READY,
-        PLAYING,
-        PAUSED,
-        GAME_OVER
-    }
-
-    private enum Dir {
-        UP(0, -1),
-        DOWN(0, 1),
-        LEFT(-1, 0),
-        RIGHT(1, 0);
-
-        final int dx;
-        final int dy;
-
-        Dir(int dx, int dy) {
-            this.dx = dx;
-            this.dy = dy;
-        }
-
-        boolean isOpposite(Dir other) {
-            return this.dx + other.dx == 0 && this.dy + other.dy == 0;
-        }
-    }
-
-    private record Cell(int x, int y) {
-    }
-
-    private final Random random = new Random();
-    private final List<Cell> snake = new ArrayList<>();
-    private final Deque<Dir> dirQueue = new ArrayDeque<>(2);
-
-    private State state = State.READY;
-    private Dir currentDir = Dir.RIGHT;
-    private Cell food = new Cell(10, 7);
-    private Cell bonusFood;
+    private final int pageId = ++nextPageId;
+    private SnakeBoard board = SnakeBoard.waiting();
     private int bonusTicksRemaining;
-    private int applesEaten;
-    private int score;
     private int runStartBest;
-    private boolean beatHighScoreThisRun;
-    private boolean rewardClaimSentThisRun;
-    private int stepTickCounter;
     private int animTick;
 
     // Cached layout geometry for both rendering and mouse hit-testing
@@ -120,10 +78,6 @@ public final class SnakePage implements IPhonePage {
     private final Rect dpadLeft = new Rect();
     private final Rect dpadRight = new Rect();
 
-    public SnakePage() {
-        resetBoard(State.READY);
-    }
-
     @Override
     public boolean capturesKeyboard() {
         return true;
@@ -131,23 +85,21 @@ public final class SnakePage implements IPhonePage {
 
     @Override
     public void onOpen() {
-        if (state == State.GAME_OVER) {
-            resetBoard(State.READY);
-        }
+        activePage = this;
+        send(Action.OPEN);
     }
 
     @Override
     public void onClose() {
-        if (state == State.PLAYING) {
-            state = State.PAUSED;
+        if (activePage == this) {
+            send(Action.CLOSE);
+            activePage = null;
         }
     }
 
     @Override
     public void onInputCancelled() {
-        if (state == State.PLAYING) {
-            state = State.PAUSED;
-        }
+        send(Action.PAUSE);
     }
 
     @Override
@@ -158,23 +110,7 @@ public final class SnakePage implements IPhonePage {
     @Override
     public void tick() {
         animTick++;
-        if (state != State.PLAYING) {
-            return;
-        }
-        if (bonusFood != null) {
-            bonusTicksRemaining--;
-            if (bonusTicksRemaining <= 0) {
-                bonusFood = null;
-                bonusTicksRemaining = 0;
-            }
-        }
-
-        stepTickCounter++;
-        int interval = stepIntervalTicks();
-        if (stepTickCounter >= interval) {
-            stepTickCounter = 0;
-            stepSnake();
-        }
+        if (board.state() == State.PLAYING && bonusTicksRemaining > 0) bonusTicksRemaining--;
     }
 
     @Override
@@ -191,7 +127,7 @@ public final class SnakePage implements IPhonePage {
             renderHud(canvas, g, font, style);
             renderGrid(g);
             renderDpad(canvas, g, font, style);
-            if (state != State.PLAYING) {
+            if (board.state() != State.PLAYING) {
                 renderStateOverlay(canvas, g, font);
             }
         });
@@ -217,18 +153,12 @@ public final class SnakePage implements IPhonePage {
                 return true;
             }
             case GLFW.GLFW_KEY_SPACE -> {
-                if (state == State.READY || state == State.GAME_OVER) {
-                    resetBoard(State.PLAYING);
-                } else if (state == State.PLAYING) {
-                    state = State.PAUSED;
-                } else if (state == State.PAUSED) {
-                    state = State.PLAYING;
-                }
+                send(Action.TOGGLE);
                 playUiSound(SoundEvents.UI_BUTTON_CLICK, 1.0F);
                 return true;
             }
             case GLFW.GLFW_KEY_R -> {
-                resetBoard(State.PLAYING);
+                send(Action.RESTART);
                 playUiSound(SoundEvents.UI_BUTTON_CLICK, 1.0F);
                 return true;
             }
@@ -244,28 +174,18 @@ public final class SnakePage implements IPhonePage {
             return false;
         }
         if (hudRestartBtn.contains(mouseX, mouseY)) {
-            resetBoard(State.PLAYING);
+            send(Action.RESTART);
             playUiSound(SoundEvents.UI_BUTTON_CLICK, 1.0F);
             return true;
         }
         if (hudPauseBtn.contains(mouseX, mouseY)) {
-            if (state == State.PLAYING) {
-                state = State.PAUSED;
-            } else if (state == State.PAUSED) {
-                state = State.PLAYING;
-            } else {
-                resetBoard(State.PLAYING);
-            }
+            send(Action.TOGGLE);
             playUiSound(SoundEvents.UI_BUTTON_CLICK, 1.0F);
             return true;
         }
 
-        if (state != State.PLAYING && overlayActionBtn.contains(mouseX, mouseY)) {
-            if (state == State.PAUSED) {
-                state = State.PLAYING;
-            } else {
-                resetBoard(State.PLAYING);
-            }
+        if (board.state() != State.PLAYING && overlayActionBtn.contains(mouseX, mouseY)) {
+            send(Action.TOGGLE);
             playUiSound(SoundEvents.UI_BUTTON_CLICK, 1.0F);
             return true;
         }
@@ -288,13 +208,13 @@ public final class SnakePage implements IPhonePage {
         }
 
         // Clicking inside the grid while playing steers relative to the snake head
-        if (state == State.PLAYING
+        if (board.state() == State.PLAYING
                 && mouseX >= gridX && mouseX < gridX + gridW
                 && mouseY >= gridY && mouseY < gridY + gridH
-                && !snake.isEmpty()) {
-            Cell head = snake.get(0);
-            double headCenterX = gridX + (head.x + 0.5D) * cellSize;
-            double headCenterY = gridY + (head.y + 0.5D) * cellSize;
+                && !board.snake().isEmpty()) {
+            Cell head = board.snake().get(0);
+            double headCenterX = gridX + (head.x() + 0.5D) * cellSize;
+            double headCenterY = gridY + (head.y() + 0.5D) * cellSize;
             double dx = mouseX - headCenterX;
             double dy = mouseY - headCenterY;
             if (Math.abs(dx) > Math.abs(dy)) {
@@ -308,151 +228,39 @@ public final class SnakePage implements IPhonePage {
     }
 
     private void handleDirectionInput(Dir dir) {
-        if (state == State.READY) {
-            state = State.PLAYING;
-        } else if (state != State.PLAYING) {
-            return;
-        }
-        Dir reference = dirQueue.isEmpty() ? currentDir : dirQueue.peekLast();
-        if (dir == reference || dir.isOpposite(reference)) {
-            return;
-        }
-        if (dirQueue.size() < 2) {
-            dirQueue.addLast(dir);
+        send(switch (dir) {
+            case UP -> Action.UP;
+            case DOWN -> Action.DOWN;
+            case LEFT -> Action.LEFT;
+            case RIGHT -> Action.RIGHT;
+        });
+    }
+
+    private void send(Action action) {
+        if (activePage == this && Minecraft.getInstance().getConnection() != null) {
+            PacketDistributor.sendToServer(new SnakeInputPayload(pageId, action));
         }
     }
 
-    private void stepSnake() {
-        if (!dirQueue.isEmpty()) {
-            Dir next = dirQueue.pollFirst();
-            if (!next.isOpposite(currentDir)) {
-                currentDir = next;
+    static void apply(SnakeStatePayload payload) {
+        SnakePage page = activePage;
+        if (page == null || page.pageId != payload.pageId()) return;
+        SnakeBoard previous = page.board;
+        SnakeBoard next = payload.board();
+        page.board = next;
+        page.bonusTicksRemaining = next.bonusTicks();
+        if (next.score() == 0) page.runStartBest = next.bestScore();
+        if (next.score() > previous.score()) {
+            page.playUiSound(SoundEvents.EXPERIENCE_ORB_PICKUP,
+                    next.score() - previous.score() == 30 ? 1.38F : 1.05F);
+            if (page.runStartBest > 0 && previous.score() <= page.runStartBest
+                    && next.score() > page.runStartBest) {
+                page.playUiSound(SoundEvents.PLAYER_LEVELUP, 1.15F);
             }
         }
-        Cell head = snake.get(0);
-        Cell nextHead = new Cell(head.x + currentDir.dx, head.y + currentDir.dy);
-
-        if (nextHead.x < 0 || nextHead.x >= GRID_COLS || nextHead.y < 0 || nextHead.y >= GRID_ROWS) {
-            triggerGameOver();
-            return;
+        if (next.state() == State.GAME_OVER && previous.state() != State.GAME_OVER) {
+            page.playUiSound(SoundEvents.VILLAGER_NO, 0.9F);
         }
-
-        boolean eatingNormal = nextHead.equals(food);
-        boolean eatingBonus = bonusFood != null && nextHead.equals(bonusFood);
-        boolean growing = eatingNormal || eatingBonus;
-
-        // Tail vacates its cell on a non-growing step, so exclude the last segment from self-hit.
-        int checkLimit = growing ? snake.size() : snake.size() - 1;
-        for (int i = 0; i < checkLimit; i++) {
-            if (snake.get(i).equals(nextHead)) {
-                triggerGameOver();
-                return;
-            }
-        }
-
-        snake.add(0, nextHead);
-        if (!growing) {
-            snake.remove(snake.size() - 1);
-            return;
-        }
-
-        if (eatingNormal) {
-            addScore(NORMAL_FOOD_POINTS);
-            applesEaten++;
-            spawnNormalFood();
-            if (bonusFood == null && applesEaten % BONUS_SPAWN_INTERVAL == 0) {
-                spawnBonusFood();
-            }
-            playUiSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.05F);
-        }
-        if (eatingBonus) {
-            addScore(BONUS_FOOD_POINTS);
-            bonusFood = null;
-            bonusTicksRemaining = 0;
-            playUiSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.38F);
-        }
-    }
-
-    private void addScore(int points) {
-        score += points;
-        if (score > bestScore) {
-            bestScore = score;
-            if (runStartBest > 0 && !beatHighScoreThisRun) {
-                beatHighScoreThisRun = true;
-                playUiSound(SoundEvents.PLAYER_LEVELUP, 1.15F);
-            }
-        }
-        if (score >= REWARD_TARGET_SCORE && !rewardClaimSentThisRun) {
-            rewardClaimSentThisRun = true;
-            PacketDistributor.sendToServer(new SnakeScoreRewardPayload(score));
-            playUiSound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0F);
-        }
-    }
-
-    private void triggerGameOver() {
-        state = State.GAME_OVER;
-        dirQueue.clear();
-        playUiSound(SoundEvents.VILLAGER_NO, 0.9F);
-    }
-
-    private int stepIntervalTicks() {
-        int speedLevel = applesEaten / 4;
-        return Math.max(2, 5 - speedLevel);
-    }
-
-    private void resetBoard(State targetState) {
-        snake.clear();
-        int cy = GRID_ROWS / 2;
-        int cx = GRID_COLS / 2 - 1;
-        snake.add(new Cell(cx, cy));
-        snake.add(new Cell(cx - 1, cy));
-        snake.add(new Cell(cx - 2, cy));
-
-        dirQueue.clear();
-        currentDir = Dir.RIGHT;
-        score = 0;
-        applesEaten = 0;
-        bonusFood = null;
-        bonusTicksRemaining = 0;
-        stepTickCounter = 0;
-        runStartBest = bestScore;
-        beatHighScoreThisRun = false;
-        rewardClaimSentThisRun = false;
-        state = targetState;
-        spawnNormalFood();
-    }
-
-    private void spawnNormalFood() {
-        Cell cell = pickFreeCell();
-        if (cell != null) {
-            food = cell;
-        }
-    }
-
-    private void spawnBonusFood() {
-        Cell cell = pickFreeCell();
-        if (cell != null) {
-            bonusFood = cell;
-            bonusTicksRemaining = BONUS_DURATION_TICKS;
-        }
-    }
-
-    private Cell pickFreeCell() {
-        List<Cell> free = new ArrayList<>(GRID_COLS * GRID_ROWS);
-        for (int gx = 0; gx < GRID_COLS; gx++) {
-            for (int gy = 0; gy < GRID_ROWS; gy++) {
-                Cell candidate = new Cell(gx, gy);
-                if (!snake.contains(candidate)
-                        && (food == null || !candidate.equals(food))
-                        && (bonusFood == null || !candidate.equals(bonusFood))) {
-                    free.add(candidate);
-                }
-            }
-        }
-        if (free.isEmpty()) {
-            return null;
-        }
-        return free.get(random.nextInt(free.size()));
     }
 
     private void renderHud(PhoneCanvas canvas, GuiGraphics g, Font font, PhoneStyle style) {
@@ -463,8 +271,8 @@ public final class SnakePage implements IPhonePage {
         g.fill(x, y, x + w, y + 16, HUD_BG);
         g.fill(x, y + 15, x + w, y + 16, GRID_BORDER);
 
-        String scoreText = Component.translatable("gui.universal_tool.snake.score", score).getString();
-        String bestText = Component.translatable("gui.universal_tool.snake.best", bestScore).getString();
+        String scoreText = Component.translatable("gui.universal_tool.snake.score", board.score()).getString();
+        String bestText = Component.translatable("gui.universal_tool.snake.best", board.bestScore()).getString();
 
         int btnSpace = 30;
         int textAreaW = Math.max(20, w - btnSpace - 6);
@@ -473,7 +281,7 @@ public final class SnakePage implements IPhonePage {
         drawScaledText(g, font, scoreText, x + 3, y + 4, halfTextW - 2, SNAKE_HEAD, false);
         drawScaledText(g, font, bestText, x + 3 + halfTextW, y + 4, halfTextW - 2, BONUS_GOLD, false);
 
-        renderSmallIconBtn(canvas, hudPauseBtn, state == State.PLAYING ? "||" : "▶", style);
+        renderSmallIconBtn(canvas, hudPauseBtn, board.state() == State.PLAYING ? "||" : "▶", style);
         renderSmallIconBtn(canvas, hudRestartBtn, "↻", style);
     }
 
@@ -491,9 +299,9 @@ public final class SnakePage implements IPhonePage {
         }
 
         // Normal apple
-        if (food != null) {
-            int fx = gridX + food.x * cellSize;
-            int fy = gridY + food.y * cellSize;
+        if (board.food() != null) {
+            int fx = gridX + board.food().x() * cellSize;
+            int fy = gridY + board.food().y() * cellSize;
             int inset = Math.max(1, cellSize / 7);
             g.fill(fx + inset, fy + inset + 1, fx + cellSize - inset, fy + cellSize - inset, APPLE_RED);
             if (cellSize >= 6) {
@@ -504,9 +312,9 @@ public final class SnakePage implements IPhonePage {
         }
 
         // Bonus golden apple with pulse + countdown bar
-        if (bonusFood != null) {
-            int bx = gridX + bonusFood.x * cellSize;
-            int by = gridY + bonusFood.y * cellSize;
+        if (board.bonusFood() != null) {
+            int bx = gridX + board.bonusFood().x() * cellSize;
+            int by = gridY + board.bonusFood().y() * cellSize;
             if ((animTick / 4) % 2 == 0) {
                 g.fill(bx, by, bx + cellSize, by + cellSize, BONUS_GLOW);
             }
@@ -523,11 +331,11 @@ public final class SnakePage implements IPhonePage {
         }
 
         // Snake body from tail to head
-        int len = snake.size();
+        int len = board.snake().size();
         for (int i = len - 1; i >= 0; i--) {
-            Cell seg = snake.get(i);
-            int sx = gridX + seg.x * cellSize;
-            int sy = gridY + seg.y * cellSize;
+            Cell seg = board.snake().get(i);
+            int sx = gridX + seg.x() * cellSize;
+            int sy = gridY + seg.y() * cellSize;
 
             if (i == 0) {
                 g.fill(sx, sy, sx + cellSize, sy + cellSize, SNAKE_HEAD);
@@ -551,7 +359,7 @@ public final class SnakePage implements IPhonePage {
         int eyeSize = cellSize >= 9 ? 2 : 1;
         int near = 1;
         int far = Math.max(1, cellSize - eyeSize - 1);
-        switch (currentDir) {
+        switch (board.direction()) {
             case UP -> {
                 g.fill(sx + near, sy + near, sx + near + eyeSize, sy + near + eyeSize, SNAKE_EYE);
                 g.fill(sx + far, sy + near, sx + far + eyeSize, sy + near + eyeSize, SNAKE_EYE);
@@ -572,20 +380,20 @@ public final class SnakePage implements IPhonePage {
     }
 
     private void renderDpad(PhoneCanvas canvas, GuiGraphics g, Font font, PhoneStyle style) {
-        renderDpadButton(canvas, g, font, dpadUp, "▲", currentDir == Dir.UP, style);
-        renderDpadButton(canvas, g, font, dpadLeft, "◄", currentDir == Dir.LEFT, style);
-        renderDpadButton(canvas, g, font, dpadDown, "▼", currentDir == Dir.DOWN, style);
-        renderDpadButton(canvas, g, font, dpadRight, "►", currentDir == Dir.RIGHT, style);
+        renderDpadButton(canvas, g, font, dpadUp, "▲", board.direction() == Dir.UP, style);
+        renderDpadButton(canvas, g, font, dpadLeft, "◄", board.direction() == Dir.LEFT, style);
+        renderDpadButton(canvas, g, font, dpadDown, "▼", board.direction() == Dir.DOWN, style);
+        renderDpadButton(canvas, g, font, dpadRight, "►", board.direction() == Dir.RIGHT, style);
 
         if (landscape) {
             int infoX = dpadLeft.x;
             int infoW = Math.max(40, (dpadRight.x + dpadRight.w) - infoX);
             int infoY = gridY + 4;
-            String lenText = Component.translatable("gui.universal_tool.snake.length", snake.size()).getString();
+            String lenText = Component.translatable("gui.universal_tool.snake.length", board.snake().size()).getString();
             drawScaledText(g, font, lenText, infoX, infoY, infoW, style.bodyColor(), false);
             String hintText = Component.translatable("gui.universal_tool.snake.hint").getString();
             drawScaledText(g, font, hintText, infoX, infoY + 12, infoW, style.subtleColor(), false);
-            boolean reachedReward = score >= REWARD_TARGET_SCORE || bestScore >= REWARD_TARGET_SCORE;
+            boolean reachedReward = board.score() >= REWARD_TARGET_SCORE || board.bestScore() >= REWARD_TARGET_SCORE;
             String rewardText = Component.translatable(
                     reachedReward
                             ? "gui.universal_tool.snake.reward_unlocked"
@@ -633,28 +441,28 @@ public final class SnakePage implements IPhonePage {
     private void renderStateOverlay(PhoneCanvas canvas, GuiGraphics g, Font font) {
         g.fill(gridX, gridY, gridX + gridW, gridY + gridH, 0xAA08100C);
 
-        String titleKey = switch (state) {
+        String titleKey = switch (board.state()) {
             case READY -> "gui.universal_tool.snake.title.ready";
             case PAUSED -> "gui.universal_tool.snake.title.paused";
             case GAME_OVER -> "gui.universal_tool.snake.title.game_over";
             case PLAYING -> "";
         };
-        String btnKey = switch (state) {
+        String btnKey = switch (board.state()) {
             case READY -> "gui.universal_tool.snake.btn.start";
             case PAUSED -> "gui.universal_tool.snake.btn.resume";
             case GAME_OVER -> "gui.universal_tool.snake.btn.retry";
             case PLAYING -> "";
         };
 
-        int titleColor = state == State.GAME_OVER ? APPLE_RED : SNAKE_HEAD;
+        int titleColor = board.state() == State.GAME_OVER ? APPLE_RED : SNAKE_HEAD;
         String titleStr = Component.translatable(titleKey).getString();
         drawScaledCenteredText(g, font, titleStr, gridX + 4, gridY + gridH / 2 - 26, gridW - 8, titleColor, true);
 
-        if (state == State.GAME_OVER) {
-            String sub = Component.translatable("gui.universal_tool.snake.final_score", score).getString();
+        if (board.state() == State.GAME_OVER) {
+            String sub = Component.translatable("gui.universal_tool.snake.final_score", board.score()).getString();
             drawScaledCenteredText(g, font, sub, gridX + 4, gridY + gridH / 2 - 14, gridW - 8, BONUS_GOLD, false);
         } else {
-            boolean reachedReward = score >= REWARD_TARGET_SCORE || bestScore >= REWARD_TARGET_SCORE;
+            boolean reachedReward = board.score() >= REWARD_TARGET_SCORE || board.bestScore() >= REWARD_TARGET_SCORE;
             String goal = Component.translatable(
                     reachedReward
                             ? "gui.universal_tool.snake.reward_unlocked"
@@ -680,8 +488,8 @@ public final class SnakePage implements IPhonePage {
         drawScaledCenteredText(g, font, btnLabel, overlayActionBtn.x + 3, btnTextY,
                 overlayActionBtn.w - 6, 0xFFFFFFFF, true);
 
-        if (state == State.GAME_OVER) {
-            boolean reachedReward = score >= REWARD_TARGET_SCORE || bestScore >= REWARD_TARGET_SCORE;
+        if (board.state() == State.GAME_OVER) {
+            boolean reachedReward = board.score() >= REWARD_TARGET_SCORE || board.bestScore() >= REWARD_TARGET_SCORE;
             String goal = Component.translatable(
                     reachedReward
                             ? "gui.universal_tool.snake.reward_unlocked"

@@ -5,6 +5,7 @@ import com.november.mcphone.api.client.ui.IPhonePage;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.snake.SnakeBoard;
 
 /**
  * Preinstalled MCphone arcade mini-game app: Snake ("贪吃蛇").
@@ -41,7 +42,7 @@ public final class SnakeApp implements IPhoneApp {
 
     @Override
     public String getVersion() {
-        return "1.0.0";
+        return "1.1.0";
     }
 
     @Override
@@ -51,7 +52,8 @@ public final class SnakeApp implements IPhoneApp {
 
     @Override
     public String getDescription() {
-        return Component.translatable("app.universal_tool.snake.desc").getString();
+        return Component.translatable("app.universal_tool.snake.desc", SnakeBoard.REWARD_TARGET_SCORE)
+                .getString();
     }
 
     @Override

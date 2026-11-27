@@ -57,4 +57,4 @@ python tools/prepare_island_visual_save.py "你的存档目录"
 .\gradlew.bat build
 ```
 
-GameTest 使用 `build/island-gametest`；视觉测试只操作 `build/island-visual/saves/island-visual` 的副本，截图写入 `build/island-visual/screenshots/`。测试功能均由专用运行配置的系统属性启用。
+GameTest 每次在 `build/island-gametest/<运行 ID>` 下创建独立存档，日志位于对应目录的 `logs/latest.log`。视觉测试只操作 `build/island-visual/saves/island-visual` 的副本，截图写入 `build/island-visual/screenshots/`。测试功能均由专用运行配置的系统属性启用。

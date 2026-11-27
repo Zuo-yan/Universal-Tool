@@ -430,9 +430,12 @@ public final class PhainonCounterEffects {
      * Pass 1(Solid 碎石) -> Pass 2(Translucent 黑曜石巨剑实体) -> Pass 3A(Additive 巨剑炽焰) ->
      * Pass 3B(Additive 竖劈斩弧与裂地熔岩痕) -> Pass 3C(Additive 火山熔岩喷涌与架势气浪) -> Pass 3D(Additive 纷争护盾法环与冲击环)。
      */
-    @SubscribeEvent
-    public static void render(RenderLevelStageEvent e) {
-        if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES || SCENES.isEmpty()) {
+    static boolean hasWorldEffects() {
+        return !SCENES.isEmpty();
+    }
+
+    static void renderWorld(RenderLevelStageEvent e) {
+        if (SCENES.isEmpty()) {
             return;
         }
         Minecraft mc = Minecraft.getInstance();

@@ -28,7 +28,7 @@ public final class ModAttachments {
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<PlayerSkillData>> SKILL_DATA =
             SkillAttachments.SKILL_DATA;
 
-    /** 玩家是否已通过手机「贪吃蛇」500 分成就领取过「侵晨」，死亡保留且持久化，防止重复刷取。 */
+    /** 玩家是否已通过手机「贪吃蛇」领取过「侵晨」，死亡后保留。 */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Boolean>> SNAKE_QINCHEN_CLAIMED =
             ATTACHMENTS.register("snake_qinchen_claimed", () -> AttachmentType
                     .builder(() -> false)

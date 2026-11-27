@@ -11,8 +11,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -25,6 +24,7 @@ import org.gwfx.universaltool.init.ModParticles;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @EventBusSubscriber(modid = UniversalToolMod.MODID)
@@ -38,26 +38,28 @@ public class TeleportManager {
         Waypoint target;
         Vec3 startPos;
         int ticksRemaining;
-        boolean fromScroll;
 
-        TeleportTask(ServerPlayer player, Waypoint target, boolean fromScroll) {
+        TeleportTask(ServerPlayer player, Waypoint target) {
             this.player = player;
             this.target = target;
             this.startPos = player.position();
             this.ticksRemaining = org.gwfx.universaltool.skill.SkillModSynergyHandler
                     .adjustTeleportChargeTicks(player, CHARGE_TICKS);
-            this.fromScroll = fromScroll;
         }
     }
 
     private static final Map<UUID, TeleportTask> ACTIVE_TASKS = new HashMap<>();
 
-    public static void startTeleport(ServerPlayer player, Waypoint target, boolean fromScroll) {
+    public static boolean startTeleport(ServerPlayer player, Waypoint target, boolean fromScroll) {
         if (!fromScroll && player.getCooldowns().isOnCooldown(ModItems.TELEPORT_CODEX.get())) {
             player.displayClientMessage(Component.translatable("message.universal_tool.on_cooldown"), true);
-            return;
+            return false;
         }
 
+        ServerLevel destLevel = destination(player, target);
+        if (destLevel == null) return false;
+        Vec3 destSafePos = landing(player, destLevel, target);
+        if (destSafePos == null) return false;
         ServerLevel level = player.serverLevel();
         // 清理该玩家之前尚未进入的旧虫洞
         for (WormholeEntity existing : level.getEntitiesOfClass(WormholeEntity.class, player.getBoundingBox().inflate(32.0D))) {
@@ -71,8 +73,7 @@ public class TeleportManager {
 
         WormholeEntity wormhole = org.gwfx.universaltool.init.ModEntities.WORMHOLE.get().create(level);
         if (wormhole == null) {
-            executeTeleport(player, target, fromScroll);
-            return;
+            return executeTeleport(player, target);
         }
         wormhole.setPos(spawnPos.x, spawnPos.y, spawnPos.z);
         wormhole.configure(player, target, player.getYRot() + 180.0F, fromScroll);
@@ -86,18 +87,12 @@ public class TeleportManager {
                             vistaId, LiveVistaSampler.WIDTH, LiveVistaSampler.HEIGHT, liveVista)
             );
         }
-        level.addFreshEntity(wormhole);
+        if (!level.addFreshEntity(wormhole)) return false;
 
-        // 在入口虫洞开启的同时，在目的地同步开启出口传送门
-        ServerLevel destLevel = player.server.getLevel(ResourceKey.create(Registries.DIMENSION, target.dimension()));
-        if (destLevel != null) {
-            destLevel.getChunkAt(BlockPos.containing(target.x(), target.y(), target.z()));
-            Vec3 destSafePos = findSafePosition(destLevel, target.x(), target.y(), target.z());
-            WormholeEntity destExit = spawnDestinationExitWormhole(
-                    destLevel, player.getUUID(), destSafePos, target.yaw(), -1);
-            if (destExit != null) {
-                wormhole.linkDestinationExit(destLevel.dimension(), destExit.getUUID(), destExit.blockPosition());
-            }
+        WormholeEntity destExit = spawnDestinationExitWormhole(
+                destLevel, player.getUUID(), destSafePos, target.yaw(), -1);
+        if (destExit != null) {
+            wormhole.linkDestinationExit(destLevel.dimension(), destExit.getUUID(), destExit.blockPosition());
         }
 
         level.playSound(null, spawnPos.x, spawnPos.y + 1.0, spawnPos.z,
@@ -108,6 +103,7 @@ public class TeleportManager {
                 spawnPos.x, spawnPos.y + 1.1, spawnPos.z, 26, 0.35, 0.65, 0.35, 0.08);
 
         player.displayClientMessage(Component.translatable("message.universal_tool.wormhole_opened", target.name()), true);
+        return true;
     }
 
     private static Vec3 findWormholeSpawnPos(ServerLevel level, Vec3 origin, Vec3 dir) {
@@ -159,7 +155,7 @@ public class TeleportManager {
             if (task.ticksRemaining <= 0) {
                 // 蓄力完毕，执行跃迁
                 it.remove();
-                executeTeleport(player, task.target, task.fromScroll);
+                executeTeleport(player, task.target);
             }
         }
     }
@@ -176,23 +172,17 @@ public class TeleportManager {
         }
     }
 
-    public static void executeTeleport(ServerPlayer player, Waypoint target, boolean fromScroll) {
-        ResourceKey<net.minecraft.world.level.Level> dimKey = ResourceKey.create(Registries.DIMENSION, target.dimension());
-        ServerLevel destLevel = player.server.getLevel(dimKey);
-        if (destLevel == null) {
-            player.displayClientMessage(Component.translatable("message.universal_tool.dimension_not_found"), true);
-            return;
-        }
+    public static boolean executeTeleport(ServerPlayer player, Waypoint target) {
+        ServerLevel destLevel = destination(player, target);
+        if (destLevel == null) return false;
+        Vec3 safePos = landing(player, destLevel, target);
+        if (safePos == null) return false;
 
-        // 安全落脚点检测
-        Vec3 safePos = findSafePosition(destLevel, target.x(), target.y(), target.z());
-
-        // 原地音效
-        player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
+        ServerLevel origin = player.serverLevel();
+        Vec3 from = player.position();
+        if (!movePlayer(player, destLevel, safePos, target.yaw(), target.pitch())) return false;
+        origin.playSound(null, from.x, from.y, from.z,
                 SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 1.0F, 1.0F);
-
-        // 传送
-        player.teleportTo(destLevel, safePos.x, safePos.y, safePos.z, target.yaw(), target.pitch());
 
         // 目的地点音效与自定义粒子 + 维持/收拢出口虫洞
         destLevel.playSound(null, safePos.x, safePos.y, safePos.z,
@@ -212,6 +202,45 @@ public class TeleportManager {
         }
         org.gwfx.universaltool.skill.SkillModSynergyHandler.onTeleportCompleted(player);
         player.displayClientMessage(Component.translatable("message.universal_tool.teleport_success", target.name()), true);
+        return true;
+    }
+
+    private static ServerLevel destination(ServerPlayer player, Waypoint target) {
+        var dimension = ResourceKey.create(Registries.DIMENSION, target.dimension());
+        ServerLevel destination = player.server.getLevel(dimension);
+        if (destination == null) {
+            player.displayClientMessage(Component.translatable("message.universal_tool.dimension_not_found"), true);
+        }
+        return destination;
+    }
+
+    private static Vec3 landing(ServerPlayer player, ServerLevel level, Waypoint target) {
+        Vec3 landing = WaypointLanding.find(level, new Vec3(target.x(), target.y(), target.z()));
+        if (landing == null) {
+            player.displayClientMessage(Component.translatable("message.universal_tool.no_safe_landing"), true);
+        }
+        return landing;
+    }
+
+    static boolean returnToOrigin(ServerPlayer player, ResourceKey<net.minecraft.world.level.Level> origin,
+                                  Vec3 position, float yaw, float pitch) {
+        ServerLevel level = player.server.getLevel(origin);
+        if (level != null) {
+            Vec3 landing = WaypointLanding.find(level, position);
+            if (landing != null && movePlayer(player, level, landing, yaw, pitch)) return true;
+        }
+        ServerLevel overworld = player.server.overworld();
+        BlockPos spawn = overworld.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, overworld.getSharedSpawnPos());
+        Vec3 landing = WaypointLanding.find(overworld, Vec3.atBottomCenterOf(spawn));
+        return landing != null && movePlayer(player, overworld, landing, yaw, pitch);
+    }
+
+    private static boolean movePlayer(ServerPlayer player, ServerLevel level, Vec3 pos, float yaw, float pitch) {
+        if (!player.teleportTo(level, pos.x, pos.y, pos.z, Set.of(), yaw, pitch)
+                || player.serverLevel() != level) return false;
+        player.setDeltaMovement(Vec3.ZERO);
+        player.fallDistance = 0.0F;
+        return true;
     }
 
     private static void completeOrSpawnDestinationExit(ServerLevel destLevel, ServerPlayer player,
@@ -221,7 +250,8 @@ public class TeleportManager {
                 WormholeEntity.class, new net.minecraft.world.phys.AABB(safePos, safePos).inflate(16.0D))) {
             if (existing.isDestinationExit() && !existing.isClosing()
                     && player.getUUID().equals(existing.getOwnerUuid())) {
-                if (activeExit == null) {
+                if (activeExit == null && existing.position().distanceToSqr(safePos) <= 9
+                        && WaypointLanding.isSafe(destLevel, existing.position())) {
                     activeExit = existing;
                 } else {
                     existing.beginClosing();
@@ -245,6 +275,7 @@ public class TeleportManager {
         }
         Vec3 forwardHoriz = Vec3.directionFromRotation(0.0F, arrivalYaw).normalize();
         Vec3 exitPos = findWormholeSpawnPos(destLevel, safePos, forwardHoriz.scale(-1.0D));
+        if (!WaypointLanding.isSafe(destLevel, exitPos)) exitPos = safePos;
         WormholeEntity exitWormhole = org.gwfx.universaltool.init.ModEntities.WORMHOLE.get().create(destLevel);
         if (exitWormhole != null) {
             exitWormhole.setPos(exitPos.x, exitPos.y, exitPos.z);
@@ -260,7 +291,7 @@ public class TeleportManager {
     /**
      * Teleports a dropped item entity directly through a wormhole to the waypoint destination.
      */
-    public static boolean teleportItem(ItemEntity itemEntity, Waypoint target) {
+    public static boolean teleportItem(ItemEntity itemEntity, Waypoint target, UUID owner) {
         if (!itemEntity.isAlive() || itemEntity.getItem().isEmpty()) {
             return false;
         }
@@ -273,9 +304,8 @@ public class TeleportManager {
             return false;
         }
 
-        // Ensure destination chunk is loaded before checking safe landing blocks
-        destLevel.getChunkAt(BlockPos.containing(target.x(), target.y(), target.z()));
-        Vec3 safePos = findSafePosition(destLevel, target.x(), target.y(), target.z());
+        Vec3 safePos = WaypointLanding.find(destLevel, new Vec3(target.x(), target.y(), target.z()));
+        if (safePos == null) return false;
 
         double spawnX = safePos.x;
         double spawnY = safePos.y + 0.35D;
@@ -283,8 +313,9 @@ public class TeleportManager {
         Vec3 velocity = new Vec3(0.0D, 0.12D, 0.0D);
 
         for (WormholeEntity existing : destLevel.getEntitiesOfClass(
-                WormholeEntity.class, new net.minecraft.world.phys.AABB(safePos, safePos).inflate(16.0D))) {
-            if (existing.isDestinationExit() && !existing.isClosing()) {
+                WormholeEntity.class, new net.minecraft.world.phys.AABB(safePos, safePos).inflate(3.0D))) {
+            if (existing.isDestinationExit() && !existing.isClosing() && owner != null && owner.equals(existing.getOwnerUuid())
+                    && WaypointLanding.isSafe(destLevel, existing.position())) {
                 spawnX = existing.getX();
                 spawnY = existing.getY() + 1.05D;
                 spawnZ = existing.getZ();
@@ -306,7 +337,7 @@ public class TeleportManager {
         );
         arrived.setPickUpDelay(15);
         arrived.setDeltaMovement(velocity);
-        destLevel.addFreshEntity(arrived);
+        if (!destLevel.addFreshEntity(arrived)) return false;
         itemEntity.discard();
 
         destLevel.playSound(null, spawnX, spawnY, spawnZ,
@@ -317,56 +348,6 @@ public class TeleportManager {
                 16, 0.25D, 0.35D, 0.25D, 0.05D
         );
         return true;
-    }
-
-    private static Vec3 findSafePosition(ServerLevel level, double tx, double ty, double tz) {
-        int x = (int) Math.floor(tx);
-        int y = (int) Math.floor(ty);
-        int z = (int) Math.floor(tz);
-
-        // 检查原目标点脚下是否有坚固方块，且头脚部位无窒息方块
-        if (isSafeStand(level, x, y, z)) {
-            return new Vec3(tx, ty, tz);
-        }
-
-        // 周围 3 格范围搜索安全方块
-        for (int dy = 0; dy <= 3; dy++) {
-            for (int dx = -2; dx <= 2; dx++) {
-                for (int dz = -2; dz <= 2; dz++) {
-                    if (isSafeStand(level, x + dx, y + dy, z + dz)) {
-                        return new Vec3(x + dx + 0.5, y + dy, z + dz + 0.5);
-                    }
-                    if (dy > 0 && isSafeStand(level, x + dx, y - dy, z + dz)) {
-                        return new Vec3(x + dx + 0.5, y - dy, z + dz + 0.5);
-                    }
-                }
-            }
-        }
-
-        // 保底：原坐标加上 0.1
-        return new Vec3(tx, ty + 0.1, tz);
-    }
-
-    private static boolean isSafeStand(ServerLevel level, int x, int y, int z) {
-        BlockPos feet = new BlockPos(x, y, z);
-        BlockPos head = feet.above();
-        BlockPos below = feet.below();
-
-        BlockState feetState = level.getBlockState(feet);
-        BlockState headState = level.getBlockState(head);
-        BlockState belowState = level.getBlockState(below);
-
-        // 脚底必须有碰撞箱支持，且不是岩浆
-        if (belowState.isAir() || belowState.is(Blocks.LAVA) || !belowState.isSolid()) {
-            return false;
-        }
-
-        // 头脚位置不能是实心窒息方块，也不能是岩浆
-        if (feetState.is(Blocks.LAVA) || headState.is(Blocks.LAVA)) {
-            return false;
-        }
-
-        return !feetState.isSolid() && !headState.isSolid();
     }
 
     @SubscribeEvent

@@ -37,7 +37,7 @@ import org.gwfx.universaltool.network.Skill3dEffectPayload;
 import org.gwfx.universaltool.network.Skill3dEffectPayload.EffectKind;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -431,7 +431,9 @@ final class SkillNewActivesHelper {
         int maxConvert = level == 1 ? 6 : (level == 2 ? 12 : 20);
 
         BlockPos origin = player.blockPosition();
-        List<BlockPos> candidates = new ArrayList<>();
+        record Candidate(BlockPos pos, double priority) {}
+        List<Candidate> candidates = new ArrayList<>();
+        var random = world.getRandom();
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dy = -vertical; dy <= vertical; dy++) {
                 for (int dz = -radius; dz <= radius; dz++) {
@@ -439,7 +441,7 @@ final class SkillNewActivesHelper {
                     BlockPos pos = origin.offset(dx, dy, dz);
                     if (!world.isLoaded(pos) || SkillCombatTracker.isPlayerPlaced(player, pos)) continue;
                     if (isTransmutableStone(world.getBlockState(pos))) {
-                        candidates.add(pos.immutable());
+                        candidates.add(new Candidate(pos, pos.distSqr(origin) + random.nextDouble() * 12.0D));
                     }
                 }
             }
@@ -450,18 +452,16 @@ final class SkillNewActivesHelper {
             return false;
         }
 
-        // 随机打乱后按距离温和加权排序，优先点化玩家身边近处的自然石块，同时保留矿脉分布的随机性
-        Collections.shuffle(candidates);
-        var rng = world.getRandom();
-        candidates.sort(java.util.Comparator.comparingDouble(
-                pos -> pos.distSqr(origin) + rng.nextDouble() * 12.0D));
+        // 为每个候选点固定一个随机权重，保证距离排序的一致性。
+        candidates.sort(Comparator.comparingDouble(Candidate::priority));
         int converted = 0;
         List<Long> newOrePacked = new ArrayList<>();
         List<Integer> newOreColors = new ArrayList<>();
         boolean isNether = world.dimension().equals(Level.NETHER);
 
-        for (BlockPos pos : candidates) {
+        for (Candidate candidate : candidates) {
             if (converted >= maxConvert) break;
+            BlockPos pos = candidate.pos();
             BlockState src = world.getBlockState(pos);
             BlockState ore = pickRandomOre(world, src, level, isNether);
             world.setBlock(pos, ore, Block.UPDATE_ALL);
@@ -479,6 +479,7 @@ final class SkillNewActivesHelper {
         CompoundTag tag = new CompoundTag();
         tag.putString("dimension", world.dimension().location().toString());
         tag.putInt("ticks", 120);
+        tag.putBoolean("transmuted", true);
         tag.putLongArray("positions", newOrePacked.stream().mapToLong(Long::longValue).toArray());
         tag.putIntArray("colors", newOreColors.stream().mapToInt(Integer::intValue).toArray());
         tag.putLongArray("specialPositions", new long[0]);

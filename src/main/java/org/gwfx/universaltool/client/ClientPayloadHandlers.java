@@ -23,6 +23,7 @@ import org.gwfx.universaltool.network.SyncSkillDataPayload;
 import org.gwfx.universaltool.network.SyncWaypointsPayload;
 import org.gwfx.universaltool.network.WormholeLiveVistaPayload;
 import org.gwfx.universaltool.waypoint.Waypoint;
+import org.gwfx.universaltool.snake.SnakeStatePayload;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -38,6 +39,8 @@ public final class ClientPayloadHandlers {
     }
 
     public static void registerAll() {
+        ModPacketHandler.registerClientHandler(SnakeStatePayload.TYPE,
+                (payload, context) -> context.enqueueWork(() -> SnakePage.apply(payload)));
         ModPacketHandler.registerClientHandler(OreSightPayload.TYPE, ClientPayloadHandlers::handleOreSight);
         ModPacketHandler.registerClientHandler(CounterGuardEffectPayload.TYPE, ClientPayloadHandlers::handleCounterGuardEffect);
         ModPacketHandler.registerClientHandler(SyncWaypointsPayload.TYPE, ClientPayloadHandlers::handleSyncWaypoints);

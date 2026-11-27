@@ -59,7 +59,9 @@ public class TeleportScrollItem extends Item {
                 }
             } else {
                 // 普通右键：瞬移传送
-                TeleportManager.startTeleport(serverPlayer, wp, true);
+                if (!TeleportManager.startTeleport(serverPlayer, wp, true)) {
+                    return InteractionResultHolder.fail(stack);
+                }
                 stack.shrink(1);
                 return InteractionResultHolder.sidedSuccess(stack, false);
             }

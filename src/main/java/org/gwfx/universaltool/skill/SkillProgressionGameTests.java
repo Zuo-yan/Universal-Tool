@@ -609,6 +609,30 @@ public final class SkillProgressionGameTests {
         helper.succeed();
     }
 
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void oreSightFindsColoredOresAndLevelThreeSpecials(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        ServerPlayer player = mockPlayer(level.getServer(), level, "ore-sight-test");
+        BlockPos origin = helper.absolutePos(new BlockPos(0, 14, 0));
+        player.moveTo(origin.getX() + 0.5D, origin.getY(), origin.getZ() + 0.5D, 0, 0);
+        BlockPos ore = origin.offset(17, -3, 0);
+        BlockPos spawner = origin.offset(1, 0, 0);
+        level.setBlockAndUpdate(ore, Blocks.DIAMOND_ORE.defaultBlockState());
+        level.setBlockAndUpdate(spawner, Blocks.SPAWNER.defaultBlockState());
+        var lowerLevel = new SkillOreSight.Scan(player, 20, 10, false);
+        var maxLevel = new SkillOreSight.Scan(player, 24, 11, true);
+        while (!lowerLevel.scanNextSection()) {}
+        while (!maxLevel.scanNextSection()) {}
+        helper.assertTrue(lowerLevel.ores.containsKey(ore) && lowerLevel.specials.isEmpty(),
+                "Lower levels must find ores across chunk boundaries and omit special blocks");
+        helper.assertTrue(maxLevel.ores.getOrDefault(ore, 0) == SkillActiveExecutor.oreColor(Blocks.DIAMOND_ORE.defaultBlockState())
+                        && maxLevel.specials.contains(spawner),
+                "Level three must keep ore colors and special markers");
+        level.setBlockAndUpdate(ore, Blocks.AIR.defaultBlockState());
+        level.setBlockAndUpdate(spawner, Blocks.AIR.defaultBlockState());
+        helper.succeed();
+    }
+
     private static ServerPlayer mockPlayer(MinecraftServer server, ServerLevel level, String name) {
         var profile = new com.mojang.authlib.GameProfile(UUID.randomUUID(), name);
         var player = new ServerPlayer(server, level, profile,

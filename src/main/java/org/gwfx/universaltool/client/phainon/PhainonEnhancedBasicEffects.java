@@ -109,10 +109,13 @@ public final class PhainonEnhancedBasicEffects {
         });
     }
 
-    @SubscribeEvent
-    public static void render(RenderLevelStageEvent event) {
+    static boolean hasWorldEffects() {
+        return !SWINGS.isEmpty();
+    }
+
+    static void renderWorld(RenderLevelStageEvent event) {
         Minecraft game = Minecraft.getInstance();
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES || SWINGS.isEmpty()
+        if (SWINGS.isEmpty()
                 || level == null || level != game.level) return;
 
         List<PhainonBloodthornVisuals.Frame> frames = new ArrayList<>();

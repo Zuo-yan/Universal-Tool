@@ -2,7 +2,6 @@ package org.gwfx.universaltool.skill;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -30,9 +29,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.ChestBlock;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
@@ -43,13 +39,10 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.init.ModSounds;
 import org.gwfx.universaltool.network.CounterGuardEffectPayload;
-import org.gwfx.universaltool.network.OreSightPayload;
 import org.gwfx.universaltool.network.Skill3dEffectPayload;
 import org.gwfx.universaltool.network.Skill3dEffectPayload.EffectKind;
 
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -72,7 +65,6 @@ final class SkillActiveExecutor {
     private static final AtomicLong GUARD_EFFECT_SEQUENCE = new AtomicLong();
     private static final Map<UUID, FrozenState> FROZEN = new ConcurrentHashMap<>();
     private static final Map<UUID, StasisState> STASIS = new ConcurrentHashMap<>();
-    private static final Map<UUID, OreSightState> ORE_SIGHT = new ConcurrentHashMap<>();
     private static final List<GravityWellState> GRAVITY_WELLS = new CopyOnWriteArrayList<>();
     private static final Map<UUID, BerserkState> BERSERK_STATES = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> AIR_STEP_LANDING_SHOCKWAVE = new ConcurrentHashMap<>();
@@ -83,7 +75,6 @@ final class SkillActiveExecutor {
     private record FrozenState(Entity entity, ServerLevel level, long until, boolean previousNoAi, long visualId) {}
     private record StasisState(Entity target, ServerLevel level, ServerPlayer owner,
                                long until, long nextDamageAt, float fixedDamage) {}
-    private record OreSightState(ServerLevel level, Set<BlockPos> orePositions, Set<BlockPos> specialPositions, long expiresAt) {}
     private record GravityWellState(ServerLevel level, Vec3 center, double radius, int skillLevel,
                                     long expiresAt, UUID ownerId, long visualId) {}
     private record BerserkState(int skillLevel, long expiresAt, int extendedSeconds, long bonusLifestealUntil) {}
@@ -97,7 +88,7 @@ final class SkillActiveExecutor {
         GUARDS.clear();
         FROZEN.clear();
         STASIS.clear();
-        ORE_SIGHT.clear();
+        SkillOreSight.clearAll();
         GRAVITY_WELLS.clear();
         BERSERK_STATES.clear();
         AIR_STEP_LANDING_SHOCKWAVE.clear();
@@ -636,30 +627,9 @@ final class SkillActiveExecutor {
         ServerLevel world = player.serverLevel();
         int radius = 12 + 4 * level;
         int vertical = 8 + level;
-        Set<BlockPos> ores = new LinkedHashSet<>();
-        Set<BlockPos> specials = new LinkedHashSet<>();
-        BlockPos origin = player.blockPosition();
-        for (int x = -radius; x <= radius; x++) {
-            for (int y = -vertical; y <= vertical; y++) {
-                for (int z = -radius; z <= radius; z++) {
-                    BlockPos pos = origin.offset(x, y, z);
-                    if (!world.isLoaded(pos)) continue;
-                    BlockState state = world.getBlockState(pos);
-                    if (SkillCombatTracker.isOre(state)) {
-                        ores.add(pos.immutable());
-                    } else if (level >= 3 && isSpecialContainerOrSpawner(world, pos, state)) {
-                        specials.add(pos.immutable());
-                    }
-                }
-            }
-        }
-        ORE_SIGHT.put(player.getUUID(), new OreSightState(world, ores, specials,
-                world.getGameTime() + SkillManager.ORE_SIGHT_TICKS));
-        syncOreMarkers(player, ores, specials, SkillManager.ORE_SIGHT_TICKS);
+        SkillOreSight.begin(player, level, radius, vertical);
         Skill3dEffectPayload.spawn(world, EffectKind.ORE_SONAR, player.position().add(0, 0.8, 0), Vec3.ZERO,
                 (float) radius, 22, 0x5CE6FF);
-        player.displayClientMessage(Component.translatable("message.universal_tool.skills.ore_sight",
-                ores.size() + specials.size()), true);
         world.playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.8F, 1.5F);
         return true;
@@ -675,15 +645,6 @@ final class SkillActiveExecutor {
         if (state.is(BlockTags.IRON_ORES)) return 0xFFE6C29F;
         if (state.is(BlockTags.COPPER_ORES)) return 0xFFF28B50;
         return 0xFF9FB8D6;
-    }
-
-    private static boolean isSpecialContainerOrSpawner(ServerLevel world, BlockPos pos, BlockState state) {
-        if (state.is(Blocks.SPAWNER)) return true;
-        if (state.getBlock() instanceof ChestBlock) {
-            BlockEntity be = world.getBlockEntity(pos);
-            return be instanceof RandomizableContainerBlockEntity;
-        }
-        return false;
     }
 
     // ===== 6. 凌空踏步（修复鞘翅循环音残留 + 双翼气流 + Lv.3 3D 冲击波） =====
@@ -796,6 +757,7 @@ final class SkillActiveExecutor {
     // ===== Tick 调度 =====
 
     static void tickServer(MinecraftServer server) {
+        SkillOreSight.scanTick();
         if (server.overworld().getGameTime() % 2 == 0) {
             tickFrozen();
         }
@@ -810,7 +772,7 @@ final class SkillActiveExecutor {
         if (GUARDS.containsKey(player.getUUID())) {
             tickCounterGuardProjectiles(player);
         }
-        tickOreSight(player, gameTime);
+        SkillOreSight.tickMarkers(player, gameTime);
     }
 
     private static void tickChargingVisual(ServerPlayer player, long now) {
@@ -889,22 +851,6 @@ final class SkillActiveExecutor {
             SkillVfx.point(player.serverLevel(), mid.add(side), SkillVfx.Tint.AIR.dust);
             SkillVfx.point(player.serverLevel(), mid.subtract(side), SkillVfx.Tint.AIR.dust);
         }
-    }
-
-    private static void tickOreSight(ServerPlayer player, long gameTime) {
-        OreSightState state = ORE_SIGHT.get(player.getUUID());
-        if (state == null) return;
-        if (gameTime >= state.expiresAt() || state.level() != player.serverLevel()) {
-            ORE_SIGHT.remove(player.getUUID());
-            syncOreMarkers(player, Set.of(), Set.of(), 0);
-            return;
-        }
-        if (gameTime % 20 != 0) return;
-        state.orePositions().removeIf(pos -> !player.serverLevel().isLoaded(pos)
-                || !SkillCombatTracker.isOre(player.serverLevel().getBlockState(pos)));
-        state.specialPositions().removeIf(pos -> !player.serverLevel().isLoaded(pos)
-                || !isSpecialContainerOrSpawner(player.serverLevel(), pos, player.serverLevel().getBlockState(pos)));
-        syncOreMarkers(player, state.orePositions(), state.specialPositions(), (int) (state.expiresAt() - gameTime));
     }
 
     // ===== 反击护体拦截与反弹 =====
@@ -1019,28 +965,6 @@ final class SkillActiveExecutor {
         }
     }
 
-    private static void syncOreMarkers(ServerPlayer player, Set<BlockPos> ores, Set<BlockPos> specials, int ticks) {
-        List<BlockPos> sortedOres = ores.stream()
-                .sorted(Comparator.comparingDouble(pos -> player.distanceToSqr(Vec3.atCenterOf(pos))))
-                .limit(512)
-                .toList();
-        int[] colors = new int[sortedOres.size()];
-        ServerLevel world = player.serverLevel();
-        for (int i = 0; i < sortedOres.size(); i++) {
-            BlockPos p = sortedOres.get(i);
-            colors[i] = world.isLoaded(p) ? oreColor(world.getBlockState(p)) : 0xFF62E9F2;
-        }
-        CompoundTag tag = new CompoundTag();
-        tag.putString("dimension", world.dimension().location().toString());
-        tag.putInt("ticks", ticks);
-        tag.putLongArray("positions", sortedOres.stream().mapToLong(BlockPos::asLong).toArray());
-        tag.putIntArray("colors", colors);
-        tag.putLongArray("specialPositions", specials.stream()
-                .sorted(Comparator.comparingDouble(pos -> player.distanceToSqr(Vec3.atCenterOf(pos))))
-                .limit(128).mapToLong(BlockPos::asLong).toArray());
-        PacketDistributor.sendToPlayer(player, new OreSightPayload(tag));
-    }
-
     private static List<LivingEntity> targets(ServerLevel level, ServerPlayer source, Vec3 center, double radius) {
         AABB bounds = new AABB(center.x - radius, center.y - radius, center.z - radius,
                 center.x + radius, center.y + radius, center.z + radius);
@@ -1128,8 +1052,7 @@ final class SkillActiveExecutor {
             AIR_STEP_LANDING_SHOCKWAVE.remove(player.getUUID());
         }
         if (!active.contains(ModSkills.ORE_SIGHT)) {
-            ORE_SIGHT.remove(player.getUUID());
-            syncOreMarkers(player, Set.of(), Set.of(), 0);
+            SkillOreSight.clear(player);
         }
         if (!active.contains(ModSkills.GRAVITY_WELL)) {
             GRAVITY_WELLS.removeIf(well -> {
@@ -1159,8 +1082,7 @@ final class SkillActiveExecutor {
                 broadcastGuardEffect(player, CounterGuardEffectPayload.Action.CLEAR);
             }
         } else if (ModSkills.ORE_SIGHT.equals(skillId)) {
-            ORE_SIGHT.remove(player.getUUID());
-            syncOreMarkers(player, Set.of(), Set.of(), 0);
+            SkillOreSight.clear(player);
         } else if (ModSkills.GRAVITY_WELL.equals(skillId)) {
             GRAVITY_WELLS.removeIf(well -> {
                 if (!well.ownerId().equals(player.getUUID())) return false;
@@ -1185,8 +1107,7 @@ final class SkillActiveExecutor {
         if (GUARDS.remove(id) != null) {
             broadcastGuardEffect(player, CounterGuardEffectPayload.Action.CLEAR);
         }
-        ORE_SIGHT.remove(id);
-        syncOreMarkers(player, Set.of(), Set.of(), 0);
+        SkillOreSight.clear(player);
         GRAVITY_WELLS.removeIf(well -> {
             if (!well.ownerId().equals(id)) return false;
             if (well.visualId() > 0) Skill3dEffectPayload.fade(well.level(), well.center(), well.visualId());
