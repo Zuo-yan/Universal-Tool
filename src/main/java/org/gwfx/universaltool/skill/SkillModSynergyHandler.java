@@ -8,21 +8,10 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.entity.ai.attributes.AttributeModifier;
-import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.AABB;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.init.ModItems;
 import org.gwfx.universaltool.item.UniversalToolItem;
-import org.gwfx.universaltool.klein.KleinBottleItem;
-import org.gwfx.universaltool.klein.KleinStorageSavedData;
-import org.gwfx.universaltool.klein.KleinWarehouse;
-import org.gwfx.universaltool.lottery.LotteryValuator;
-
-import java.math.BigInteger;
-import java.util.List;
 
 /**
  * 模组七大玩法与技能系统的深度联动入口（聚合台、抽奖机、克莱因瓶、时空法典、口袋界域、凤凰培养仓、万能工具）。
@@ -32,7 +21,7 @@ import java.util.List;
 public final class SkillModSynergyHandler {
     private SkillModSynergyHandler() {}
 
-    // ===== 1. 万能工具联动（兵刃共鸣 tool_resonance） =====
+    // ===== 1. 万能工具与侵晨联动（兵刃共鸣 tool_resonance） =====
 
     /**
      * 获取手持万能工具时的材质阶梯（0 = 非万能工具；1=木, 2=石, 3=铁, 4=金, 5=钻, 6=下界合金）。
@@ -49,9 +38,24 @@ public final class SkillModSynergyHandler {
         return 1;
     }
 
+    /**
+     * 获取手持本模组武器/工具时的综合材质阶梯（万能工具 1~6 阶、侵晨剑 7 阶、其余模组可耐久装备 5 阶）。
+     */
+    public static int modWeaponTierRank(ItemStack stack) {
+        if (stack.isEmpty()) return 0;
+        int toolRank = universalToolTierRank(stack);
+        if (toolRank > 0) return toolRank;
+        if (stack.is(ModItems.QINCHEN_SWORD.get())) return 7;
+        var key = stack.getItemHolder().unwrapKey().orElse(null);
+        if (key != null && UniversalToolMod.MODID.equals(key.location().getNamespace()) && stack.isDamageableItem()) {
+            return 5;
+        }
+        return 0;
+    }
+
     public static boolean isHoldingUniversalTool(ServerPlayer player) {
-        return universalToolTierRank(player.getMainHandItem()) > 0
-                || universalToolTierRank(player.getOffhandItem()) > 0;
+        return modWeaponTierRank(player.getMainHandItem()) > 0
+                || modWeaponTierRank(player.getOffhandItem()) > 0;
     }
 
     // ===== 2. 凤凰计划联动（phoenix_ember） =====
@@ -151,67 +155,11 @@ public final class SkillModSynergyHandler {
         }
     }
 
-    // ===== 4. 克莱因超维仓储联动（hyper_conduit） =====
+    // ===== 4. 战利品与星锻时运（hyper_conduit 已重做，保留克莱因拾取接口兼容） =====
 
     public static int hyperConduitLevel(ServerPlayer player) {
-        if (player == null || !SkillManager.isEnabled(player.serverLevel())) {
-            return 0;
-        }
-        return SkillPassiveHandler.equippedLevel(player, ModSkills.HYPER_CONDUIT);
-    }
-
-    /**
-     * 若玩家已装配「超维直达」，优先把物品直达克莱因超维仓储（若持有克莱因瓶）或直入玩家背包。
-     *
-     * @return true 表示物品已被全部吸收，不再需要落地掉落
-     */
-    public static boolean routeDropToPlayer(ServerPlayer player, ItemStack stack, boolean fromKleinSkillStat) {
-        if (player == null || stack.isEmpty() || !SkillManager.isEnabled(player.serverLevel())) {
-            return false;
-        }
-        int lv = SkillPassiveHandler.equippedLevel(player, ModSkills.HYPER_CONDUIT);
-        if (lv <= 0) {
-            return false;
-        }
-        PlayerSkillData data = SkillManager.data(player);
-        boolean hasBottle = hasKleinBottle(player.getInventory());
-        boolean storedToKlein = false;
-        if (hasBottle && KleinWarehouse.canStore(stack)) {
-            KleinStorageSavedData saved = KleinStorageSavedData.get(player.server);
-            KleinWarehouse warehouse = saved.warehouse(player.getUUID());
-            if (lv >= 2 || warehouse.containsType(stack)) {
-                BigInteger accepted = warehouse.insert(stack, BigInteger.valueOf(stack.getCount()));
-                int count = accepted.intValue();
-                if (count > 0) {
-                    stack.shrink(count);
-                    saved.changed();
-                    saved.syncViewers(player.getUUID());
-                    storedToKlein = true;
-                    if (fromKleinSkillStat) {
-                        data.incrementStat("klein_pickups", 1, skill -> SkillManager.notifySkillUnlocked(player, skill));
-                    }
-                }
-            }
-        }
-        if (storedToKlein) {
-            player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
-                    SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.25F, 1.6F);
-        }
-        if (!stack.isEmpty()) {
-            if (player.getInventory().add(stack)) {
-                player.inventoryMenu.broadcastChanges();
-            }
-        }
-        return stack.isEmpty();
-    }
-
-    private static boolean hasKleinBottle(net.minecraft.world.entity.player.Inventory inv) {
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            if (inv.getItem(i).getItem() instanceof KleinBottleItem) {
-                return true;
-            }
-        }
-        return false;
+        // 原「超维直达」已彻底重做为「星锻时运」；返回 0 以保持克莱因瓶原拾取逻辑完全一致
+        return 0;
     }
 
     public static void onKleinBottlePickup(ServerPlayer player) {
@@ -223,89 +171,57 @@ public final class SkillModSynergyHandler {
         SkillCombatTracker.markDirty(player);
     }
 
-    /** 普通挖矿掉落直达背包或克莱因超维仓储；Lv.3 觉醒直接吸收并额外 +25% 原版经验。 */
     static void onBlockDrops(net.neoforged.neoforge.event.level.BlockDropsEvent event) {
-        if (!(event.getBreaker() instanceof ServerPlayer player) || !SkillManager.isEnabled(player.serverLevel())) {
-            return;
-        }
-        int lv = SkillPassiveHandler.equippedLevel(player, ModSkills.HYPER_CONDUIT);
-        if (lv <= 0) {
-            return;
-        }
-        var it = event.getDrops().iterator();
-        while (it.hasNext()) {
-            ItemEntity entity = it.next();
-            ItemStack stack = entity.getItem();
-            if (routeDropToPlayer(player, stack, false)) {
-                it.remove();
-            } else {
-                entity.setItem(stack);
-            }
-        }
-        if (lv >= 3 && event.getDroppedExperience() > 0) {
-            int bonusXp = Math.max(1, Math.round(event.getDroppedExperience() * 1.25F));
-            player.giveExperiencePoints(bonusXp);
-            event.setDroppedExperience(0);
-        }
+        SkillPassiveHandler.onBlockDrops(event);
+        SkillResonanceHandler.onBlockDrops(event);
     }
 
-    /** 击杀非玩家生物战利品直达背包或克莱因超维仓储。 */
     static void onLivingDrops(net.neoforged.neoforge.event.entity.living.LivingDropsEvent event) {
-        if (event.isCanceled() || event.getEntity() instanceof net.minecraft.world.entity.player.Player) {
-            return;
-        }
-        if (!(event.getSource().getEntity() instanceof ServerPlayer player) || !SkillManager.isEnabled(player.serverLevel())) {
-            return;
-        }
-        if (SkillPassiveHandler.equippedLevel(player, ModSkills.HYPER_CONDUIT) <= 0) {
-            return;
-        }
-        var it = event.getDrops().iterator();
-        while (it.hasNext()) {
-            ItemEntity entity = it.next();
-            ItemStack stack = entity.getItem();
-            if (routeDropToPlayer(player, stack, false)) {
-                it.remove();
-            } else {
-                entity.setItem(stack);
-            }
-        }
+        SkillPassiveHandler.onLivingDrops(event);
     }
 
-    /** Lv.3 觉醒：击杀掉落经验球直接吸收并 +25%。 */
     static void onLivingExperienceDrop(net.neoforged.neoforge.event.entity.living.LivingExperienceDropEvent event) {
-        if (!(event.getAttackingPlayer() instanceof ServerPlayer player) || !SkillManager.isEnabled(player.serverLevel())) {
-            return;
-        }
-        int lv = SkillPassiveHandler.equippedLevel(player, ModSkills.HYPER_CONDUIT);
-        if (lv >= 3 && event.getDroppedExperience() > 0) {
-            int bonusXp = Math.max(1, Math.round(event.getDroppedExperience() * 1.25F));
-            player.giveExperiencePoints(bonusXp);
-            event.setDroppedExperience(0);
-        }
+        SkillPassiveHandler.onLivingExperienceDrop(event);
     }
 
-    // ===== 5. 万能聚合台联动（void_fortune） =====
+    // ===== 5. 万能聚合台联动（void_fortune + 巧匠 6 星共鸣） =====
 
-    /** 查询聚合台附近 8 格内玩家「虚空眷顾」带来的每 tick 额外加速步数（0 = 无加速，1~2 = 额外减进度）。 */
+    /** 查询聚合台附近玩家「虚空眷顾」及「天工开物(巧匠6星)」带来的每 tick 额外加速步数。 */
     public static int polymerizerExtraProgressTicks(ServerLevel level, BlockPos pos) {
         if (level == null || !SkillManager.isEnabled(level)) {
             return 0;
         }
         int maxLv = 0;
+        boolean craftsman6 = false;
+        double cx = pos.getX() + 0.5;
+        double cy = pos.getY() + 0.5;
+        double cz = pos.getZ() + 0.5;
         for (ServerPlayer player : level.players()) {
-            if (player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 64.0) {
+            double distSqr = player.distanceToSqr(cx, cy, cz);
+            if (distSqr <= 64.0) {
                 int lv = SkillPassiveHandler.equippedLevel(player, ModSkills.VOID_FORTUNE);
                 if (lv > maxLv) maxLv = lv;
             }
+            if (distSqr <= 144.0 && SkillManager.data(player).resonanceTier(SkillConstellation.QIAOJIANG) >= 3) {
+                craftsman6 = true;
+            }
         }
-        if (maxLv <= 0) return 0;
         long t = level.getGameTime();
-        return switch (maxLv) {
-            case 1 -> (t % 4 == 0) ? 1 : 0;   // +25%
-            case 2 -> (t % 2 == 0) ? 1 : 0;   // +50%
-            default -> (t % 5 == 0) ? 0 : 1;  // +80%
-        };
+        int extra = 0;
+        if (maxLv > 0) {
+            extra += switch (maxLv) {
+                case 1 -> (t % 4 == 0) ? 1 : 0;   // +25%
+                case 2 -> (t % 2 == 0) ? 1 : 0;   // +50%
+                default -> (t % 5 == 0) ? 0 : 1;  // +80%
+            };
+            if (t % 10 == 0) {
+                level.sendParticles(ParticleTypes.END_ROD, cx, cy + 0.7, cz, 2, 0.32, 0.18, 0.32, 0.02);
+            }
+        }
+        if (craftsman6) {
+            extra += 1;
+        }
+        return extra;
     }
 
     public static void onPolymerizerFinished(ServerLevel level, BlockPos pos) {

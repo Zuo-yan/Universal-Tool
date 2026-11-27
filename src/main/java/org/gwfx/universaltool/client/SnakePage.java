@@ -14,6 +14,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
+import net.neoforged.neoforge.network.PacketDistributor;
+import org.gwfx.universaltool.network.SnakeScoreRewardPayload;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayDeque;
@@ -34,6 +36,7 @@ public final class SnakePage implements IPhonePage {
     private static final int BONUS_FOOD_POINTS = 30;
     private static final int BONUS_DURATION_TICKS = 140;
     private static final int BONUS_SPAWN_INTERVAL = 5;
+    private static final int REWARD_TARGET_SCORE = SnakeScoreRewardPayload.REQUIRED_SCORE;
 
     private static final int GRID_BG_DARK = 0xFF0E1B14;
     private static final int GRID_BG_LIGHT = 0xFF13241B;
@@ -93,6 +96,7 @@ public final class SnakePage implements IPhonePage {
     private int score;
     private int runStartBest;
     private boolean beatHighScoreThisRun;
+    private boolean rewardClaimSentThisRun;
     private int stepTickCounter;
     private int animTick;
 
@@ -378,6 +382,11 @@ public final class SnakePage implements IPhonePage {
                 playUiSound(SoundEvents.PLAYER_LEVELUP, 1.15F);
             }
         }
+        if (score >= REWARD_TARGET_SCORE && !rewardClaimSentThisRun) {
+            rewardClaimSentThisRun = true;
+            PacketDistributor.sendToServer(new SnakeScoreRewardPayload(score));
+            playUiSound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0F);
+        }
     }
 
     private void triggerGameOver() {
@@ -408,6 +417,7 @@ public final class SnakePage implements IPhonePage {
         stepTickCounter = 0;
         runStartBest = bestScore;
         beatHighScoreThisRun = false;
+        rewardClaimSentThisRun = false;
         state = targetState;
         spawnNormalFood();
     }
@@ -575,6 +585,15 @@ public final class SnakePage implements IPhonePage {
             drawScaledText(g, font, lenText, infoX, infoY, infoW, style.bodyColor(), false);
             String hintText = Component.translatable("gui.universal_tool.snake.hint").getString();
             drawScaledText(g, font, hintText, infoX, infoY + 12, infoW, style.subtleColor(), false);
+            boolean reachedReward = score >= REWARD_TARGET_SCORE || bestScore >= REWARD_TARGET_SCORE;
+            String rewardText = Component.translatable(
+                    reachedReward
+                            ? "gui.universal_tool.snake.reward_unlocked"
+                            : "gui.universal_tool.snake.reward_goal_short",
+                    REWARD_TARGET_SCORE
+            ).getString();
+            drawScaledText(g, font, rewardText, infoX, infoY + 24, infoW,
+                    reachedReward ? SNAKE_HEAD : BONUS_GOLD, false);
         }
     }
 
@@ -634,6 +653,16 @@ public final class SnakePage implements IPhonePage {
         if (state == State.GAME_OVER) {
             String sub = Component.translatable("gui.universal_tool.snake.final_score", score).getString();
             drawScaledCenteredText(g, font, sub, gridX + 4, gridY + gridH / 2 - 14, gridW - 8, BONUS_GOLD, false);
+        } else {
+            boolean reachedReward = score >= REWARD_TARGET_SCORE || bestScore >= REWARD_TARGET_SCORE;
+            String goal = Component.translatable(
+                    reachedReward
+                            ? "gui.universal_tool.snake.reward_unlocked"
+                            : "gui.universal_tool.snake.reward_goal",
+                    REWARD_TARGET_SCORE
+            ).getString();
+            drawScaledCenteredText(g, font, goal, gridX + 4, gridY + gridH / 2 - 14, gridW - 8,
+                    reachedReward ? SNAKE_HEAD : BONUS_GOLD, false);
         }
 
         boolean hovered = canvas.hovered(overlayActionBtn.x, overlayActionBtn.y,
@@ -650,6 +679,18 @@ public final class SnakePage implements IPhonePage {
         int btnTextY = overlayActionBtn.y + (overlayActionBtn.h - font.lineHeight) / 2;
         drawScaledCenteredText(g, font, btnLabel, overlayActionBtn.x + 3, btnTextY,
                 overlayActionBtn.w - 6, 0xFFFFFFFF, true);
+
+        if (state == State.GAME_OVER) {
+            boolean reachedReward = score >= REWARD_TARGET_SCORE || bestScore >= REWARD_TARGET_SCORE;
+            String goal = Component.translatable(
+                    reachedReward
+                            ? "gui.universal_tool.snake.reward_unlocked"
+                            : "gui.universal_tool.snake.reward_goal",
+                    REWARD_TARGET_SCORE
+            ).getString();
+            drawScaledCenteredText(g, font, goal, gridX + 4, overlayActionBtn.y + overlayActionBtn.h + 5,
+                    gridW - 8, reachedReward ? SNAKE_HEAD : BONUS_GOLD, false);
+        }
     }
 
     private void updateLayout(int x, int y, int w, int h) {

@@ -71,6 +71,7 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
             systemProperty 'universal_tool.islandTests', 'true'
             systemProperty 'universal_tool.phainonTestsOnly', providers.gradleProperty('phainonTestsOnly').orElse('false').get()
+            systemProperty 'universal_tool.skillTestsOnly', providers.gradleProperty('skillTestsOnly').orElse('false').get()
         }
         islandGameTestUnlocked {
             type = 'gameTestServer'

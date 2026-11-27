@@ -41,14 +41,15 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.init.ModMenuTypes;
 
 public final class KleinMenu extends AbstractContainerMenu {
-    public static final int GRID_X = 8, GRID_Y = 49, PLAYER_X = 9, PLAYER_Y = 158, HOTBAR_Y = 216;
+    public static final int MAIN_WIDTH = 204, HEIGHT = 244;
+    public static final int GRID_X = 12, GRID_Y = 55, PLAYER_X = 21, PLAYER_Y = 164, HOTBAR_Y = 221;
     public static final int VISIBLE_ROWS = 5;
-    public static final int DRAWER_WIDTH = 116, DRAWER_HEIGHT = 105;
-    public static final int DRAWER_X = 195, DRAWER_Y = 105;
-    public static final int DRAWER_GRID_X = 9, DRAWER_GRID_Y = 31, DRAWER_SLOT_STEP = 18;
-    public static final int DRAWER_RESULT_X = 89, DRAWER_RESULT_Y = 49;
-    public static final int ANVIL_LEFT_X = 9, ANVIL_RIGHT_X = 47;
-    public static final int SMELT_X = 49, SMELT_INPUT_Y = 29, SMELT_OUTPUT_Y = 74;
+    public static final int DRAWER_WIDTH = 114, DRAWER_HEIGHT = 132;
+    public static final int DRAWER_X = MAIN_WIDTH + 4, DRAWER_Y = 22;
+    public static final int DRAWER_GRID_X = 7, DRAWER_GRID_Y = 30, DRAWER_SLOT_STEP = 18;
+    public static final int DRAWER_RESULT_X = 87, DRAWER_RESULT_Y = 48;
+    public static final int ANVIL_LEFT_X = 8, ANVIL_RIGHT_X = 45;
+    public static final int SMELT_X = 48, SMELT_INPUT_Y = 24, SMELT_OUTPUT_Y = 78;
 
     public static final int CRAFT_RESULT_SLOT = 36;
     public static final int CRAFT_GRID_START = 37;
@@ -56,6 +57,7 @@ public final class KleinMenu extends AbstractContainerMenu {
     public static final int ANVIL_LEFT_SLOT = 48, ANVIL_RIGHT_SLOT = 49, ANVIL_RESULT_SLOT = 50;
 
     public static final int SORT_QUANTITY = 0, SORT_NAME = 1, SORT_MOD = 2;
+    public static final int CATEGORY_ALL = 0, CATEGORY_BLOCKS = 1, CATEGORY_GEAR = 2, CATEGORY_OTHER = 3;
     public static final int DRAWER_NONE = 0, DRAWER_CRAFTING = 1, DRAWER_SMELTING = 2, DRAWER_ANVIL = 3;
 
     private final Inventory inventory;
@@ -70,6 +72,7 @@ public final class KleinMenu extends AbstractContainerMenu {
     private final List<KleinEntryData> filtered = new ArrayList<>();
     private String query = "";
     private int sortMode = SORT_QUANTITY;
+    private int category = CATEGORY_ALL;
     private boolean descending = true;
     private int scroll;
     private boolean autoDeposit;
@@ -639,13 +642,51 @@ public final class KleinMenu extends AbstractContainerMenu {
         refilter();
     }
 
+    public void setCategory(int category) {
+        int next = Math.max(CATEGORY_ALL, Math.min(CATEGORY_OTHER, category));
+        if (this.category != next) {
+            this.category = next;
+            scroll = 0;
+            refilter();
+        }
+    }
+
+    public int category() { return category; }
+
+    public int totalStoredTypes() { return clientEntries.size(); }
+
+    public BigInteger totalStoredItems() {
+        BigInteger sum = BigInteger.ZERO;
+        for (KleinEntryData entry : clientEntries.values()) {
+            sum = sum.add(entry.amount());
+        }
+        return sum;
+    }
+
+    private static boolean matchesCategory(ItemStack stack, int category) {
+        if (category == CATEGORY_ALL) return true;
+        boolean isBlock = stack.getItem() instanceof net.minecraft.world.item.BlockItem;
+        boolean isGear = stack.isDamageableItem()
+                || stack.getItem() instanceof net.minecraft.world.item.ArmorItem
+                || stack.getItem() instanceof net.minecraft.world.item.TieredItem
+                || stack.getItem() instanceof net.minecraft.world.item.ProjectileWeaponItem
+                || stack.getItem() instanceof net.minecraft.world.item.ShieldItem
+                || stack.getItem() instanceof net.minecraft.world.item.EnchantedBookItem;
+        return switch (category) {
+            case CATEGORY_BLOCKS -> isBlock;
+            case CATEGORY_GEAR -> isGear;
+            case CATEGORY_OTHER -> !isBlock && !isGear;
+            default -> true;
+        };
+    }
+
     private void refilter() {
         String raw = query.trim();
         filtered.clear();
 
         if (raw.startsWith("@")) {
             String modQuery = raw.substring(1).trim().toLowerCase(Locale.ROOT);
-            clientEntries.values().stream().filter(entry -> {
+            clientEntries.values().stream().filter(entry -> matchesCategory(entry.template(), category)).filter(entry -> {
                 ResourceLocation key = BuiltInRegistries.ITEM.getKey(entry.template().getItem());
                 if (key.getNamespace().toLowerCase(Locale.ROOT).contains(modQuery)) return true;
                 return ModList.get().getModContainerById(key.getNamespace())
@@ -654,7 +695,7 @@ public final class KleinMenu extends AbstractContainerMenu {
             }).forEach(filtered::add);
         } else if (raw.startsWith("#")) {
             String tagQuery = raw.substring(1).trim().toLowerCase(Locale.ROOT);
-            clientEntries.values().stream().filter(entry ->
+            clientEntries.values().stream().filter(entry -> matchesCategory(entry.template(), category)).filter(entry ->
                 entry.template().getTags().anyMatch(tag ->
                     tag.location().getPath().toLowerCase(Locale.ROOT).contains(tagQuery)
                     || tag.location().toString().toLowerCase(Locale.ROOT).contains(tagQuery)
@@ -662,7 +703,7 @@ public final class KleinMenu extends AbstractContainerMenu {
             ).forEach(filtered::add);
         } else {
             String needle = raw.toLowerCase(Locale.ROOT);
-            clientEntries.values().stream().filter(entry ->
+            clientEntries.values().stream().filter(entry -> matchesCategory(entry.template(), category)).filter(entry ->
                 needle.isEmpty()
                 || entry.template().getHoverName().getString().toLowerCase(Locale.ROOT).contains(needle)
                 || BuiltInRegistries.ITEM.getKey(entry.template().getItem()).toString().toLowerCase(Locale.ROOT).contains(needle)

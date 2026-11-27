@@ -1,5 +1,6 @@
 package org.gwfx.universaltool.init;
 
+import com.mojang.serialization.Codec;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -26,6 +27,14 @@ public final class ModAttachments {
 
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<PlayerSkillData>> SKILL_DATA =
             SkillAttachments.SKILL_DATA;
+
+    /** 玩家是否已通过手机「贪吃蛇」500 分成就领取过「侵晨」，死亡保留且持久化，防止重复刷取。 */
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<Boolean>> SNAKE_QINCHEN_CLAIMED =
+            ATTACHMENTS.register("snake_qinchen_claimed", () -> AttachmentType
+                    .builder(() -> false)
+                    .serialize(Codec.BOOL)
+                    .copyOnDeath()
+                    .build());
 
     private ModAttachments() {
     }

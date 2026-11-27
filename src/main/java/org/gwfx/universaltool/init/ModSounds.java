@@ -26,6 +26,15 @@ public final class ModSounds {
     public static final DeferredHolder<SoundEvent, SoundEvent> PHAINON_ULTIMATE_RELEASE =
             SOUNDS.register("skill.phainon_ultimate_release", () -> SoundEvent.createVariableRangeEvent(
                     ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "skill.phainon_ultimate_release")));
+    public static final DeferredHolder<SoundEvent, SoundEvent> PHAINON_METEOR_VOICE =
+            SOUNDS.register("skill.phainon_meteor_voice", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "skill.phainon_meteor_voice")));
+    public static final DeferredHolder<SoundEvent, SoundEvent> PHAINON_COUNTER_GUARD_VOICE =
+            SOUNDS.register("skill.phainon_counter_guard_voice", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "skill.phainon_counter_guard_voice")));
+    public static final DeferredHolder<SoundEvent, SoundEvent> PHAINON_COUNTER_STRIKE_VOICE =
+            SOUNDS.register("skill.phainon_counter_strike_voice", () -> SoundEvent.createVariableRangeEvent(
+                    ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "skill.phainon_counter_strike_voice")));
 
     public static final DeferredHolder<SoundEvent, SoundEvent> NAIWA_LAUGH =
             SOUNDS.register("entity.naiwa.laugh", () -> SoundEvent.createVariableRangeEvent(

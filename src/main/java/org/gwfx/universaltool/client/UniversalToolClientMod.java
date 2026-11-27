@@ -20,8 +20,9 @@ import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.client.phainon.PhainonBloodthornVisuals;
-import org.gwfx.universaltool.client.phainon.PhainonMeteorVisuals;
+import org.gwfx.universaltool.client.phainon.PhainonCounterMeshes;
 import org.gwfx.universaltool.client.phainon.PhainonEnhancedBasicEffects;
+import org.gwfx.universaltool.client.phainon.PhainonMeteorMeshes;
 import org.gwfx.universaltool.client.phainon.PhainonSkillEffectRenderer;
 import org.gwfx.universaltool.client.phainon.PhainonSwordClientExtensions;
 import org.gwfx.universaltool.client.phainon.PhainonUltimateMeshes;
@@ -141,8 +142,8 @@ public final class UniversalToolClientMod {
             PhainonVfxModelData.invalidate();
             PhainonUltimateMeshes.reload(resourceManager);
             PhainonBloodthornVisuals.reload(resourceManager);
-            PhainonMeteorVisuals.reload(resourceManager);
-            org.gwfx.universaltool.client.phainon.PhainonCounterEffects.reload(resourceManager);
+            PhainonMeteorMeshes.reload(resourceManager);
+            PhainonCounterMeshes.reload(resourceManager);
         });
     }
 

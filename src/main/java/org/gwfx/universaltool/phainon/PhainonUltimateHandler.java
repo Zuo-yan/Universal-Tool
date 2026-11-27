@@ -158,7 +158,8 @@ public final class PhainonUltimateHandler {
         } else if (age == AWAKEN_TICK - 12) {
             play(caster, SoundEvents.BEACON_ACTIVATE, 0.33F, 0.75F);
         } else if (age >= AWAKEN_TICK && ModDataComponents.getPhainonWeaponState(cast.sword()).canAwaken()) {
-            ModDataComponents.setPhainonWeaponState(cast.sword(), new PhainonWeaponState(0, true));
+            ModDataComponents.setPhainonWeaponState(cast.sword(),
+                    ModDataComponents.getPhainonWeaponState(cast.sword()).withAwakened());
             caster.swing(cast.hand(), true);
             play(caster, ModSounds.PHAINON_ULTIMATE_RELEASE.get(), 1.0F, 1.0F);
             play(caster, SoundEvents.TRIDENT_THUNDER.value(), 0.30F, 1.25F);

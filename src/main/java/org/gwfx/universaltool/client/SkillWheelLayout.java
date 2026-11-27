@@ -4,11 +4,11 @@ package org.gwfx.universaltool.client;
 record SkillWheelLayout(int centerX, int centerY, float scale, int count) {
     static final int CARD_WIDTH = 86;
     static final int CARD_HEIGHT = 28;
-    static final int CONTENT_WIDTH = 368;
-    private static final int CONTENT_HEIGHT = 228;
+    static final int CONTENT_WIDTH = 388;
+    private static final int CONTENT_HEIGHT = 248;
     private static final int HOTBAR_CLEARANCE = 24;
-    private static final int RADIUS_X = 132;
-    private static final int RADIUS_Y = 67;
+    private static final int RADIUS_X = 142;
+    private static final int RADIUS_Y = 78;
     private static final int DEAD_ZONE = 18;
     private static final double FULL_TURN = 2 * Math.PI;
     private static final double SECTOR_MARGIN = Math.toRadians(4);

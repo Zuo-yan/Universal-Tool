@@ -93,6 +93,7 @@ public final class SkillCommands {
         }
         PlayerSkillData data = SkillManager.data(player);
         int changed = data.maximizeAllSkills();
+        SkillManager.clearRuntimeEffectsForPlayer(player);
         SkillManager.sync(player);
         source.sendSuccess(() -> Component.translatable("command.universal_tool.skills.max_success",
                 data.level(), data.activeSlotCount(), data.passiveSlotCount()), true);

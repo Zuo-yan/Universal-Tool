@@ -45,6 +45,9 @@ public class UniversalToolMod {
         if (Boolean.getBoolean("universal_tool.phainonTestsOnly")) {
             modEventBus.addListener((RegisterGameTestsEvent event) ->
                     event.register(org.gwfx.universaltool.phainon.PhainonNormalSkillGameTests.class));
+        } else if (Boolean.getBoolean("universal_tool.skillTestsOnly")) {
+            modEventBus.addListener((RegisterGameTestsEvent event) ->
+                    event.register(org.gwfx.universaltool.skill.SkillProgressionGameTests.class));
         } else if (Boolean.getBoolean("universal_tool.islandTests")) {
             modEventBus.addListener((RegisterGameTestsEvent event) -> {
                 event.register(org.gwfx.universaltool.space.PrivateSpaceGameTests.class);

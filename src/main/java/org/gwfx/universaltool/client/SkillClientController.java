@@ -19,6 +19,7 @@ import org.gwfx.universaltool.network.CastActiveSkillPayload;
 import org.gwfx.universaltool.network.RequestSkillScreenPayload;
 import org.gwfx.universaltool.skill.ModSkills;
 import org.gwfx.universaltool.skill.PlayerSkillData;
+import org.gwfx.universaltool.skill.SkillConstellation;
 import org.gwfx.universaltool.skill.SkillDefinition;
 import org.lwjgl.glfw.GLFW;
 
@@ -153,6 +154,7 @@ public final class SkillClientController {
         int slotSize = 24;
         int x = g.guiWidth() / 2 + 91 + 6;
         int y = g.guiHeight() - slotSize - 1 + bounceY;
+        boolean showingChargeBar = false;
 
         SkillDefinition def = ModSkills.find(id).orElse(null);
         int accent = def != null ? def.constellation().primaryColor() : SkillScreenStyle.GOLD;
@@ -160,7 +162,7 @@ public final class SkillClientController {
         long remainingMillis = data.cooldownRemainingMillis(id);
         long seconds = (remainingMillis + 999) / 1000;
 
-        // 深空鎏金星徽主槽
+        // 深空鎏金极简主动主槽（不堆砌额外小图标与被动列表）
         g.fill(x, y, x + slotSize, y + slotSize, 0xE00A0E1D);
         int border = onCooldown ? 0xFF34405E : (data.isAwakened(id) ? SkillScreenStyle.GOLD_BRIGHT : accent);
         SkillScreenStyle.outline(g, x, y, slotSize, slotSize, border);
@@ -173,6 +175,14 @@ public final class SkillClientController {
 
         if (onCooldown) {
             long totalMillis = def != null ? def.cooldownTicks() * 50L : 1000L;
+            int tianshuRes = data.resonanceTier(SkillConstellation.TIANSHU);
+            float mult = 1.0F;
+            if (tianshuRes >= 1) mult -= 0.18F;
+            if (tianshuRes >= 3) mult -= 0.15F;
+            if (data.passiveLoadout().contains(ModSkills.SPATIAL_ATTUNEMENT)) {
+                mult -= 0.05F * data.learnedLevel(ModSkills.SPATIAL_ATTUNEMENT);
+            }
+            totalMillis = Math.max(500L, Math.round(totalMillis * Math.max(0.35F, mult)));
             float cdRatio = Math.max(0.0F, Math.min(1.0F, remainingMillis / (float) Math.max(1, totalMillis)));
             int sweepH = Math.round(20 * cdRatio);
             if (sweepH > 0) {
@@ -187,7 +197,8 @@ public final class SkillClientController {
         }
 
         // 蓄力进度条
-        if (def != null && (def.charged() || ModSkills.AIR_STEP.equals(id)) && wasCasting && !onCooldown) {
+        boolean allowAirStepBar = !ModSkills.AIR_STEP.equals(id) || !minecraft.player.onGround();
+        if (def != null && (def.charged() || ModSkills.AIR_STEP.equals(id)) && allowAirStepBar && wasCasting && !onCooldown) {
             int chargeTicks = ModSkills.AIR_STEP.equals(id)
                     ? org.gwfx.universaltool.skill.SkillManager.airStepDurationTicks(data.learnedLevel(id))
                     : def.chargeTicks();
@@ -196,6 +207,7 @@ public final class SkillClientController {
             int barW = Math.round(slotSize * ratio);
             g.fill(x, y - 5, x + slotSize, y - 2, 0xDD0A0E1D);
             g.fill(x, y - 5, x + barW, y - 2, SkillScreenStyle.TEXT_CYAN);
+            showingChargeBar = true;
         }
 
         // 经验脉冲微条（获得经验后短暂浮现 3.2 秒）
@@ -203,31 +215,12 @@ public final class SkillClientController {
         if (xpAlpha > 0.02F) {
             int nextXp = data.experienceForNextLevel();
             float xpRatio = nextXp == 0 ? 1.0F : Math.min(1.0F, data.experience() / (float) nextXp);
-            int barY = y - 4;
-            int barW = slotSize + 24;
+            int barY = showingChargeBar ? (y - 9) : (y - 4);
+            int barW = slotSize;
             g.fill(x, barY, x + barW, barY + 2, SkillScreenStyle.withAlpha(0x0A0E1D, xpAlpha));
             int filled = Math.round(barW * xpRatio);
             if (filled > 0) {
                 g.fill(x, barY, x + filled, barY + 2, SkillScreenStyle.withAlpha(SkillScreenStyle.GOLD_BRIGHT, xpAlpha));
-            }
-        }
-
-        // 其余装配主动技能的迷你状态缩略格
-        List<String> actives = data.activeLoadout();
-        if (actives.size() > 1) {
-            int miniX = x + slotSize + 4;
-            int miniY = y + slotSize - 10;
-            for (int i = 0; i < actives.size(); i++) {
-                String aid = actives.get(i);
-                if (aid.equals(id)) continue;
-                boolean cd = data.onCooldown(aid);
-                g.fill(miniX, miniY, miniX + 10, miniY + 10, 0xDD0A0E1D);
-                SkillScreenStyle.outline(g, miniX, miniY, 10, 10, cd ? 0xFF3A425E : SkillScreenStyle.GOLD);
-                g.blit(SkillScreenStyle.icon(aid), miniX + 1, miniY + 1, 8, 8, 0.0F, 0.0F, 32, 32, 32, 32);
-                if (cd) {
-                    g.fill(miniX + 1, miniY + 1, miniX + 9, miniY + 9, 0x9905070E);
-                }
-                miniX += 12;
             }
         }
     }

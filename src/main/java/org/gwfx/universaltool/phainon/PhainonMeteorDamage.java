@@ -24,10 +24,12 @@ import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.init.ModDataComponents;
+import org.gwfx.universaltool.init.ModItems;
 
 @EventBusSubscriber(modid = UniversalToolMod.MODID)
 public final class PhainonMeteorDamage {
-    private static final float MINOR_DAMAGE = 24, GIANT_DAMAGE = 144;
+    public static final float MINOR_DAMAGE = 24.0F, GIANT_DAMAGE = 144.0F;
     private static final ResourceKey<DamageType> DAMAGE_TYPE = ResourceKey.create(Registries.DAMAGE_TYPE,
             ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "phainon_meteor"));
     private static final Map<ServerLevel, List<Volley>> ACTIVE = new HashMap<>();
@@ -37,7 +39,8 @@ public final class PhainonMeteorDamage {
     static void start(ServerPlayer player, InteractionHand hand, Vec3 aim) {
         ServerLevel level = player.serverLevel();
         var packet = new MeteorShowerPayload(player.getId(), hand, level.getGameTime(), MeteorShower.plan(player, aim), false);
-        var volley = new Volley(player.getUUID(), packet);
+        float damageMultiplier = ModDataComponents.getPhainonWeaponState(player.getItemInHand(hand)).damageMultiplier();
+        var volley = new Volley(player.getUUID(), packet, damageMultiplier);
         ACTIVE.computeIfAbsent(level, ignored -> new ArrayList<>()).add(volley);
         volley.syncObservers(level);
     }
@@ -45,13 +48,23 @@ public final class PhainonMeteorDamage {
     private static final class Volley {
         final UUID owner;
         final MeteorShowerPayload cast;
+        final float baseDamageMultiplier;
         final Set<UUID> observers = new HashSet<>();
         int nextImpact;
         boolean giantHit;
 
-        Volley(UUID owner, MeteorShowerPayload cast) {
+        Volley(UUID owner, MeteorShowerPayload cast, float baseDamageMultiplier) {
             this.owner = owner;
             this.cast = cast;
+            this.baseDamageMultiplier = baseDamageMultiplier;
+        }
+
+        private float currentDamageMultiplier(ServerPlayer caster) {
+            var held = caster.getItemInHand(cast.hand());
+            if (held.is(ModItems.QINCHEN_SWORD.get())) {
+                return Math.max(baseDamageMultiplier, ModDataComponents.getPhainonWeaponState(held).damageMultiplier());
+            }
+            return baseDamageMultiplier;
         }
 
         void syncObservers(ServerLevel level) {
@@ -77,11 +90,13 @@ public final class PhainonMeteorDamage {
             }
             syncObservers(level);
             while (nextImpact < MeteorShower.COUNT && age >= MeteorShower.impactTick(nextImpact)) {
-                strike(caster, cast.shower().landings().get(nextImpact++), MeteorShower.MINOR_RADIUS, MINOR_DAMAGE);
+                strike(caster, cast.shower().landings().get(nextImpact++), MeteorShower.MINOR_RADIUS,
+                        MINOR_DAMAGE * currentDamageMultiplier(caster));
             }
             if (!giantHit && age >= PhainonMeteor.IMPACT) {
                 giantHit = true;
-                strike(caster, cast.shower().center(), MeteorShower.GIANT_RADIUS, GIANT_DAMAGE);
+                strike(caster, cast.shower().center(), MeteorShower.GIANT_RADIUS,
+                        GIANT_DAMAGE * currentDamageMultiplier(caster));
             }
             return false;
         }

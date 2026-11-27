@@ -214,7 +214,11 @@ final class SkillScreenStyle {
         }
         if (label != null && !label.isEmpty()) {
             Font font = Minecraft.getInstance().font;
-            g.drawCenteredString(font, label, x + w / 2, y + (h - 8) / 2, TEXT_WHITE);
+            int textX = x + w / 2 - font.width(label) / 2;
+            int textY = y + (h - 8) / 2;
+            // 在偏亮或高对比背景上增加 1px 深空暗影，确保 MAX 与百分比清晰锐利
+            g.drawString(font, label, textX + 1, textY + 1, VOID_BG_TOP, false);
+            g.drawString(font, label, textX, textY, TEXT_TITLE, false);
         }
     }
 
@@ -248,6 +252,87 @@ final class SkillScreenStyle {
         outline(g, x, y, w, h, border);
         Font font = Minecraft.getInstance().font;
         g.drawCenteredString(font, text, x + w / 2, y + (h - 8) / 2, textColor);
+    }
+
+    /** 带顶部主色调光带的精致玻璃子卡容器。 */
+    static void accentCard(GuiGraphics g, int x, int y, int w, int h, int accentColor) {
+        g.fillGradient(x, y, x + w, y + h, 0xE611192E, 0xE60B1020);
+        outline(g, x, y, w, h, BORDER_SUBTLE);
+        g.fill(x + 1, y, x + w - 1, y + 1, withAlpha(accentColor, 0.75F));
+        g.fill(x + 1, y + 1, x + w - 1, y + 2, withAlpha(accentColor, 0.22F));
+    }
+
+    /** 精致胶囊筛选开关按钮（用于星图底部与图鉴主/被筛选）。 */
+    static void filterPill(GuiGraphics g, int x, int y, int w, int h, String text,
+                           boolean active, boolean hovered, int accentColor) {
+        int bg = active ? withAlpha(accentColor, 0.34F) : (hovered ? 0xCC1E2845 : 0xCC0D1324);
+        int border = active ? accentColor : (hovered ? GOLD_DIM : BORDER_SUBTLE);
+        int textCol = active ? GOLD_BRIGHT : (hovered ? TEXT_WHITE : TEXT_BODY);
+        g.fill(x, y, x + w, y + h, bg);
+        outline(g, x, y, w, h, border);
+        if (active) {
+            g.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, accentColor);
+        }
+        Font font = Minecraft.getInstance().font;
+        g.drawCenteredString(font, trim(font, text, Math.max(8, w - 4)), x + w / 2, y + (h - 8) / 2, textCol);
+    }
+
+    /** 星座共鸣 2/4/6 星三颗微型点亮星钻指示器。 */
+    static void resonanceDiamonds(GuiGraphics g, int x, int y, int tier, int accentColor) {
+        for (int i = 0; i < 3; i++) {
+            int dx = x + i * 6;
+            boolean lit = i < tier;
+            int col = lit ? (i == 2 ? GOLD_BRIGHT : accentColor) : 0xFF2B3652;
+            g.fill(dx + 1, y, dx + 3, y + 4, col);
+            g.fill(dx, y + 1, dx + 4, y + 3, col);
+            if (lit) {
+                g.fill(dx + 1, y + 1, dx + 3, y + 3, 0xFFFFFFFF);
+            }
+        }
+    }
+
+    /** 扫光高光条：在激活共鸣卡或重要按钮上周期性柔光掠过。 */
+    static void drawShimmerSweep(GuiGraphics g, int x, int y, int w, int h, int color, float phase01) {
+        if (w <= 4 || h <= 2) return;
+        float t = phase01 - (float) Math.floor(phase01);
+        if (t > 0.35F) return; // 仅在周期前 35% 扫过，留出呼吸感
+        float norm = t / 0.35F;
+        int sweepW = Math.max(8, w / 4);
+        int sx = x - sweepW + Math.round((w + sweepW * 2) * norm);
+        int x0 = Math.max(x + 1, sx);
+        int x1 = Math.min(x + w - 1, sx + sweepW);
+        if (x1 > x0) {
+            float alpha = 0.24F * (float) Math.sin(norm * Math.PI);
+            g.fill(x0, y + 1, x1, y + h - 1, withAlpha(color, alpha));
+        }
+    }
+
+    /** 带双脉冲流星与可调透明度的高级星轨连线。 */
+    static void drawStarTrackLineAlpha(GuiGraphics g, int x1, int y1, int x2, int y2,
+                                       int baseColor, int glowColor, boolean active,
+                                       boolean highlighted, float alphaScale, float timeSec) {
+        int steps = Math.max(8, (int) Math.hypot(x2 - x1, y2 - y1) / 2);
+        float a = Math.max(0.12F, Math.min(1.0F, alphaScale));
+        int lineColor = highlighted ? withAlpha(glowColor, 0.96F * a)
+                : (active ? withAlpha(baseColor, 0.68F * a) : withAlpha(0xFF33415C, 0.50F * a));
+        for (int i = 0; i <= steps; i++) {
+            float t = i / (float) steps;
+            int px = Math.round(x1 + (x2 - x1) * t);
+            int py = Math.round(y1 + (y2 - y1) * t);
+            g.fill(px, py, px + 1, py + 1, lineColor);
+            if (active || highlighted) {
+                g.fill(px, py + 1, px + 1, py + 2, withAlpha(lineColor, 0.34F));
+            }
+        }
+        if ((active || highlighted) && a > 0.45F) {
+            int pulses = highlighted ? 2 : 1;
+            for (int p = 0; p < pulses; p++) {
+                float pulseT = (timeSec * (highlighted ? 0.95F : 0.62F) + p * 0.5F) % 1.0F;
+                int px = Math.round(x1 + (x2 - x1) * pulseT);
+                int py = Math.round(y1 + (y2 - y1) * pulseT);
+                g.fill(px - 1, py - 1, px + 2, py + 2, withAlpha(GOLD_BRIGHT, 0.95F * a));
+            }
+        }
     }
 
     static String trim(Font font, String text, int width) {

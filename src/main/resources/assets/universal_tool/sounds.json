@@ -31,6 +31,36 @@
     "subtitle": "subtitles.universal_tool.skill.phainon_ultimate_release",
     "sounds": ["universal_tool:skill/phainon_ultimate_release"]
   },
+  "skill.phainon_meteor_voice": {
+    "category": "player",
+    "subtitle": "subtitles.universal_tool.skill.phainon_meteor_voice",
+    "sounds": [
+      {
+        "name": "universal_tool:skill/phainon_meteor_voice",
+        "stream": false
+      }
+    ]
+  },
+  "skill.phainon_counter_guard_voice": {
+    "category": "player",
+    "subtitle": "subtitles.universal_tool.skill.phainon_counter_guard_voice",
+    "sounds": [
+      {
+        "name": "universal_tool:skill/phainon_counter_guard_voice",
+        "stream": false
+      }
+    ]
+  },
+  "skill.phainon_counter_strike_voice": {
+    "category": "player",
+    "subtitle": "subtitles.universal_tool.skill.phainon_counter_strike_voice",
+    "sounds": [
+      {
+        "name": "universal_tool:skill/phainon_counter_strike_voice",
+        "stream": false
+      }
+    ]
+  },
   "entity.naiwa.laugh": {
     "category": "neutral",
     "subtitle": "subtitles.universal_tool.entity.naiwa.laugh",

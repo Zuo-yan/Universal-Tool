@@ -464,12 +464,13 @@ public final class PlayerSkillData {
     }
 
     /**
-     * 返回指定星座当前实际生效的共鸣阶层：0=无，1=2件共鸣，2=4件共鸣。
+     * 返回指定星座当前实际生效的共鸣阶层：0=无，1=2星共鸣，2=4星共鸣，3=6星终极共鸣。
      */
     public int resonanceTier(SkillConstellation constellation) {
         int maxAllowed = starRank().maxResonanceTier();
         if (maxAllowed <= 0) return 0;
         int equipped = constellationEquippedCount(constellation);
+        if (equipped >= 6 && maxAllowed >= 3) return 3;
         if (equipped >= 4 && maxAllowed >= 2) return 2;
         if (equipped >= 2 && maxAllowed >= 1) return 1;
         return 0;

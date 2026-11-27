@@ -42,4 +42,8 @@ public enum SkillConstellation {
     public String resonance4Key() {
         return "constellation.universal_tool." + id + ".res4";
     }
+
+    public String resonance6Key() {
+        return "constellation.universal_tool." + id + ".res6";
+    }
 }

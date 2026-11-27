@@ -12,9 +12,9 @@ import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.util.FastColor;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -28,27 +28,59 @@ import org.gwfx.universaltool.klein.KleinMenu;
 import org.gwfx.universaltool.klein.KleinRenamePayload;
 import org.lwjgl.glfw.GLFW;
 
+/**
+ * 「克莱因超维星舱」人因工程单核主仓 + 按需滑出式全息工作翼界面。
+ *
+ * <p>严格遵循单一职责与零重复原则：
+ * <ul>
+ *   <li>平时为居中紧凑单核终端，视线 100% 聚焦仓储与随身背包，右侧通透无任何冗余占位；</li>
+ *   <li>顶栏右侧提供全屏唯一的「合成 / 烧炼 / 铁砧」图标切换钮，激活时右侧丝滑滑出全息工作翼（JEI 自动避让），主仓全程纹丝不动；</li>
+ *   <li>仓库与背包之间的「传输交互过渡带」提供全屏唯一的「一键入库」与物理拨片式「自动入库」开关，操作动线最短。</li>
+ * </ul>
+ */
 public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
-    private static final int MAIN_WIDTH = 190;
-    private static final int HEIGHT = 237;
+    private static final int MAIN_W = KleinMenu.MAIN_WIDTH;
+    private static final int HEIGHT = KleinMenu.HEIGHT;
+    private static final int WING_X = KleinMenu.DRAWER_X;
+    private static final int WING_Y = KleinMenu.DRAWER_Y;
+    private static final int WING_W = KleinMenu.DRAWER_WIDTH;
+    private static final int WING_H = KleinMenu.DRAWER_HEIGHT;
+
     private static final int COLUMNS = 9;
     private static final int CELL = 18;
-    private static final int SCROLL_X = 175;
     private static final int GRID_HEIGHT = KleinMenu.VISIBLE_ROWS * CELL;
-    private static final int DOCK = KleinMenu.DRAWER_X;
-    private static final int DOCK_WIDTH = KleinMenu.DRAWER_WIDTH;
-    private static final int SEARCH_X = 8, SEARCH_Y = 24, SEARCH_W = 104, SEARCH_H = 14;
+    private static final int SCROLL_X = 186;
+
+    private static final int SEARCH_X = 8;
+    private static final int SEARCH_Y = 24;
+    private static final int SEARCH_W = 114;
+    private static final int SEARCH_H = 13;
 
     private enum Control {
-        CLEAR(99, SEARCH_Y + 1, 12, 12),
-        SORT(116, SEARCH_Y, 44, SEARCH_H),
-        DIRECTION(164, SEARCH_Y, 18, SEARCH_H),
-        CLOSE(DOCK + 96, 5, 14, 14),
-        DEPOSIT(DOCK + 7, 24, 102, 17),
-        AUTO(DOCK + 7, 45, 102, 17),
-        CRAFT(DOCK + 7, 72, 32, 27),
-        SMELT(DOCK + 42, 72, 32, 27),
-        ANVIL(DOCK + 77, 72, 32, 27);
+        // 顶栏（右侧唯一工作翼切换组 + 关闭）
+        STAT_BADGE(64, 5, 42, 13),
+        TOOL_CRAFT(122, 4, 18, 15),
+        TOOL_SMELT(142, 4, 18, 15),
+        TOOL_ANVIL(162, 4, 18, 15),
+        CLOSE(184, 5, 13, 13),
+
+        // 搜索与排序行
+        CLEAR(SEARCH_X + SEARCH_W - 12, SEARCH_Y + 1, 11, 11),
+        SORT(125, SEARCH_Y, 48, SEARCH_H),
+        DIRECTION(176, SEARCH_Y, 20, SEARCH_H),
+
+        // 4 维智能分类药丸
+        CAT_ALL(8, 40, 45, 11),
+        CAT_BLOCKS(56, 40, 45, 11),
+        CAT_GEAR(104, 40, 45, 11),
+        CAT_OTHER(152, 40, 44, 11),
+
+        // 仓库与背包交界传输带（全屏唯一入库 & 自动开关）
+        DEPOSIT(78, 148, 52, 13),
+        AUTO(134, 148, 62, 13),
+
+        // 折叠工作翼右上角收起键
+        WING_COLLAPSE(WING_X + WING_W - 17, WING_Y + 4, 12, 12);
 
         final int x, y, w, h;
 
@@ -71,56 +103,76 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private Map<Long, BigInteger> visibleAmounts = new HashMap<>();
     private Map<Long, BigInteger> incomingAmounts = new HashMap<>();
     private final Map<Long, StockFlash> stockFlashes = new HashMap<>();
+
     private final ItemStack bottleIcon = ModItems.KLEIN_BOTTLE.get().getDefaultInstance();
     private final ItemStack craftIcon = new ItemStack(Items.CRAFTING_TABLE);
     private final ItemStack smeltIcon = new ItemStack(Items.FURNACE);
     private final ItemStack anvilIcon = new ItemStack(Items.ANVIL);
+
     private final long openedAt = Util.getMillis();
     private long now = openedAt;
     private long drawerChangedAt;
     private long viewChangedAt;
     private long depositPressedAt;
+
     private float searchFocus;
     private float autoSwitch;
     private float scrollThumb;
-    private int drawerSlide;
+    private float wingOpen; // 0 = 收起，1 = 展开
+    private int wingShiftX;
     private int workspaceMode;
+    private int lastVisibleWingMode = KleinMenu.DRAWER_CRAFTING;
     private int previousScroll;
     private int visibleCount;
     private int capturedButton = -1;
     private boolean draggingScrollbar;
     private double grabOffset;
     private double wheelRemainder;
+
     private EditBox search;
     private EditBox anvilName;
     private ItemStack previousAnvilInput = ItemStack.EMPTY;
 
     public KleinScreen(KleinMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        imageWidth = DOCK + DOCK_WIDTH;
+        // imageWidth 仅锚定主舱，确保主舱永远居中且开关工作翼时画面零跳动
+        imageWidth = MAIN_W;
         imageHeight = HEIGHT;
         workspaceMode = menu.drawerMode();
-        autoSwitch = menu.autoDeposit() ? 1 : 0;
+        if (workspaceMode != KleinMenu.DRAWER_NONE) {
+            lastVisibleWingMode = workspaceMode;
+            wingOpen = 1f;
+        }
+        autoSwitch = menu.autoDeposit() ? 1f : 0f;
+    }
+
+    /** 供 JEI IGuiContainerHandler 动态读取展开中的全息侧翼区域，实现智能避让。 */
+    public List<Rect2i> getJeiExtraAreas() {
+        if (wingOpen <= 0.05f && menu.drawerMode() == KleinMenu.DRAWER_NONE) {
+            return List.of();
+        }
+        int visibleW = Math.max(1, Math.round(WING_W * easeOut(wingOpen)));
+        return List.of(new Rect2i(leftPos + MAIN_W, topPos + WING_Y, visibleW + 6, WING_H));
     }
 
     @Override protected void init() {
         super.init();
         String priorQuery = search == null ? "" : search.getValue();
-        search = new EditBox(font, leftPos + 21, topPos + 27, 77, 10, label("search"));
+        search = new EditBox(font, leftPos + SEARCH_X + 13, topPos + SEARCH_Y + 3, SEARCH_W - 25, 9, label("search"));
         search.setBordered(false);
         search.setMaxLength(64);
-        search.setTextColor(INK);
-        search.setHint(label("search").withStyle(style -> style.withColor(SECONDARY)));
+        search.setTextColor(TEXT_BRIGHT);
+        search.setHint(label("search").withStyle(s -> s.withColor(TEXT_MUTED)));
         search.setValue(priorQuery);
         search.setResponder(value -> changeView(value, menu.sortMode(), menu.descending()));
         addRenderableWidget(search);
 
         String priorName = anvilName == null ? menu.anvilItemName() : anvilName.getValue();
-        anvilName = new EditBox(font, leftPos + DOCK + 12, drawerY() + 28, 92, 10, label("anvil_name_hint"));
+        anvilName = new EditBox(font, leftPos + WING_X + 11, topPos + WING_Y + 25, WING_W - 22, 10, label("anvil_name_hint"));
         anvilName.setBordered(false);
         anvilName.setMaxLength(50);
-        anvilName.setTextColor(INK);
-        anvilName.setHint(label("anvil_name_hint").withStyle(style -> style.withColor(SECONDARY)));
+        anvilName.setTextColor(TEXT_BRIGHT);
+        anvilName.setHint(label("anvil_name_hint").withStyle(s -> s.withColor(TEXT_MUTED)));
         anvilName.setValue(priorName);
         anvilName.setResponder(name -> {
             menu.setAnvilItemName(name);
@@ -146,43 +198,68 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         stockFlashes.clear();
     }
 
-    private void selectDrawer(int mode) {
+    private void selectCategory(int category) {
+        if (menu.category() == category) return;
+        menu.setCategory(category);
+        viewChangedAt = Util.getMillis();
+        visibleAmounts.clear();
+        stockFlashes.clear();
+    }
+
+    private void toggleWing(int mode) {
         int next = menu.drawerMode() == mode ? KleinMenu.DRAWER_NONE : mode;
         menu.setDrawerMode(next);
         PacketDistributor.sendToServer(new KleinDrawerPayload(next));
-        updateDrawerLayout(next, Util.getMillis());
+        updateWingState(next, Util.getMillis());
     }
 
-    private void updateDrawerLayout(int mode, long time) {
+    private void updateWingState(int mode, long time) {
         if (mode != workspaceMode) {
             workspaceMode = mode;
+            if (mode != KleinMenu.DRAWER_NONE) {
+                lastVisibleWingMode = mode;
+            }
             drawerChangedAt = time;
             if (mode != KleinMenu.DRAWER_ANVIL && getFocused() == anvilName) setFocused(null);
-            anvilName.setVisible(mode == KleinMenu.DRAWER_ANVIL);
+            anvilName.setVisible(mode == KleinMenu.DRAWER_ANVIL && wingOpen > 0.7f);
         }
-        int slideDistance = mode == KleinMenu.DRAWER_ANVIL ? 4 : 8;
-        drawerSlide = Math.round(-slideDistance * (1f - easeOut(progress(time, drawerChangedAt, 260))));
-        anvilName.setPosition(leftPos + DOCK + 12, drawerY() + 28 + drawerSlide);
+        wingShiftX = Math.round(-(1f - easeOut(wingOpen)) * 18f);
+        boolean showAnvilBox = mode == KleinMenu.DRAWER_ANVIL && wingOpen > 0.7f;
+        anvilName.setVisible(showAnvilBox);
+        anvilName.setPosition(leftPos + WING_X + 11 + wingShiftX, topPos + WING_Y + 25);
     }
 
-    private int drawerY() {
-        return topPos + KleinMenu.DRAWER_Y;
+    private int wingAccent(int mode) {
+        return switch (mode) {
+            case KleinMenu.DRAWER_SMELTING -> AMBER;
+            case KleinMenu.DRAWER_ANVIL -> VIOLET;
+            default -> CYAN;
+        };
+    }
+
+    private int wingGlow(int mode) {
+        return switch (mode) {
+            case KleinMenu.DRAWER_SMELTING -> AMBER_GLOW;
+            case KleinMenu.DRAWER_ANVIL -> VIOLET_GLOW;
+            default -> CYAN_GLOW;
+        };
     }
 
     private void animate(int mouseX, int mouseY) {
         long time = Util.getMillis();
-        float step = Math.clamp((time - now) / 130f, 0f, 1f);
+        float step = Math.clamp((time - now) / 110f, 0f, 1f);
         now = time;
         Control hover = controlAt(mouseX, mouseY);
         for (Control control : CONTROLS) {
-            int index = control.ordinal();
-            hoveredControls[index] = move(hoveredControls[index], hover == control, step);
+            int idx = control.ordinal();
+            hoveredControls[idx] = move(hoveredControls[idx], hover == control, step);
         }
         searchFocus = move(searchFocus, search.isFocused(), step);
         autoSwitch = move(autoSwitch, menu.autoDeposit(), step);
+        wingOpen = move(wingOpen, menu.drawerMode() != KleinMenu.DRAWER_NONE, Math.clamp(step * 1.15f, 0f, 1f));
         float target = targetThumb();
-        scrollThumb = draggingScrollbar ? target : scrollThumb + (target - scrollThumb) * Math.min(1f, step * 2);
-        updateDrawerLayout(menu.drawerMode(), time);
+        scrollThumb = draggingScrollbar ? target : scrollThumb + (target - scrollThumb) * Math.min(1f, step * 2.2f);
+        updateWingState(menu.drawerMode(), time);
     }
 
     private void observeStock() {
@@ -204,13 +281,13 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             BigInteger before = visibleAmounts.get(entry.id());
             if (before != null) {
                 int change = entry.amount().compareTo(before);
-                if (change != 0) stockFlashes.put(entry.id(), new StockFlash(now, change > 0 ? TEAL : AMBER));
+                if (change != 0) stockFlashes.put(entry.id(), new StockFlash(now, change > 0 ? EMERALD : AMBER));
             }
             incomingAmounts.put(entry.id(), entry.amount());
         }
-        Map<Long, BigInteger> previousAmounts = visibleAmounts;
+        Map<Long, BigInteger> prev = visibleAmounts;
         visibleAmounts = incomingAmounts;
-        incomingAmounts = previousAmounts;
+        incomingAmounts = prev;
     }
 
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
@@ -220,255 +297,346 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         renderTooltip(g, mouseX, mouseY);
         KleinEntryData entry = entryAt(mouseX, mouseY);
         if (entry != null && menu.getCarried().isEmpty()) {
-            g.renderTooltip(font, List.of(entry.template().getHoverName(),
-                    label("total", entry.amount().toString())), entry.template().getTooltipImage(),
-                    entry.template(), mouseX, mouseY);
+            g.renderTooltip(font, List.of(
+                    entry.template().getHoverName(),
+                    label("total", entry.amount().toString()).withStyle(s -> s.withColor(CYAN_GLOW)),
+                    label("op_clicks").withStyle(s -> s.withColor(TEXT_MUTED)),
+                    label("transfer_hint").withStyle(s -> s.withColor(TEXT_MUTED))),
+                    entry.template().getTooltipImage(), entry.template(), mouseX, mouseY);
             return;
         }
         Control hover = controlAt(mouseX, mouseY);
-        if (hover != null) g.renderTooltip(font, controlTip(hover), mouseX, mouseY);
+        if (hover != null) {
+            if (hover == Control.STAT_BADGE) {
+                g.renderTooltip(font, List.of(
+                        label("types", menu.totalStoredTypes()).withStyle(s -> s.withColor(CYAN_GLOW)),
+                        Component.literal("§7" + label("stat_items").getString() + "：§f" + menu.totalStoredItems()),
+                        label("op_clicks").withStyle(s -> s.withColor(TEXT_MUTED)),
+                        label("transfer_hint").withStyle(s -> s.withColor(TEXT_MUTED))),
+                        java.util.Optional.empty(), mouseX, mouseY);
+            } else {
+                g.renderTooltip(font, controlTip(hover), mouseX, mouseY);
+            }
+        }
     }
 
     @Override protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
+        float timeSec = (now % 3600000L) / 1000.0f;
+        float arrival = progress(now, openedAt, 340);
+        int mainAccent = workspaceMode == KleinMenu.DRAWER_NONE ? CYAN : wingAccent(workspaceMode);
+
         g.drawManaged(() -> {
-            card(g, leftPos, topPos, MAIN_WIDTH, HEIGHT, PAPER);
-            card(g, leftPos + DOCK, topPos, DOCK_WIDTH, HEIGHT, 0xFFEAF6F2);
-            drawHeader(g);
-            drawWarehouse(g, mouseX, mouseY);
+            // 1. 若全息工作翼处于展开或过渡动画中，先在主舱右侧按裁切宽度丝滑展开
+            if (wingOpen > 0.01f) {
+                drawCollapsibleWing(g, timeSec);
+            }
+
+            // 2. 居中单核主舱（稳如磐石，绝不随工作翼开关跳动）
+            obsidianPanel(g, leftPos, topPos, MAIN_W, HEIGHT, mainAccent, arrival);
+            drawAmbientStars(g, leftPos + 2, topPos + 2, MAIN_W - 4, HEIGHT - 4, mainAccent, timeSec);
+            drawHeader(g, timeSec, arrival);
+            drawSearchAndSort(g);
+            drawCategoryBar(g, mouseX, mouseY);
+            drawWarehouse(g, mouseX, mouseY, timeSec);
+            drawTransferBridge(g, timeSec);
             drawInventory(g);
-            drawTools(g);
         });
     }
 
-    private void drawHeader(GuiGraphics g) {
+    private void drawHeader(GuiGraphics g, float timeSec, float arrival) {
         int x = leftPos, y = topPos;
-        float arrival = easeOut(progress(now, openedAt, 480));
-        g.fillGradient(x + 1, y + 3, x + MAIN_WIDTH - 1, y + 21, 0xFFBFECE1, 0xFFF3FBF6);
-        g.fill(x + 2, y + 1, x + 2 + (int) ((MAIN_WIDTH - 4) * arrival), y + 3, TEAL);
-        int bob = Math.round(2 * (1f - arrival));
-        g.renderItem(bottleIcon, x + 7, y + 5 - bob);
-        g.drawString(font, Component.translatable("item.universal_tool.klein_bottle"), x + 27, y + 9, INK, false);
+        g.fillGradient(x + 2, y + 2, x + MAIN_W - 2, y + 21, 0xA80F2438, 0x00070C17);
 
-        String count = menu.filtered().size() + " / \u221e";
-        int countWidth = font.width(count);
-        int countX = x + MAIN_WIDTH - 11 - countWidth;
-        g.fill(countX - 4, y + 6, x + MAIN_WIDTH - 7, y + 19, MINT);
-        g.drawString(font, count, countX, y + 9, TEAL, false);
+        // 克莱因瓶核心微悬浮图标 + 标题
+        int bob = Math.round((float) Math.sin(timeSec * 2.2f) * 1.0f + 2f * (1f - easeOut(arrival)));
+        g.pose().pushPose();
+        g.pose().translate(x + 6, y + 4 - bob, 0);
+        g.pose().scale(0.85f, 0.85f, 1f);
+        g.renderItem(bottleIcon, 0, 0);
+        g.pose().popPose();
 
-        int sx = x + SEARCH_X, sy = y + SEARCH_Y;
-        g.fill(sx, sy, sx + SEARCH_W, sy + SEARCH_H, WHITE);
-        frame(g, sx, sy, SEARCH_W, SEARCH_H, BORDER);
-        frame(g, sx + 4, sy + 3, 5, 5, TEAL);
-        g.fill(sx + 8, sy + 8, sx + 10, sy + 10, TEAL);
-        int underline = Math.round(smooth(searchFocus) * (SEARCH_W - 2));
-        g.fill(sx + 1, sy + SEARCH_H - 1, sx + 1 + underline, sy + SEARCH_H, TEAL);
-        if (!search.getValue().isEmpty()) {
-            drawControl(g, Control.CLEAR, MINT, TEAL, false);
-            cross(g, x + 103, y + 29, TEAL);
-        }
+        g.drawString(font, Component.translatable("item.universal_tool.klein_bottle"), x + 22, y + 7, TEXT_BRIGHT, true);
 
-        drawControl(g, Control.SORT, MINT, TEAL, false);
-        drawCenter(g, sortLabel(), x + 138, y + 27, INK);
-        drawControl(g, Control.DIRECTION, MINT, TEAL, false);
-        arrow(g, x + 173, y + 30, menu.descending() ? 1 : -1, TEAL);
+        // 种类微标（悬停查看完整藏品总数与操作速查，零占用空间）
+        String countStr = menu.filtered().size() + "/\u221e";
+        int bx = leftPos + Control.STAT_BADGE.x;
+        int by = topPos + Control.STAT_BADGE.y;
+        boolean statHover = hoveredControls[Control.STAT_BADGE.ordinal()] > 0.2f;
+        well(g, bx, by, Control.STAT_BADGE.w, Control.STAT_BADGE.h, statHover ? CYAN : BORDER_SUBTLE);
+        g.drawCenteredString(font, countStr, bx + Control.STAT_BADGE.w / 2, by + 3, CYAN_GLOW);
+
+        // 全屏唯一的 3 枚工作翼快捷图标按钮（点开即右侧滑出，再点收回）
+        drawToolIconBtn(g, Control.TOOL_CRAFT, craftIcon, workspaceMode == KleinMenu.DRAWER_CRAFTING, CYAN, timeSec);
+        drawToolIconBtn(g, Control.TOOL_SMELT, smeltIcon, workspaceMode == KleinMenu.DRAWER_SMELTING, AMBER, timeSec);
+        drawToolIconBtn(g, Control.TOOL_ANVIL, anvilIcon, workspaceMode == KleinMenu.DRAWER_ANVIL, VIOLET, timeSec);
+
+        // 唯一关闭按钮
+        drawControl(g, Control.CLOSE, CORAL, false);
+        cross(g, leftPos + Control.CLOSE.x + 4, topPos + Control.CLOSE.y + 4,
+                hoveredControls[Control.CLOSE.ordinal()] > 0.25f ? TEXT_BRIGHT : TEXT_MUTED);
     }
 
-    private void drawWarehouse(GuiGraphics g, int mouseX, int mouseY) {
-        int x = leftPos + KleinMenu.GRID_X, y = topPos + KleinMenu.GRID_Y;
-        g.drawString(font, label("warehouse"), x, y - 10, SECONDARY, false);
-        g.fill(x - 2, y - 2, x + COLUMNS * CELL + 14, y + GRID_HEIGHT + 1, RECESS);
+    private void drawToolIconBtn(GuiGraphics g, Control control, ItemStack icon, boolean active, int accent, float timeSec) {
+        drawControl(g, control, accent, active);
+        int x = leftPos + control.x;
+        int y = topPos + control.y;
+        if (active) {
+            drawShimmer(g, x, y, control.w, control.h, accent, timeSec * 0.36f);
+        }
+        g.pose().pushPose();
+        g.pose().translate(x + 3.5f, y + 2.0f - hoveredControls[control.ordinal()] * 0.8f, 0);
+        g.pose().scale(0.68f, 0.68f, 1f);
+        g.renderItem(icon, 0, 0);
+        g.pose().popPose();
+    }
+
+    private void drawSearchAndSort(GuiGraphics g) {
+        int sx = leftPos + SEARCH_X, sy = topPos + SEARCH_Y;
+        well(g, sx, sy, SEARCH_W, SEARCH_H, search.isFocused() ? CYAN : BORDER_SUBTLE);
+        frame(g, sx + 4, sy + 3, 5, 5, CYAN);
+        g.fill(sx + 8, sy + 8, sx + 10, sy + 10, CYAN);
+        int underline = Math.round(smooth(searchFocus) * (SEARCH_W - 2));
+        if (underline > 0) {
+            g.fill(sx + 1, sy + SEARCH_H - 1, sx + 1 + underline, sy + SEARCH_H, CYAN_GLOW);
+        }
+        if (!search.getValue().isEmpty()) {
+            drawControl(g, Control.CLEAR, CORAL, false);
+            cross(g, leftPos + Control.CLEAR.x + 3, topPos + Control.CLEAR.y + 3, TEXT_BRIGHT);
+        }
+
+        drawControl(g, Control.SORT, CYAN, false);
+        drawCenter(g, sortLabel(), leftPos + Control.SORT.x + Control.SORT.w / 2, sy + 3, TEXT_MAIN);
+        drawControl(g, Control.DIRECTION, CYAN, false);
+        arrow(g, leftPos + Control.DIRECTION.x + 10, sy + 6, menu.descending() ? 1 : -1, CYAN_GLOW);
+    }
+
+    private void drawCategoryBar(GuiGraphics g, int mouseX, int mouseY) {
+        Control[] cats = {Control.CAT_ALL, Control.CAT_BLOCKS, Control.CAT_GEAR, Control.CAT_OTHER};
+        String[] keys = {"cat_all", "cat_blocks", "cat_gear", "cat_other"};
+        int[] accents = {CYAN, 0xFF66D8FF, AMBER, VIOLET};
+        for (int i = 0; i < cats.length; i++) {
+            Control c = cats[i];
+            int cx = leftPos + c.x;
+            int cy = topPos + c.y;
+            boolean active = menu.category() == i;
+            boolean hover = mouseX >= cx && mouseX < cx + c.w && mouseY >= cy && mouseY < cy + c.h;
+            pill(g, font, cx, cy, c.w, c.h, label(keys[i]).getString(), active, hover, accents[i]);
+        }
+    }
+
+    private void drawWarehouse(GuiGraphics g, int mouseX, int mouseY, float timeSec) {
+        int gx = leftPos + KleinMenu.GRID_X;
+        int gy = topPos + KleinMenu.GRID_Y;
+        well(g, leftPos + 8, gy - 2, MAIN_W - 16, GRID_HEIGHT + 3, BORDER_SUBTLE);
+
         int start = menu.scroll() * COLUMNS;
         int hoverCell = cellAt(mouseX, mouseY);
         List<KleinEntryData> entries = menu.filtered();
+        float pulse = 0.5f + 0.5f * (float) Math.sin(timeSec * 5.0f);
+
         for (int cell = 0; cell < KleinMenu.VISIBLE_ROWS * COLUMNS; cell++) {
-            int sx = x + cell % COLUMNS * CELL, sy = y + cell / COLUMNS * CELL;
+            int sx = gx + cell % COLUMNS * CELL;
+            int sy = gy + cell / COLUMNS * CELL;
             socket(g, sx, sy, false);
             if (cell == hoverCell) {
-                g.fill(sx + 1, sy + 1, sx + 16, sy + 16, MINT);
-                frame(g, sx, sy, 17, 17, TEAL);
+                g.fill(sx + 1, sy + 1, sx + 16, sy + 16, SLOT_HOVER_BG);
+                focusReticle(g, sx, sy, 17, CYAN_GLOW, pulse);
             }
             if (start + cell >= entries.size()) continue;
             KleinEntryData entry = entries.get(start + cell);
             StockFlash flash = stockFlashes.get(entry.id());
             if (flash != null) {
-                float strength = 1 - smooth(progress(now, flash.started(), 420));
-                g.fill(sx + 1, sy + 1, sx + 16, sy + 16, opacity(flash.color(), strength * 0.27f));
+                float strength = 1f - smooth(progress(now, flash.started(), 420));
+                g.fill(sx + 1, sy + 1, sx + 16, sy + 16, opacity(flash.color(), strength * 0.34f));
                 frame(g, sx, sy, 17, 17, opacity(flash.color(), strength));
             }
-            g.renderItem(entry.template(), sx + 1, sy - (cell == hoverCell ? 1 : 0));
+            g.renderItem(entry.template(), sx + 1, sy + 1 - (cell == hoverCell ? 1 : 0));
             drawAmount(g, compact(entry.amount()), sx, sy);
         }
 
         if (entries.isEmpty()) {
-            Component message = label(search.getValue().isBlank() ? "empty" : "no_results");
-            int cx = x + COLUMNS * CELL / 2, py = y + GRID_HEIGHT / 2 - 8;
-            int half = font.width(message) / 2 + 7;
-            card(g, cx - half, py, half * 2, 16, PAPER);
-            drawCenter(g, message, cx, py + 4, INK);
+            Component msg = label(search.getValue().isBlank() && menu.category() == KleinMenu.CATEGORY_ALL ? "empty" : "no_results");
+            int cx = gx + COLUMNS * CELL / 2;
+            int py = gy + GRID_HEIGHT / 2 - 9;
+            int half = font.width(msg) / 2 + 10;
+            well(g, cx - half, py, half * 2, 18, opacity(CYAN, 0.5f));
+            drawCenter(g, msg, cx, py + 5, TEXT_MAIN);
         }
 
-        float scan = progress(now, depositPressedAt, 330);
-        if (scan < 1) drawScan(g, x, y, scan, 0.5f);
-        float view = progress(now, viewChangedAt, 210);
-        if (view < 1 && !entries.isEmpty()) drawScan(g, x, y, view, 0.25f);
+        float scan = progress(now, depositPressedAt, 380);
+        if (scan < 1f) drawScan(g, gx, gy, scan, 0.72f, EMERALD);
+        float view = progress(now, viewChangedAt, 220);
+        if (view < 1f && !entries.isEmpty()) drawScan(g, gx, gy, view, 0.34f, CYAN);
 
-        int track = leftPos + SCROLL_X;
-        g.fill(track + 2, y + 1, track + 5, y + GRID_HEIGHT - 1, BORDER);
+        // 纤巧霓虹滚动条
+        int trackX = leftPos + SCROLL_X;
+        g.fill(trackX + 2, gy + 1, trackX + 4, gy + GRID_HEIGHT - 1, BORDER_SUBTLE);
         if (menu.maxScroll() > 0) {
-            int ty = y + Math.round(scrollThumb);
+            int ty = gy + Math.round(scrollThumb);
             int h = thumbHeight();
-            g.fill(track, ty, track + 7, ty + h, TEAL);
-            g.fill(track + 2, ty + 2, track + 5, ty + h - 2, MINT);
+            g.fill(trackX + 1, ty, trackX + 5, ty + h, CYAN);
+            g.fill(trackX + 2, ty + 1, trackX + 4, ty + h - 1, CYAN_GLOW);
         }
     }
 
-    private static void drawScan(GuiGraphics g, int x, int y, float progress, float opacity) {
-        int w = COLUMNS * CELL - 1;
-        int py = y + (int) ((GRID_HEIGHT - 1) * easeOut(progress));
-        g.fill(x, py, x + w, py + 1, opacity(TEAL, opacity * (1 - progress)));
-    }
+    /** 仓库与背包交界处的「传输交互过渡带」：全屏唯一的「一键入库」与「自动入库」物理开关。 */
+    private void drawTransferBridge(GuiGraphics g, float timeSec) {
+        int y = topPos + 148;
+        g.drawString(font, label("inventory"), leftPos + 10, y + 3, TEXT_MAIN, false);
 
-    private void drawAmount(GuiGraphics g, String amount, int x, int y) {
-        int textWidth = font.width(amount);
-        float scale = Math.min(0.72f, 14f / textWidth);
-        int w = (int) Math.ceil(textWidth * scale);
-        g.pose().pushPose();
-        g.pose().translate(x + 16 - w, y + 10, 210);
-        g.fill(-1, -1, w, 7, 0xF0102934);
-        g.pose().scale(scale, scale, 1);
-        g.drawString(font, amount, 0, 0, WHITE, false);
-        g.pose().popPose();
+        // 一键匹配入库按钮
+        boolean depositPulse = progress(now, depositPressedAt, 340) < 0.7f;
+        drawControl(g, Control.DEPOSIT, depositPulse ? EMERALD : CYAN, depositPulse);
+        int dx = leftPos + Control.DEPOSIT.x;
+        int dy = topPos + Control.DEPOSIT.y;
+        arrow(g, dx + 7, dy + 6, -1, depositPulse ? TEXT_BRIGHT : CYAN_GLOW);
+        g.drawString(font, label("deposit_button"), dx + 13, dy + 3, depositPulse ? TEXT_BRIGHT : TEXT_MAIN, false);
+
+        // 自动拾取入库（带精致物理滑块）
+        boolean autoOn = menu.autoDeposit();
+        drawControl(g, Control.AUTO, autoOn ? EMERALD : CYAN, autoOn);
+        int ax = leftPos + Control.AUTO.x;
+        int ay = topPos + Control.AUTO.y;
+        g.drawString(font, label("pickup_button"), ax + 5, ay + 3, autoOn ? TEXT_BRIGHT : TEXT_MUTED, false);
+        toggleSwitch(g, ax + Control.AUTO.w - 17, ay + 3, autoSwitch);
     }
 
     private void drawInventory(GuiGraphics g) {
-        int x = leftPos + KleinMenu.PLAYER_X - 1;
-        int y = topPos + KleinMenu.PLAYER_Y - 1;
-        g.fill(x - 2, y - 3, x + COLUMNS * CELL + 1, y + 54, RECESS);
-        g.fill(x - 2, topPos + KleinMenu.HOTBAR_Y - 3, x + COLUMNS * CELL + 1, topPos + HEIGHT - 3, RECESS);
-        g.drawString(font, label("inventory"), x, y - 12, INK, false);
+        int px = leftPos + KleinMenu.PLAYER_X - 1;
+        int py = topPos + KleinMenu.PLAYER_Y - 1;
+        well(g, leftPos + 8, py - 2, MAIN_W - 16, 57, BORDER_SUBTLE);
+        well(g, leftPos + 8, topPos + KleinMenu.HOTBAR_Y - 2, MAIN_W - 16, 21, opacity(CYAN, 0.30f));
+
         for (Slot slot : menu.slots) {
             if (isDrawerSlot(slot)) break;
             socket(g, leftPos + slot.x - 1, topPos + slot.y - 1, menu.isStorageLocked(slot));
         }
     }
 
-    private void drawTools(GuiGraphics g) {
-        int x = leftPos + DOCK, y = topPos;
-        g.drawString(font, label("tools"), x + 7, y + 8, INK, false);
-        drawControl(g, Control.CLOSE, GOLD, AMBER, false);
-        cross(g, x + 101, y + 10, INK);
+    /** 右侧按需滑出的悬浮全息工作翼（关闭时完全消失，不留任何空盒）。 */
+    private void drawCollapsibleWing(GuiGraphics g, float timeSec) {
+        int mode = workspaceMode != KleinMenu.DRAWER_NONE ? workspaceMode : lastVisibleWingMode;
+        int accent = wingAccent(mode);
+        int glow = wingGlow(mode);
+        float ease = easeOut(wingOpen);
+        int clipW = Math.round((WING_W + 6) * ease);
+        if (clipW <= 1) return;
 
-        float deposit = 1 - progress(now, depositPressedAt, 330);
-        drawControl(g, Control.DEPOSIT, MINT, TEAL, deposit > 0.6f);
-        arrow(g, x + 16, y + 30, 1, TEAL);
-        g.fill(x + 12, y + 36, x + 21, y + 37, TEAL);
-        g.drawString(font, label("deposit_button"), x + 26, y + 28, INK, false);
+        int clipX = leftPos + MAIN_W;
+        int wy = topPos + WING_Y;
 
-        drawControl(g, Control.AUTO, MINT, TEAL, menu.autoDeposit());
-        g.drawString(font, label("pickup_button"), x + 12, y + 49, INK, false);
-        int switchX = x + 83;
-        int track = FastColor.ARGB32.lerp(smooth(autoSwitch), 0xFF66858D, TEAL);
-        g.fill(switchX, y + 49, switchX + 19, y + 58, track);
-        int thumbX = switchX + 2 + Math.round(9 * smooth(autoSwitch));
-        g.fill(thumbX, y + 50, thumbX + 6, y + 57, WHITE);
-
-        drawToolTab(g, Control.CRAFT, craftIcon, "craft_short", KleinMenu.DRAWER_CRAFTING, TEAL, MINT);
-        drawToolTab(g, Control.SMELT, smeltIcon, "smelt_short", KleinMenu.DRAWER_SMELTING, AMBER, GOLD);
-        drawToolTab(g, Control.ANVIL, anvilIcon, "anvil_short", KleinMenu.DRAWER_ANVIL, VIOLET, LILAC);
-        drawDrawer(g);
-        Component hint = label("transfer_hint");
-        drawCenter(g, hint, x + DOCK_WIDTH / 2, y + 221, SECONDARY);
-    }
-
-    private void drawToolTab(GuiGraphics g, Control control, ItemStack icon, String key, int mode, int ink, int tint) {
-        boolean active = workspaceMode == mode;
-        drawControl(g, control, tint, ink, active);
-        int center = leftPos + control.x + control.w / 2;
-        int y = topPos + control.y;
-        g.pose().pushPose();
-        g.pose().translate(center - 5, y + 2 - Math.round(hoveredControls[control.ordinal()]), 0);
-        g.pose().scale(0.65f, 0.65f, 1);
-        g.renderItem(icon, 0, 0);
-        g.pose().popPose();
-        drawCenter(g, label(key), center, y + 15, active ? ink : INK);
-    }
-
-    private void drawDrawer(GuiGraphics g) {
-        int x = leftPos + DOCK, y = drawerY();
-        int ink = workspaceMode == KleinMenu.DRAWER_SMELTING ? AMBER
-                : workspaceMode == KleinMenu.DRAWER_ANVIL ? VIOLET : TEAL;
-        int tint = workspaceMode == KleinMenu.DRAWER_SMELTING ? GOLD
-                : workspaceMode == KleinMenu.DRAWER_ANVIL ? LILAC : MINT;
-        card(g, x + 1, y, DOCK_WIDTH - 2, KleinMenu.DRAWER_HEIGHT, PAPER);
-        g.fillGradient(x + 2, y + 2, x + DOCK_WIDTH - 2, y + 23, tint, PAPER);
-        int ribbon = Math.round((DOCK_WIDTH - 12) * easeOut(progress(now, drawerChangedAt, 300)));
-        g.fill(x + 6, y + 20, x + 6 + ribbon, y + 21, ink);
-
-        if (workspaceMode == KleinMenu.DRAWER_NONE) {
-            drawCenter(g, label("workspace"), x + DOCK_WIDTH / 2, y + 8, TEAL);
-            g.renderItem(bottleIcon, x + DOCK_WIDTH / 2 - 8, y + 41);
-            drawCenter(g, label("choose_tool"), x + DOCK_WIDTH / 2, y + 67, SECONDARY);
-            return;
+        // 磁吸能量锁扣（连接主舱右缘与工作翼）
+        if (ease > 0.35f) {
+            drawConduit(g, leftPos + MAIN_W, leftPos + WING_X + wingShiftX, wy + 28, accent, timeSec);
+            drawConduit(g, leftPos + MAIN_W, leftPos + WING_X + wingShiftX, wy + WING_H - 28, accent, timeSec + 0.5f);
         }
 
-        String title = switch (workspaceMode) {
-            case KleinMenu.DRAWER_CRAFTING -> "tab_crafting";
+        g.enableScissor(clipX, wy - 2, clipX + clipW, wy + WING_H + 4);
+        int wx = leftPos + WING_X + wingShiftX;
+
+        obsidianPanel(g, wx, wy, WING_W, WING_H, accent, ease);
+        drawAmbientStars(g, wx + 2, wy + 2, WING_W - 4, WING_H - 4, accent, timeSec);
+        g.fillGradient(wx + 2, wy + 2, wx + WING_W - 2, wy + 20, opacity(accent, 0.24f), 0x00070C17);
+
+        String titleKey = switch (mode) {
             case KleinMenu.DRAWER_SMELTING -> "tab_smelting";
-            default -> "tab_anvil";
+            case KleinMenu.DRAWER_ANVIL -> "tab_anvil";
+            default -> "tab_crafting";
         };
-        drawCenter(g, label(title), x + DOCK_WIDTH / 2, y + 8, ink);
-        y += drawerSlide;
-        for (Slot slot : menu.slots) {
-            if (isDrawerSlot(slot) && slot.isActive()) socket(g, leftPos + slot.x - 1, topPos + slot.y - 1 + drawerSlide, false);
-        }
+        g.drawString(font, label(titleKey), wx + 8, wy + 6, glow, true);
 
-        int result = switch (workspaceMode) {
-            case KleinMenu.DRAWER_CRAFTING -> KleinMenu.CRAFT_RESULT_SLOT;
-            case KleinMenu.DRAWER_SMELTING -> KleinMenu.SMELT_OUTPUT_SLOT;
-            default -> KleinMenu.ANVIL_RESULT_SLOT;
-        };
-        Slot output = menu.slots.get(result);
-        boolean ready = output.hasItem();
-        if (ready) {
-            int pulse = (int) (2 + 2 * (1 + Math.sin(now / 160.0)));
-            frame(g, leftPos + output.x - 2, topPos + output.y + drawerSlide - 2, 19, 19,
-                    opacity(ink, 0.45f + pulse * 0.08f));
-        }
+        // 右上角折叠收回钮 [‹]
+        int colX = wx + WING_W - 17;
+        int colY = wy + 4;
+        boolean colHover = hoveredControls[Control.WING_COLLAPSE.ordinal()] > 0.25f;
+        button(g, colX, colY, 12, 12, hoveredControls[Control.WING_COLLAPSE.ordinal()], accent, false);
+        g.drawCenteredString(font, "‹", colX + 6, colY + 2, colHover ? TEXT_BRIGHT : TEXT_MAIN);
 
-        if (workspaceMode == KleinMenu.DRAWER_SMELTING) {
-            int cx = x + KleinMenu.SMELT_X + 8;
-            arrow(g, cx, y + 60, 1, ink);
-            if (ready) {
-                for (int i = 0; i < 3; i++) {
-                    int rise = (int) ((now / 55 + i * 4) % 12);
-                    int px = cx + (i - 1) * 5;
-                    g.fill(px, y + 68 - rise, px + 2, y + 70 - rise, opacity(ink, 1 - rise / 14f));
+        g.fill(wx + 7, wy + 19, wx + WING_W - 7, wy + 20, opacity(accent, 0.55f));
+
+        // 绘制当前工作模式对应的真实槽位背景与动画
+        if (workspaceMode == mode) {
+            for (Slot slot : menu.slots) {
+                if (isDrawerSlot(slot) && slot.isActive()) {
+                    socket(g, leftPos + slot.x - 1 + wingShiftX, topPos + slot.y - 1, false);
                 }
             }
-        } else {
-            int arrowX = workspaceMode == KleinMenu.DRAWER_CRAFTING ? 74 : 77;
-            int travel = ready ? (int) ((now / 95) % 3) : 0;
-            horizontalArrow(g, x + arrowX + travel, y + KleinMenu.DRAWER_RESULT_Y + 8, ink);
-            if (workspaceMode == KleinMenu.DRAWER_ANVIL) {
-                g.fill(x + 33, y + 56, x + 40, y + 57, ink);
-                g.fill(x + 36, y + 53, x + 37, y + 60, ink);
-                g.fill(x + 8, y + 25, x + 108, y + 40, WHITE);
-                frame(g, x + 8, y + 25, 100, 15, anvilName.isFocused() ? VIOLET : BORDER);
+            int resultIdx = switch (mode) {
+                case KleinMenu.DRAWER_CRAFTING -> KleinMenu.CRAFT_RESULT_SLOT;
+                case KleinMenu.DRAWER_SMELTING -> KleinMenu.SMELT_OUTPUT_SLOT;
+                default -> KleinMenu.ANVIL_RESULT_SLOT;
+            };
+            Slot output = menu.slots.get(resultIdx);
+            boolean ready = output.hasItem();
+            if (ready) {
+                int ox = leftPos + output.x - 2 + wingShiftX;
+                int oy = topPos + output.y - 2;
+                float p = 0.5f + 0.5f * (float) Math.sin(timeSec * 6.0f);
+                frame(g, ox, oy, 19, 19, opacity(glow, 0.55f + 0.45f * p));
+                focusReticle(g, ox - 1, oy - 1, 21, accent, p);
+            }
+
+            if (mode == KleinMenu.DRAWER_CRAFTING) {
+                int travel = ready ? (int) ((now / 90) % 3) : 0;
+                horizontalArrow(g, wx + 73 + travel, wy + KleinMenu.DRAWER_RESULT_Y + 8, ready ? glow : accent);
+                drawCenter(g, label("jei_ready"), wx + WING_W / 2, wy + WING_H - 16, opacity(CYAN, 0.85f));
+            } else if (mode == KleinMenu.DRAWER_SMELTING) {
+                int cx = wx + KleinMenu.SMELT_X + 8;
+                int ry = wy + 59;
+                drawReactorRing(g, cx, ry, 14f, AMBER, AMBER_GLOW, timeSec * (ready ? 2.1f : 0.9f));
+                arrow(g, cx, ry, 1, ready ? AMBER_GLOW : AMBER);
+                for (int i = 0; i < 4; i++) {
+                    int rise = (int) ((now / (ready ? 45 : 95) + i * 5) % 16);
+                    int px = cx + (i - 1) * 4 - 2;
+                    g.fill(px, wy + 71 - rise, px + 2, wy + 73 - rise,
+                            opacity(ready ? AMBER_GLOW : AMBER, (1f - rise / 17f) * (ready ? 0.9f : 0.45f)));
+                }
+                drawCenter(g, label("smelt_instant"), wx + WING_W / 2, wy + WING_H - 16, AMBER_GLOW);
+            } else if (mode == KleinMenu.DRAWER_ANVIL) {
+                well(g, wx + 8, wy + 22, WING_W - 16, 14, anvilName.isFocused() ? VIOLET_GLOW : VIOLET);
+                g.fill(wx + 31, wy + 56, wx + 39, wy + 57, VIOLET_GLOW);
+                g.fill(wx + 34, wy + 53, wx + 35, wy + 60, VIOLET_GLOW);
+                int travel = ready ? (int) ((now / 90) % 3) : 0;
+                horizontalArrow(g, wx + 73 + travel, wy + KleinMenu.DRAWER_RESULT_Y + 8, ready ? VIOLET_GLOW : VIOLET);
                 if (menu.anvilCost() > 0) {
                     boolean affordable = minecraft != null && minecraft.player != null
                             && (minecraft.player.getAbilities().instabuild || minecraft.player.experienceLevel >= menu.anvilCost());
-                    Component cost = label("levels", menu.anvilCost());
-                    g.fill(x + 8, y + 77, x + 108, y + 92, affordable ? MINT : GOLD);
-                    drawCenter(g, cost, x + DOCK_WIDTH / 2, y + 81, affordable ? TEAL : AMBER);
+                    int badgeCol = affordable ? EMERALD : CORAL;
+                    well(g, wx + 10, wy + 78, WING_W - 20, 15, badgeCol);
+                    drawCenter(g, label("levels", menu.anvilCost()), wx + WING_W / 2, wy + 82, badgeCol);
+                } else {
+                    drawCenter(g, label("anvil_ready"), wx + WING_W / 2, wy + 82, TEXT_MUTED);
                 }
             }
         }
+
+        g.disableScissor();
+    }
+
+    private static void drawScan(GuiGraphics g, int x, int y, float progress, float alpha, int color) {
+        int w = COLUMNS * CELL - 1;
+        int py = y + (int) ((GRID_HEIGHT - 1) * easeOut(progress));
+        g.fill(x, Math.max(y, py - 2), x + w, py + 1, opacity(color, alpha * 0.25f * (1f - progress)));
+        g.fill(x, py, x + w, py + 1, opacity(color, alpha * (1f - progress)));
+    }
+
+    private void drawAmount(GuiGraphics g, String amount, int x, int y) {
+        int textWidth = font.width(amount);
+        float scale = Math.min(0.70f, 14f / Math.max(1, textWidth));
+        int w = (int) Math.ceil(textWidth * scale);
+        g.pose().pushPose();
+        g.pose().translate(x + 16 - w, y + 10, 210);
+        g.fill(-1, -1, w + 1, 7, 0xE6050A14);
+        g.pose().scale(scale, scale, 1);
+        g.drawString(font, amount, 0, 0, TEXT_BRIGHT, false);
+        g.pose().popPose();
     }
 
     @Override protected void renderSlot(GuiGraphics g, Slot slot) {
         if (isDrawerSlot(slot)) {
+            if (wingOpen <= 0.45f) return;
             g.pose().pushPose();
-            g.pose().translate(0, drawerSlide, 0);
+            g.pose().translate(wingShiftX, 0, 0);
             super.renderSlot(g, slot);
             g.pose().popPose();
         } else {
@@ -479,32 +647,49 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             g.pose().translate(slot.x + 8, slot.y + 8, 205);
             g.fill(0, 2, 8, 8, VIOLET);
             g.fill(2, 0, 6, 3, VIOLET);
-            g.fill(3, 1, 5, 3, LILAC);
-            g.fill(3, 4, 5, 6, WHITE);
+            g.fill(3, 1, 5, 3, VIOLET_DARK);
+            g.fill(3, 4, 5, 6, TEXT_BRIGHT);
             g.pose().popPose();
         }
     }
 
     @Override protected void renderSlotHighlight(GuiGraphics g, Slot slot, int mouseX, int mouseY, float partialTick) {
         if (!slot.isHighlightable()) return;
-        int offset = isDrawerSlot(slot) ? drawerSlide : 0;
-        frame(g, slot.x - 1, slot.y - 1 + offset, 17, 17, menu.isStorageLocked(slot) ? VIOLET : TEAL);
+        int offX = isDrawerSlot(slot) ? wingShiftX : 0;
+        float pulse = 0.5f + 0.5f * (float) Math.sin((now % 3600000L) / 180.0);
+        int col = menu.isStorageLocked(slot) ? VIOLET_GLOW : (isDrawerSlot(slot) ? wingGlow(workspaceMode) : CYAN_GLOW);
+        g.fill(slot.x + offX, slot.y, slot.x + 16 + offX, slot.y + 16, opacity(col, 0.16f));
+        focusReticle(g, slot.x - 1 + offX, slot.y - 1, 17, col, pulse);
     }
 
     @Override protected boolean isHovering(int x, int y, int w, int h, double mouseX, double mouseY) {
-        return super.isHovering(x, y + (x >= DOCK ? drawerSlide : 0), w, h, mouseX, mouseY);
+        return super.isHovering(x + (x >= WING_X ? wingShiftX : 0), y, w, h, mouseX, mouseY);
+    }
+
+    /** 展开工作翼时将侧翼区域纳入容器有效范围，防止点击侧翼槽位触发丢弃手执物品。 */
+    @Override protected boolean hasClickedOutside(double mouseX, double mouseY, int guiLeft, int guiTop, int mouseButton) {
+        if (menu.drawerMode() != KleinMenu.DRAWER_NONE && wingOpen > 0.3f) {
+            double rx = mouseX - guiLeft;
+            double ry = mouseY - guiTop;
+            if (rx >= WING_X - 4 && rx < WING_X + WING_W && ry >= WING_Y && ry < WING_Y + WING_H) {
+                return false;
+            }
+        }
+        return super.hasClickedOutside(mouseX, mouseY, guiLeft, guiTop, mouseButton);
     }
 
     @Override protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {}
 
     private static boolean isDrawerSlot(Slot slot) {
-        return slot.x >= DOCK;
+        return slot.x >= WING_X;
     }
+
+    // ===== 输入与交互 =====
 
     @Override public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (draggingScrollbar) return true;
         Control control = controlAt(mouseX, mouseY);
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && control != null) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && control != null && control != Control.STAT_BADGE) {
             handleControl(control);
             return capturePress(button);
         }
@@ -549,13 +734,14 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private void handleControl(Control control) {
         if (control != Control.CLEAR && (getFocused() == search || getFocused() == anvilName)) setFocused(null);
         switch (control) {
-            case CLEAR -> {
-                search.setValue("");
-                focus(search);
+            case TOOL_CRAFT -> toggleWing(KleinMenu.DRAWER_CRAFTING);
+            case TOOL_SMELT -> toggleWing(KleinMenu.DRAWER_SMELTING);
+            case TOOL_ANVIL -> toggleWing(KleinMenu.DRAWER_ANVIL);
+            case WING_COLLAPSE -> {
+                menu.setDrawerMode(KleinMenu.DRAWER_NONE);
+                PacketDistributor.sendToServer(new KleinDrawerPayload(KleinMenu.DRAWER_NONE));
+                updateWingState(KleinMenu.DRAWER_NONE, Util.getMillis());
             }
-            case SORT -> changeView(search.getValue(), (menu.sortMode() + 1) % 3, menu.descending());
-            case DIRECTION -> changeView(search.getValue(), menu.sortMode(), !menu.descending());
-            case CLOSE -> onClose();
             case DEPOSIT -> {
                 depositPressedAt = Util.getMillis();
                 menu.sendDepositMatching();
@@ -565,9 +751,18 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
                 menu.setAutoDeposit(enabled);
                 PacketDistributor.sendToServer(new KleinAutoDepositPayload(enabled));
             }
-            case CRAFT -> selectDrawer(KleinMenu.DRAWER_CRAFTING);
-            case SMELT -> selectDrawer(KleinMenu.DRAWER_SMELTING);
-            case ANVIL -> selectDrawer(KleinMenu.DRAWER_ANVIL);
+            case CLEAR -> {
+                search.setValue("");
+                focus(search);
+            }
+            case SORT -> changeView(search.getValue(), (menu.sortMode() + 1) % 3, menu.descending());
+            case DIRECTION -> changeView(search.getValue(), menu.sortMode(), !menu.descending());
+            case CAT_ALL -> selectCategory(KleinMenu.CATEGORY_ALL);
+            case CAT_BLOCKS -> selectCategory(KleinMenu.CATEGORY_BLOCKS);
+            case CAT_GEAR -> selectCategory(KleinMenu.CATEGORY_GEAR);
+            case CAT_OTHER -> selectCategory(KleinMenu.CATEGORY_OTHER);
+            case CLOSE -> onClose();
+            case STAT_BADGE -> {}
         }
     }
 
@@ -666,20 +861,26 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
 
     private boolean inScrollTrack(double mouseX, double mouseY) {
         double x = mouseX - leftPos, y = mouseY - topPos;
-        return x >= SCROLL_X - 1 && x < SCROLL_X + 8 && y >= KleinMenu.GRID_Y && y < KleinMenu.GRID_Y + GRID_HEIGHT;
+        return x >= SCROLL_X - 1 && x < SCROLL_X + 7 && y >= KleinMenu.GRID_Y && y < KleinMenu.GRID_Y + GRID_HEIGHT;
     }
 
     private Control controlAt(double screenX, double screenY) {
+        double px = screenX - leftPos, py = screenY - topPos;
         for (Control control : CONTROLS) {
             if (control == Control.CLEAR && (search == null || search.getValue().isEmpty())) continue;
-            if (control.contains(screenX - leftPos, screenY - topPos)) return control;
+            if (control == Control.WING_COLLAPSE) {
+                if (menu.drawerMode() == KleinMenu.DRAWER_NONE || wingOpen < 0.7f) continue;
+                if (control.contains(px - wingShiftX, py)) return control;
+                continue;
+            }
+            if (control.contains(px, py)) return control;
         }
         return null;
     }
 
-    private void drawControl(GuiGraphics g, Control control, int tint, int ink, boolean active) {
+    private void drawControl(GuiGraphics g, Control control, int accent, boolean active) {
         button(g, leftPos + control.x, topPos + control.y, control.w, control.h,
-                smooth(hoveredControls[control.ordinal()]), tint, ink, active);
+                smooth(hoveredControls[control.ordinal()]), accent, active);
     }
 
     private Component sortLabel() {
@@ -692,15 +893,21 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
 
     private Component controlTip(Control control) {
         return switch (control) {
+            case TOOL_CRAFT -> label("tab_crafting");
+            case TOOL_SMELT -> label("tab_smelting");
+            case TOOL_ANVIL -> label("tab_anvil");
+            case WING_COLLAPSE -> Component.translatable("gui.back");
+            case DEPOSIT -> label("quick_deposit");
+            case AUTO -> label(menu.autoDeposit() ? "auto_deposit.on" : "auto_deposit.off");
             case CLEAR -> label("clear_search");
             case SORT -> label("change_sort");
             case DIRECTION -> label(menu.descending() ? "sort_descending" : "sort_ascending");
+            case CAT_ALL -> label("cat_all_tip");
+            case CAT_BLOCKS -> label("cat_blocks_tip");
+            case CAT_GEAR -> label("cat_gear_tip");
+            case CAT_OTHER -> label("cat_other_tip");
             case CLOSE -> Component.translatable("gui.done");
-            case DEPOSIT -> label("quick_deposit");
-            case AUTO -> label(menu.autoDeposit() ? "auto_deposit.on" : "auto_deposit.off");
-            case CRAFT -> label("tab_crafting");
-            case SMELT -> label("tab_smelting");
-            case ANVIL -> label("tab_anvil");
+            case STAT_BADGE -> label("types", menu.totalStoredTypes());
         };
     }
 

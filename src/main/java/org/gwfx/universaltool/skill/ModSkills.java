@@ -100,7 +100,7 @@ public final class ModSkills {
                 SkillTrialSpec.dual("crops_harvested", 12, "damage_taken", 60, "trial.universal_tool.survival_flow"),
                 148, 42);
         active(COUNTER_GUARD, SkillConstellation.XUANWU, SkillTier.INTERMEDIATE, IRON_PHYSIQUE,
-                120, 0,
+                360, 0,
                 SkillTrialSpec.dual("counter_kills", 3, "damage_taken", 80, "trial.universal_tool.counter_guard"),
                 104, 116);
         passive(LAST_STAND, SkillConstellation.XUANWU, SkillTier.INTERMEDIATE, SURVIVAL_FLOW,
@@ -132,7 +132,7 @@ public final class ModSkills {
                 SkillTrialSpec.of("high_place_reached", 1, "trial.universal_tool.air_step"),
                 -104, -116);
         active(GRAVITY_WELL, SkillConstellation.TIANSHU, SkillTier.INTERMEDIATE, AIR_STEP,
-                180, 0,
+                280, 0,
                 SkillTrialSpec.of("nearby_crowd_fights", 3, "trial.universal_tool.gravity_well"),
                 -172, -112);
         active(FROZEN_PULL, SkillConstellation.TIANSHU, SkillTier.ADVANCED, GRAVITY_WELL,
@@ -147,7 +147,7 @@ public final class ModSkills {
                 SkillTrialSpec.dual("teleports", 3, "biomes_discovered", 6, "trial.universal_tool.spatial_attunement"),
                 -222, -52);
         active(VOID_BLINK, SkillConstellation.TIANSHU, SkillTier.ULTIMATE, SPATIAL_ATTUNEMENT,
-                140, 0,
+                200, 0,
                 SkillTrialSpec.dual("pocket_realm_visits", 1, "dimensions_visited", 2, "trial.universal_tool.void_blink"),
                 -274, -198);
 
@@ -159,14 +159,14 @@ public final class ModSkills {
                 SkillTrialSpec.of("blocks_mined", 80, "trial.universal_tool.item_magnet"),
                 -148, 42);
         active(ORE_SIGHT, SkillConstellation.QIAOJIANG, SkillTier.INTERMEDIATE, FOCUS_MINING,
-                600, 0,
+                400, 0,
                 SkillTrialSpec.of("ores_mined", 12, "trial.universal_tool.ore_sight"),
                 -104, 116);
         passive(EXPLORERS_EYE, SkillConstellation.QIAOJIANG, SkillTier.INTERMEDIATE, ITEM_MAGNET,
                 SkillTrialSpec.dual("structures_discovered", 1, "biomes_discovered", 4, "trial.universal_tool.explorers_eye"),
                 -214, 56);
         active(VEIN_RESONANCE, SkillConstellation.QIAOJIANG, SkillTier.ADVANCED, ORE_SIGHT,
-                240, 0,
+                500, 0,
                 SkillTrialSpec.of("ores_mined", 50, "trial.universal_tool.vein_resonance"),
                 -172, 116);
         active(ARCANE_TRANSMUTE, SkillConstellation.QIAOJIANG, SkillTier.ADVANCED, VEIN_RESONANCE,
@@ -174,7 +174,7 @@ public final class ModSkills {
                 SkillTrialSpec.dual("polymerizer_crafts", 2, "ores_mined", 100, "trial.universal_tool.arcane_transmute"),
                 -148, 182);
         passive(HYPER_CONDUIT, SkillConstellation.QIAOJIANG, SkillTier.ADVANCED, EXPLORERS_EYE,
-                SkillTrialSpec.dual("klein_pickups", 1, "blocks_mined", 250, "trial.universal_tool.hyper_conduit"),
+                SkillTrialSpec.dual("ores_mined", 60, "kills_hostile", 35, "trial.universal_tool.hyper_conduit"),
                 -252, 116);
         passive(VOID_FORTUNE, SkillConstellation.QIAOJIANG, SkillTier.ULTIMATE, HYPER_CONDUIT,
                 SkillTrialSpec.dual("lottery_rolls", 3, "ores_mined", 180, "trial.universal_tool.void_fortune"),

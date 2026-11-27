@@ -12,6 +12,7 @@ import org.gwfx.universaltool.phainon.MeteorShowerPayload;
 import org.gwfx.universaltool.network.ModPacketHandler;
 import org.gwfx.universaltool.network.OpenSkillScreenPayload;
 import org.gwfx.universaltool.network.SanctuaryDomeEffectPayload;
+import org.gwfx.universaltool.network.Skill3dEffectPayload;
 import org.gwfx.universaltool.network.SkillNotificationPayload;
 import org.gwfx.universaltool.network.OreSightPayload;
 import org.gwfx.universaltool.network.PersonalDimensionSyncPayload;
@@ -54,6 +55,8 @@ public final class ClientPayloadHandlers {
                 (payload, context) -> context.enqueueWork(() -> DidiDaidaPage.receiveStatus(payload)));
         ModPacketHandler.registerClientHandler(SanctuaryDomeEffectPayload.TYPE,
                 (payload, context) -> context.enqueueWork(() -> SanctuaryDomeEffectRenderer.apply(payload)));
+        ModPacketHandler.registerClientHandler(Skill3dEffectPayload.TYPE,
+                (payload, context) -> context.enqueueWork(() -> Skill3dEffectRenderer.apply(payload)));
         ModPacketHandler.registerClientHandler(MeteorShowerPayload.TYPE,
                 (payload, context) -> context.enqueueWork(() -> PhainonMeteorEffects.start(payload)));
         ModPacketHandler.registerClientHandler(PhainonSkillEffectPayload.TYPE,

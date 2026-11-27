@@ -8,7 +8,7 @@ public enum StarRank {
     ORBITER(10, "orbiter", 3, 4, 0, 0xFF62D8E6),
     RADIANT(20, "radiant", 4, 5, 1, 0xFFF2C95A),
     WEAVER(30, "weaver", 5, 6, 2, 0xFFB48BFF),
-    SOVEREIGN(40, "sovereign", 6, 8, 2, 0xFFFF9654);
+    SOVEREIGN(40, "sovereign", 6, 8, 3, 0xFFFF9654);
 
     private final int minLevel;
     private final String id;
@@ -43,7 +43,7 @@ public enum StarRank {
     }
 
     /**
-     * 0 = 未解锁共鸣；1 = 解锁 2 件共鸣；2 = 解锁 2 件与 4 件共鸣。
+     * 0 = 未解锁共鸣；1 = 解锁 2 星共鸣；2 = 解锁 2/4 星共鸣；3 = 解锁 2/4/6 星共鸣。
      */
     public int maxResonanceTier() {
         return maxResonanceTier;

@@ -44,7 +44,7 @@ public final class ModPacketHandler {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("28");
+        PayloadRegistrar registrar = event.registrar(UniversalToolMod.MODID).versioned("30");
 
         // 客户端发往服务端
         registrar.playToServer(SaveWaypointPayload.TYPE, SaveWaypointPayload.STREAM_CODEC, SaveWaypointPayload::handle);
@@ -82,6 +82,8 @@ public final class ModPacketHandler {
                 DidiOrderPayload::handle);
         registrar.playToServer(PhainonEmptySwingPayload.TYPE, PhainonEmptySwingPayload.STREAM_CODEC,
                 PhainonEmptySwingPayload::handle);
+        registrar.playToServer(SnakeScoreRewardPayload.TYPE, SnakeScoreRewardPayload.STREAM_CODEC,
+                SnakeScoreRewardPayload::handle);
 
         // 服务端发往客户端 (dispatched to ClientPayloadHandlers registered on client setup)
         registrar.playToClient(OreSightPayload.TYPE, OreSightPayload.STREAM_CODEC,
@@ -116,6 +118,8 @@ public final class ModPacketHandler {
                 dispatchClient(PhainonSkillEffectPayload.TYPE));
         registrar.optional().playToClient(SanctuaryDomeEffectPayload.TYPE, SanctuaryDomeEffectPayload.STREAM_CODEC,
                 dispatchClient(SanctuaryDomeEffectPayload.TYPE));
+        registrar.optional().playToClient(Skill3dEffectPayload.TYPE, Skill3dEffectPayload.STREAM_CODEC,
+                dispatchClient(Skill3dEffectPayload.TYPE));
         registrar.playToClient(KleinSyncPayload.TYPE, KleinSyncPayload.STREAM_CODEC, KleinSyncPayload::handle);
     }
 }

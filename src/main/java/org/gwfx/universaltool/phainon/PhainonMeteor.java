@@ -1,6 +1,7 @@
 package org.gwfx.universaltool.phainon;
 
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.LivingEntity;
@@ -11,6 +12,7 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import org.gwfx.universaltool.init.ModSounds;
 
 /** Cast entry point and timing of the awakened meteor skill. */
 public final class PhainonMeteor {
@@ -31,6 +33,9 @@ public final class PhainonMeteor {
             if (!PhainonUltimateHandler.canUseAwakenedSkill(caster, hand)) return InteractionResultHolder.fail(sword);
             PhainonMeteorDamage.start(caster, hand, impactPoint(caster));
             player.getCooldowns().addCooldown(sword.getItem(), DURATION);
+            // 播放觉醒陨石施放语音：「以旧日余烬，为来世破晓！」
+            caster.serverLevel().playSound(null, caster.getX(), caster.getY(), caster.getZ(),
+                    ModSounds.PHAINON_METEOR_VOICE.get(), SoundSource.PLAYERS, 1.0F, 1.0F);
         }
         return InteractionResultHolder.consume(sword);
     }

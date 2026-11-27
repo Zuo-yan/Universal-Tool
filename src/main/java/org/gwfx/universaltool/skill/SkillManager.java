@@ -40,7 +40,7 @@ import java.util.List;
 public final class SkillManager {
     public static final int PULL_FREEZE_RADIUS = 10;
     public static final int FREEZE_TICKS = 100;
-    public static final int ORE_SIGHT_TICKS = 200;
+    public static final int ORE_SIGHT_TICKS = 300;
     public static final int PLAYER_DISCOVERY_EXPERIENCE = 150;
     public static final int STRUCTURE_DISCOVERY_EXPERIENCE = 300;
     public static final int COMBAT_XP_RADIUS = 32;
@@ -287,6 +287,13 @@ public final class SkillManager {
         SkillActiveExecutor.deflectProjectile(player, projectile);
     }
 
+    public static void clearRuntimeEffectsForPlayer(ServerPlayer player) {
+        SkillPassiveHandler.clearAllPassives(player);
+        SkillActiveExecutor.clearAllForPlayer(player);
+        SkillResonanceHandler.clearTransient(player.getUUID());
+        SkillCombatTracker.clearDirty(player.getUUID());
+    }
+
     private static void clearTransient(ServerPlayer player) {
         SkillActiveExecutor.clearTransient(player);
         SkillPassiveHandler.clearMomentum(player.getUUID());
@@ -398,7 +405,8 @@ public final class SkillManager {
 
         boolean isSkillDmg = event.getSource().getDirectEntity() instanceof LightningSpearProjectile
                 || event.getSource().is(net.minecraft.world.damagesource.DamageTypes.INDIRECT_MAGIC);
-        SkillCombatTracker.onLivingDamage(player, target, event.getNewDamage(), isSkillDmg);
+        boolean isProjectileDmg = event.getSource().is(net.minecraft.tags.DamageTypeTags.IS_PROJECTILE);
+        SkillCombatTracker.onLivingDamage(player, target, event.getNewDamage(), isSkillDmg, isProjectileDmg);
     }
 
     @SubscribeEvent
@@ -406,8 +414,9 @@ public final class SkillManager {
         if (event.getEntity() instanceof ServerPlayer victim && isEnabled(victim.serverLevel())) {
             SkillCombatTracker.onIncomingHit(victim, event.getSource().getDirectEntity(),
                     victim.serverLevel().getGameTime());
-            SkillPassiveHandler.applyIncomingVictimPassives(victim, event);
-            SkillActiveExecutor.applyGuard(victim, event);
+            if (!SkillActiveExecutor.applyGuard(victim, event)) {
+                SkillPassiveHandler.applyIncomingVictimPassives(victim, event);
+            }
         }
 
         Entity damageOwner = event.getSource().getEntity();
@@ -426,6 +435,7 @@ public final class SkillManager {
     public static void onServerTick(ServerTickEvent.Post event) {
         if (isEnabled(event.getServer())) {
             SkillActiveExecutor.tickServer(event.getServer());
+            SkillPassiveHandler.tickServer(event.getServer());
         }
     }
 

@@ -10,6 +10,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -43,6 +44,8 @@ import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.init.ModSounds;
 import org.gwfx.universaltool.network.CounterGuardEffectPayload;
 import org.gwfx.universaltool.network.OreSightPayload;
+import org.gwfx.universaltool.network.Skill3dEffectPayload;
+import org.gwfx.universaltool.network.Skill3dEffectPayload.EffectKind;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -57,7 +60,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 主动技能运行时执行器：管理全部 14 项主动技能的起手、蓄力、冷却、目标保护与 Lv.3 星辉觉醒效果。
+ * 主动技能运行时执行器：管理全部 14 项主动技能的起手、蓄力、冷却、百分比伤害、3D 特效与目标保护。
  */
 final class SkillActiveExecutor {
     private static final double GRAVITY_WELL_AREA = 12.0D;
@@ -72,16 +75,19 @@ final class SkillActiveExecutor {
     private static final Map<UUID, OreSightState> ORE_SIGHT = new ConcurrentHashMap<>();
     private static final List<GravityWellState> GRAVITY_WELLS = new CopyOnWriteArrayList<>();
     private static final Map<UUID, BerserkState> BERSERK_STATES = new ConcurrentHashMap<>();
-    private static final Set<UUID> AIR_STEP_LANDING_SHOCKWAVE = ConcurrentHashMap.newKeySet();
+    private static final Map<UUID, Long> AIR_STEP_LANDING_SHOCKWAVE = new ConcurrentHashMap<>();
+    private static final Map<UUID, BackstabBuff> VOID_BACKSTABS = new ConcurrentHashMap<>();
 
     private record ChargeState(String skillId, long startGameTime) {}
     private record GuardState(float reflectMultiplier, int level) {}
-    private record FrozenState(Entity entity, ServerLevel level, long until, boolean previousNoAi) {}
+    private record FrozenState(Entity entity, ServerLevel level, long until, boolean previousNoAi, long visualId) {}
     private record StasisState(Entity target, ServerLevel level, ServerPlayer owner,
                                long until, long nextDamageAt, float fixedDamage) {}
     private record OreSightState(ServerLevel level, Set<BlockPos> orePositions, Set<BlockPos> specialPositions, long expiresAt) {}
-    private record GravityWellState(ServerLevel level, Vec3 center, double radius, int skillLevel, long expiresAt, UUID ownerId) {}
-    private record BerserkState(int skillLevel, long expiresAt, int extendedSeconds) {}
+    private record GravityWellState(ServerLevel level, Vec3 center, double radius, int skillLevel,
+                                    long expiresAt, UUID ownerId, long visualId) {}
+    private record BerserkState(int skillLevel, long expiresAt, int extendedSeconds, long bonusLifestealUntil) {}
+    private record BackstabBuff(int level, long expiresAtTick) {}
 
     private SkillActiveExecutor() {}
 
@@ -95,6 +101,7 @@ final class SkillActiveExecutor {
         GRAVITY_WELLS.clear();
         BERSERK_STATES.clear();
         AIR_STEP_LANDING_SHOCKWAVE.clear();
+        VOID_BACKSTABS.clear();
         SkillNewActivesHelper.clearAll();
     }
 
@@ -103,6 +110,54 @@ final class SkillActiveExecutor {
             if (state.entity() instanceof Mob mob && !mob.isRemoved()) {
                 mob.setNoAi(state.previousNoAi());
             }
+            if (state.visualId() > 0) {
+                Skill3dEffectPayload.fade(state.level(), state.entity().position(), state.visualId());
+            }
+        }
+    }
+
+    /** 统一百分比伤害助手，兼顾原版与高血量模组整合包。 */
+    static float pctDamage(LivingEntity target, float base, float maxHpPct, float currentHpPct, float missingHpPct) {
+        if (target == null) return base;
+        float maxHp = Math.max(1.0F, target.getMaxHealth());
+        float curHp = Math.max(0.0F, Math.min(maxHp, target.getHealth()));
+        float missingHp = Math.max(0.0F, maxHp - curHp);
+        float pctPart = maxHp * maxHpPct + curHp * currentHpPct + missingHp * missingHpPct;
+        if (target instanceof Player) {
+            pctPart *= 0.45F;
+        }
+        return base + pctPart;
+    }
+
+    static boolean isMobilityOrPullSkill(String id) {
+        return ModSkills.AIR_STEP.equals(id) || ModSkills.GRAVITY_WELL.equals(id)
+                || ModSkills.FROZEN_PULL.equals(id) || ModSkills.VOID_BLINK.equals(id);
+    }
+
+    static boolean isPojunActive(String id) {
+        return ModSkills.ASTRAL_CLEAVE.equals(id) || ModSkills.BERSERK.equals(id)
+                || ModSkills.LIGHTNING_SPEAR.equals(id) || ModSkills.THUNDER_JUDGMENT.equals(id);
+    }
+
+    static void grantVoidBackstab(UUID playerId, int level, long expiresAtTick) {
+        VOID_BACKSTABS.put(playerId, new BackstabBuff(level, expiresAtTick));
+    }
+
+    static void applyVoidBackstab(ServerPlayer attacker, LivingIncomingDamageEvent event) {
+        BackstabBuff buff = VOID_BACKSTABS.get(attacker.getUUID());
+        if (buff == null) return;
+        if (attacker.serverLevel().getGameTime() >= buff.expiresAtTick()) {
+            VOID_BACKSTABS.remove(attacker.getUUID());
+            return;
+        }
+        if (event.getEntity() instanceof LivingEntity target && target != attacker) {
+            VOID_BACKSTABS.remove(attacker.getUUID());
+            float dmgMult = buff.level() == 1 ? 1.30F : (buff.level() == 2 ? 1.45F : 1.60F);
+            float missingPct = buff.level() == 1 ? 0.06F : (buff.level() == 2 ? 0.09F : 0.12F);
+            float total = pctDamage(target, event.getAmount() * dmgMult, 0.0F, 0.0F, missingPct);
+            event.setAmount(total);
+            Skill3dEffectPayload.spawn(attacker.serverLevel(), EffectKind.VOID_SLASH,
+                    target.position(), Vec3.ZERO, 1.8F, 10, 0xD47BFF);
         }
     }
 
@@ -197,6 +252,7 @@ final class SkillActiveExecutor {
         if (ModSkills.AIR_STEP.equals(id)) {
             if (castAirStep(player, data.learnedLevel(id))) {
                 CHARGES.put(player.getUUID(), new ChargeState(id, player.serverLevel().getGameTime()));
+                SkillManager.sync(player);
             }
             return;
         }
@@ -210,19 +266,22 @@ final class SkillActiveExecutor {
             return;
         }
         if (ModSkills.VOID_BLINK.equals(id)) {
-            if (SkillNewActivesHelper.handleVoidBlink(player, data, data.learnedLevel(id), adjustedCd)) {
-                data.startCooldown(id, adjustedCd);
-                SkillResonanceHandler.onActiveSkillCast(player);
-                SkillManager.sync(player);
-            } else {
-                SkillResonanceHandler.onActiveSkillCast(player);
+            SkillNewActivesHelper.VoidBlinkResult res = SkillNewActivesHelper.handleVoidBlink(
+                    player, data, data.learnedLevel(id), adjustedCd);
+            if (res == SkillNewActivesHelper.VoidBlinkResult.FIRST_BLINK_ANCHORED) {
+                SkillResonanceHandler.onActiveSkillCast(player, id);
                 SkillManager.sync(player);
             }
             return;
         }
         if (castInstant(player, data, skill)) {
-            data.startCooldown(id, adjustedCd);
-            SkillResonanceHandler.onActiveSkillCast(player);
+            int finalCd = adjustedCd;
+            if (ModSkills.ASTRAL_CLEAVE.equals(id)
+                    && SkillNewActivesHelper.consumeImmediateCleaveRefund(player.getUUID())) {
+                finalCd = Math.max(10, Math.round(adjustedCd * 0.6F));
+            }
+            data.startCooldown(id, finalCd);
+            SkillResonanceHandler.onActiveSkillCast(player, id);
             SkillManager.sync(player);
         }
     }
@@ -247,7 +306,7 @@ final class SkillActiveExecutor {
         long elapsed = player.serverLevel().getGameTime() - state.startGameTime();
         if (ModSkills.AIR_STEP.equals(skill.id())) {
             data.startCooldown(skill.id(), adjustedCd);
-            SkillResonanceHandler.onActiveSkillCast(player);
+            SkillResonanceHandler.onActiveSkillCast(player, skill.id());
             SkillManager.sync(player);
             return;
         }
@@ -260,7 +319,7 @@ final class SkillActiveExecutor {
         float ratio = Math.min(1.0F, elapsed / (float) skill.chargeTicks());
         if (castCharged(player, data, skill, ratio)) {
             data.startCooldown(skill.id(), adjustedCd);
-            SkillResonanceHandler.onActiveSkillCast(player);
+            SkillResonanceHandler.onActiveSkillCast(player, skill.id());
         } else {
             data.startCooldown(skill.id(), SkillManager.CANCEL_COOLDOWN_TICKS);
         }
@@ -309,14 +368,15 @@ final class SkillActiveExecutor {
         };
     }
 
-    // ===== 1. 反击护体 =====
+    // ===== 1. 反击护体（18s CD · 150%/200%/260% 反伤 + Lv.3 3D 震退冲击波） =====
 
     private static boolean castCounterGuard(ServerPlayer player, int level) {
         if (GUARDS.containsKey(player.getUUID())) {
             player.displayClientMessage(Component.translatable("message.universal_tool.skills.guard_active"), true);
             return false;
         }
-        GUARDS.put(player.getUUID(), new GuardState(1.25F + 0.25F * (level - 1), level));
+        float reflect = level == 1 ? 1.50F : (level == 2 ? 2.00F : 2.60F);
+        GUARDS.put(player.getUUID(), new GuardState(reflect, level));
         broadcastGuardEffect(player, CounterGuardEffectPayload.Action.EXPAND);
         player.displayClientMessage(Component.translatable("message.universal_tool.skills.guard_ready"), true);
         SkillVfx.ring(player.serverLevel(), player.position().add(0, 0.30, 0), 1.15, 0, 12, SkillVfx.Tint.GUARD);
@@ -328,22 +388,23 @@ final class SkillActiveExecutor {
         return true;
     }
 
-    // ===== 2. 重力牵引 =====
+    // ===== 2. 重力牵引（14s CD · 3D 深空黑洞吸积盘 + Lv.3 坍缩超新星爆裂） =====
 
     private static boolean castGravityWell(ServerPlayer player, int level) {
         ServerLevel world = player.serverLevel();
         double radius = gravityWellRadius(level);
         Vec3 start = player.getEyePosition();
         Vec3 end = start.add(player.getLookAngle().scale(GRAVITY_WELL_AREA));
-        Vec3 center = player.isShiftKeyDown()
-                ? world.clip(new ClipContext(start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player)).getLocation()
-                : end;
+        Vec3 center = world.clip(new ClipContext(start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player)).getLocation();
+        int dur = gravityWellDurationTicks(level);
+        long visId = Skill3dEffectPayload.nextId();
+        Skill3dEffectPayload.sendWithId(world, visId, EffectKind.GRAVITY_BLACK_HOLE, center, Vec3.ZERO,
+                (float) radius, dur, 0xB56BFF);
         GRAVITY_WELLS.add(new GravityWellState(world, center, radius, level,
-                world.getGameTime() + gravityWellDurationTicks(level), player.getUUID()));
-        tickGravityWells(world.getGameTime());
+                world.getGameTime() + dur, player.getUUID(), visId));
+        tickGravityWells();
 
         SkillVfx.spiral(world, center, Math.min(2.5, radius * 0.24), 1.35, 0, SkillVfx.Tint.GRAVITY);
-        SkillVfx.sparks(world, center.add(0, 0.35, 0), 0.65, 0.75, 24, SkillVfx.Tint.GRAVITY);
         world.playSound(null, center.x, center.y, center.z, SoundEvents.ENDER_DRAGON_GROWL,
                 SoundSource.PLAYERS, 0.55F, 0.65F);
         player.displayClientMessage(Component.translatable("message.universal_tool.skills.gravity_well",
@@ -351,13 +412,14 @@ final class SkillActiveExecutor {
         return true;
     }
 
-    private static void tickGravityWells(long gameTime) {
+    private static void tickGravityWells() {
         if (GRAVITY_WELLS.isEmpty()) {
             return;
         }
         List<GravityWellState> finished = new ArrayList<>();
         for (GravityWellState well : GRAVITY_WELLS) {
-            if (!well.level().isLoaded(BlockPos.containing(well.center())) || gameTime >= well.expiresAt()) {
+            long levelTime = well.level().getGameTime();
+            if (!well.level().isLoaded(BlockPos.containing(well.center())) || levelTime >= well.expiresAt()) {
                 finished.add(well);
                 continue;
             }
@@ -374,37 +436,28 @@ final class SkillActiveExecutor {
                         .add(pull.x, Math.max(-0.18, pull.y * 0.25), pull.z));
                 target.hurtMarked = true;
             }
-            if (gameTime % 4 == 0) {
-                double angle = gameTime * 0.35;
-                double orbit = Math.max(1.0, well.radius() * 0.18);
-                double px = well.center().x + Math.cos(angle) * orbit;
-                double pz = well.center().z + Math.sin(angle) * orbit;
-                Vec3 orbitPoint = new Vec3(px, well.center().y + 0.4, pz);
-                SkillVfx.sparks(well.level(), orbitPoint, 0.46, 0.35, 5, SkillVfx.Tint.GRAVITY);
-                SkillVfx.point(well.level(), well.center().add((well.center().x - px) * 0.78, 0.25, (well.center().z - pz) * 0.78),
-                        SkillVfx.Tint.GRAVITY.dust);
-            }
         }
         for (GravityWellState well : finished) {
             GRAVITY_WELLS.remove(well);
-            // Lv.3 星辉觉醒：重力坍缩结束瞬间触发范围星爆伤害
+            // Lv.3 星辉觉醒：黑洞坍缩结束瞬间爆发高额百分比超新星伤与迟缓
             if (well.skillLevel() >= 3 && well.level().isLoaded(BlockPos.containing(well.center()))) {
                 ServerPlayer owner = well.level().getServer().getPlayerList().getPlayer(well.ownerId());
                 if (owner != null) {
-                    AABB burstBox = new AABB(well.center(), well.center()).inflate(6.0);
+                    AABB burstBox = new AABB(well.center(), well.center()).inflate(6.5);
                     for (LivingEntity target : well.level().getEntitiesOfClass(LivingEntity.class, burstBox,
                             e -> canAffect(owner, e))) {
-                        target.hurt(well.level().damageSources().indirectMagic(owner, owner), 8.0F);
-                        target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 40, 1, false, true, true));
+                        target.hurt(well.level().damageSources().indirectMagic(owner, owner),
+                                pctDamage(target, 10.0F, 0.10F, 0.0F, 0.0F));
+                        target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 50, 1, false, true, true));
                     }
-                    SkillVfx.ring(well.level(), well.center().add(0, 0.45, 0), 4.0, 0, 16, SkillVfx.Tint.GRAVITY);
-                    SkillVfx.sparks(well.level(), well.center(), 0.95, 0.55, 22, SkillVfx.Tint.GRAVITY);
+                    SkillVfx.ring(well.level(), well.center().add(0, 0.45, 0), 4.5, 0, 16, SkillVfx.Tint.GRAVITY);
+                    SkillVfx.sparks(well.level(), well.center(), 1.0, 0.65, 24, SkillVfx.Tint.GRAVITY);
                 }
             }
         }
     }
 
-    // ===== 3. 冰封牵引 =====
+    // ===== 3. 冰封牵引（3D 冰晶棱柱牢笼 + 霜链 + 百分比霜冻溅射） =====
 
     private static boolean castFrozenPull(ServerPlayer player, int level) {
         ServerLevel world = player.serverLevel();
@@ -423,24 +476,19 @@ final class SkillActiveExecutor {
         target.setDeltaMovement(Vec3.ZERO);
         target.hurtMarked = true;
 
-        freeze(player, target, world, freezeDurationTicks(level));
+        freeze(player, target, world, freezeDurationTicks(level), departure);
 
         if (level >= 3) {
-            // Lv.3 觉醒：冰霜溅射周边 3 格敌怪
             for (LivingEntity nearby : world.getEntitiesOfClass(LivingEntity.class,
-                    target.getBoundingBox().inflate(3.0), e -> e != target && canAffect(player, e))) {
+                    target.getBoundingBox().inflate(3.5), e -> e != target && canAffect(player, e))) {
                 nearby.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 60, 2, false, true, true));
                 nearby.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 60, 1, false, true, true));
-                nearby.hurt(world.damageSources().indirectMagic(player, player), 6.0F);
+                nearby.hurt(world.damageSources().indirectMagic(player, player),
+                        pctDamage(nearby, 6.0F, 0.06F, 0.0F, 0.0F));
             }
         }
 
-        Vec3 arrival = target.position().add(0, target.getBbHeight() * 0.55, 0);
-        Vec3 pulled = arrival.subtract(departure);
-        if (pulled.lengthSqr() > 0.25) {
-            SkillVfx.wake(world, departure, pulled, pulled.length(), 0.45, true, SkillVfx.Tint.ICE);
-        }
-        SkillVfx.ring(world, target.position().add(0, 0.20, 0), level >= 3 ? 2.4 : 0.85,
+        SkillVfx.ring(world, target.position().add(0, 0.20, 0), level >= 3 ? 2.6 : 0.95,
                 Math.PI / 6.0, 12, SkillVfx.Tint.ICE);
         world.playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.PLAYER_TELEPORT, SoundSource.PLAYERS, 0.8F, 1.3F);
@@ -448,8 +496,11 @@ final class SkillActiveExecutor {
         return true;
     }
 
-    /** 冻结实体；重复冻结仅延长时间，保留首次进入前的 AI 状态（修复历史缺陷 #1）。 */
     static void freeze(ServerPlayer owner, LivingEntity target, ServerLevel level, int freezeTicks) {
+        freeze(owner, target, level, freezeTicks, target.position());
+    }
+
+    static void freeze(ServerPlayer owner, LivingEntity target, ServerLevel level, int freezeTicks, Vec3 chainFrom) {
         target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, freezeTicks, 255, false, true, true));
         target.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, freezeTicks, 255, false, true, true));
         target.addEffect(new MobEffectInstance(MobEffects.DIG_SLOWDOWN, freezeTicks, 255, false, true, true));
@@ -458,6 +509,7 @@ final class SkillActiveExecutor {
         boolean previousNoAi = existing != null ? existing.previousNoAi()
                 : (target instanceof Mob mob && mob.isNoAi());
         long newUntil = Math.max(existing != null ? existing.until() : 0L, level.getGameTime() + freezeTicks);
+        long visId = existing != null && existing.visualId() > 0 ? existing.visualId() : Skill3dEffectPayload.nextId();
 
         if (target instanceof Mob mob) {
             mob.setNoAi(true);
@@ -465,22 +517,19 @@ final class SkillActiveExecutor {
             mob.getNavigation().stop();
             mob.setAggressive(false);
         }
-        FROZEN.put(target.getUUID(), new FrozenState(target, level, newUntil, previousNoAi));
+        FROZEN.put(target.getUUID(), new FrozenState(target, level, newUntil, previousNoAi, visId));
         STASIS.put(target.getUUID(), new StasisState(target, level, owner,
                 newUntil,
                 level.getGameTime() + SkillManager.STASIS_DAMAGE_INTERVAL_TICKS,
                 Math.max(1.0F, target.getMaxHealth() * SkillManager.STASIS_DAMAGE_FRACTION)));
 
-        SkillVfx.spiral(level, target.position().add(0, 0.14, 0),
-                Math.min(1.7, 0.44 + target.getBbWidth() * 0.33), Math.min(2.4, target.getBbHeight()),
-                0, SkillVfx.Tint.ICE);
-        SkillVfx.sparks(level, target.position().add(0, Math.min(1.6, target.getBbHeight() * 0.55), 0),
-                0.52, 0.70, 20, SkillVfx.Tint.ICE);
+        Skill3dEffectPayload.sendWithId(level, visId, EffectKind.ICE_PRISON, target.position(), chainFrom,
+                Math.max(1.0F, target.getBbWidth()), freezeTicks, 0x73ECFF);
         level.playSound(null, target.getX(), target.getY(), target.getZ(),
                 SoundEvents.GLASS_BREAK, SoundSource.PLAYERS, 0.9F, 0.65F);
     }
 
-    private static void tickFrozen(long gameTime) {
+    private static void tickFrozen() {
         if (FROZEN.isEmpty()) {
             STASIS.clear();
             return;
@@ -488,7 +537,8 @@ final class SkillActiveExecutor {
         List<UUID> expired = new ArrayList<>();
         for (Map.Entry<UUID, FrozenState> entry : FROZEN.entrySet()) {
             FrozenState state = entry.getValue();
-            if (gameTime >= state.until() || state.entity().isRemoved() || !state.entity().isAlive()) {
+            long levelTime = state.level().getGameTime();
+            if (levelTime >= state.until() || state.entity().isRemoved() || !state.entity().isAlive()) {
                 expired.add(entry.getKey());
                 continue;
             }
@@ -499,7 +549,7 @@ final class SkillActiveExecutor {
                 Vec3 movement = mob.getDeltaMovement();
                 mob.setDeltaMovement(0, Math.min(0, movement.y), 0);
             }
-            if (gameTime % 5 == 0) {
+            if (levelTime % 5 == 0) {
                 state.level().sendParticles(ParticleTypes.SNOWFLAKE,
                         state.entity().getX(), state.entity().getY() + 0.8, state.entity().getZ(),
                         2, 0.3, 0.5, 0.3, 0.01);
@@ -507,23 +557,34 @@ final class SkillActiveExecutor {
         }
         for (UUID id : expired) {
             FrozenState state = FROZEN.remove(id);
-            if (state != null && state.entity() instanceof Mob mob && !mob.isRemoved()) {
-                mob.setNoAi(state.previousNoAi());
+            if (state != null) {
+                if (state.entity() instanceof Mob mob && !mob.isRemoved()) {
+                    mob.setNoAi(state.previousNoAi());
+                }
+                if (state.visualId() > 0) {
+                    Skill3dEffectPayload.fade(state.level(), state.entity().position(), state.visualId());
+                }
+                state.level().sendParticles(ParticleTypes.SNOWFLAKE,
+                        state.entity().getX(), state.entity().getY() + 0.8, state.entity().getZ(),
+                        16, 0.4, 0.5, 0.4, 0.12);
+                state.level().playSound(null, state.entity().getX(), state.entity().getY(), state.entity().getZ(),
+                        SoundEvents.GLASS_BREAK, SoundSource.PLAYERS, 0.7F, 1.35F);
             }
             STASIS.remove(id);
         }
-        tickStasis(gameTime);
+        tickStasis();
     }
 
-    private static void tickStasis(long gameTime) {
+    private static void tickStasis() {
         for (Map.Entry<UUID, StasisState> entry : STASIS.entrySet()) {
             StasisState state = entry.getValue();
+            long levelTime = state.level().getGameTime();
             LivingEntity target = state.target() instanceof LivingEntity living ? living : null;
-            if (target == null || target.isRemoved() || !target.isAlive() || gameTime >= state.until()) {
+            if (target == null || target.isRemoved() || !target.isAlive() || levelTime >= state.until()) {
                 STASIS.remove(entry.getKey());
                 continue;
             }
-            if (gameTime < state.nextDamageAt()) {
+            if (levelTime < state.nextDamageAt()) {
                 continue;
             }
             state.level().sendParticles(ParticleTypes.CRIT,
@@ -532,35 +593,44 @@ final class SkillActiveExecutor {
             target.hurt(state.level().damageSources().indirectMagic(state.owner(), state.owner()),
                     state.fixedDamage());
             STASIS.put(entry.getKey(), new StasisState(state.target(), state.level(), state.owner(),
-                    state.until(), gameTime + SkillManager.STASIS_DAMAGE_INTERVAL_TICKS, state.fixedDamage()));
+                    state.until(), levelTime + SkillManager.STASIS_DAMAGE_INTERVAL_TICKS, state.fixedDamage()));
         }
     }
 
-    // ===== 4. 威压领域 =====
+    // ===== 4. 威压领域（3D 暗红黑金穹壁 + 全等级当前生命值百分比星压伤害） =====
 
     private static boolean castOppressiveField(ServerPlayer player, int level) {
         ServerLevel world = player.serverLevel();
         double radius = oppressiveRadius(level);
         int duration = oppressiveDurationTicks(level);
+        float baseDmg = level == 1 ? 4.0F : (level == 2 ? 6.0F : 10.0F);
+        float curPct = level == 1 ? 0.04F : (level == 2 ? 0.06F : 0.10F);
+
         for (LivingEntity target : targets(world, player, player.position(), radius)) {
             target.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, duration, 2, false, true, true));
             if (level >= 3) {
                 target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, duration, 1, false, true, true));
-                target.hurt(world.damageSources().indirectMagic(player, player), 6.0F);
             }
+            target.hurt(world.damageSources().indirectMagic(player, player),
+                    pctDamage(target, baseDmg, 0.0F, curPct, 0.0F));
+            Vec3 diff = target.position().subtract(player.position());
+            Vec3 push = diff.lengthSqr() > 1.0E-4 ? diff.normalize().scale(0.55D) : new Vec3(0, 0, 0.55D);
+            target.setDeltaMovement(target.getDeltaMovement().add(push.x, 0.18D, push.z));
+            target.hurtMarked = true;
+            SkillVfx.ring(world, target.position().add(0, 0.12, 0), 0.9, 0, 6, SkillVfx.Tint.DREAD);
         }
         player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, duration, level >= 3 ? 1 : 0,
                 false, true, true));
-        SkillVfx.ring(world, player.position().add(0, 0.25, 0), radius, Math.PI / 12.0, 12, SkillVfx.Tint.DREAD);
-        SkillVfx.ring(world, player.position().add(0, 0.45, 0), 2.5, 0, 10, SkillVfx.Tint.DREAD);
+        Skill3dEffectPayload.spawn(world, EffectKind.OPPRESSIVE_WAVE, player.position(), Vec3.ZERO,
+                (float) radius, 16, 0xFF4C3A);
         SkillVfx.sparks(world, player.position().add(0, 0.75, 0), 1.2, 0.45, 22, SkillVfx.Tint.DREAD);
         world.playSound(null, player.getX(), player.getY(), player.getZ(),
-                SoundEvents.WARDEN_SONIC_BOOM, SoundSource.PLAYERS, 0.6F, 0.75F);
+                SoundEvents.WARDEN_SONIC_BOOM, SoundSource.PLAYERS, 0.65F, 0.72F);
         player.displayClientMessage(Component.translatable("message.universal_tool.skills.oppressive_field"), true);
         return true;
     }
 
-    // ===== 5. 矿脉感知（Lv.3 额外高亮宝箱/刷怪笼） =====
+    // ===== 5. 矿脉感知（20s CD · 15s 持续 · 3D 声呐波 + 按稀有度分色透视） =====
 
     private static boolean castOreSight(ServerPlayer player, int level) {
         ServerLevel world = player.serverLevel();
@@ -586,13 +656,25 @@ final class SkillActiveExecutor {
         ORE_SIGHT.put(player.getUUID(), new OreSightState(world, ores, specials,
                 world.getGameTime() + SkillManager.ORE_SIGHT_TICKS));
         syncOreMarkers(player, ores, specials, SkillManager.ORE_SIGHT_TICKS);
-        SkillVfx.ring(world, player.position().add(0, 0.23, 0), 2.0, 0, 10, SkillVfx.Tint.ORE);
-        SkillVfx.sparks(world, player.position().add(0, 0.5, 0), 0.48, 0.38, 12, SkillVfx.Tint.ORE);
+        Skill3dEffectPayload.spawn(world, EffectKind.ORE_SONAR, player.position().add(0, 0.8, 0), Vec3.ZERO,
+                (float) radius, 22, 0x5CE6FF);
         player.displayClientMessage(Component.translatable("message.universal_tool.skills.ore_sight",
                 ores.size() + specials.size()), true);
         world.playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.8F, 1.5F);
         return true;
+    }
+
+    static int oreColor(BlockState state) {
+        if (state.is(Blocks.ANCIENT_DEBRIS)) return 0xFFFF5E4D;
+        if (state.is(BlockTags.DIAMOND_ORES)) return 0xFF42F5FF;
+        if (state.is(BlockTags.EMERALD_ORES)) return 0xFF4BFF8C;
+        if (state.is(BlockTags.GOLD_ORES)) return 0xFFFFD84D;
+        if (state.is(BlockTags.REDSTONE_ORES)) return 0xFFFF4D6A;
+        if (state.is(BlockTags.LAPIS_ORES)) return 0xFF4D8DFF;
+        if (state.is(BlockTags.IRON_ORES)) return 0xFFE6C29F;
+        if (state.is(BlockTags.COPPER_ORES)) return 0xFFF28B50;
+        return 0xFF9FB8D6;
     }
 
     private static boolean isSpecialContainerOrSpawner(ServerLevel world, BlockPos pos, BlockState state) {
@@ -604,7 +686,7 @@ final class SkillActiveExecutor {
         return false;
     }
 
-    // ===== 6. 凌空踏步 =====
+    // ===== 6. 凌空踏步（修复鞘翅循环音残留 + 双翼气流 + Lv.3 3D 冲击波） =====
 
     private static boolean castAirStep(ServerPlayer player, int level) {
         if (player.onGround()) {
@@ -619,13 +701,13 @@ final class SkillActiveExecutor {
         player.resetFallDistance();
         player.hurtMarked = true;
         if (level >= 3) {
-            AIR_STEP_LANDING_SHOCKWAVE.add(player.getUUID());
+            AIR_STEP_LANDING_SHOCKWAVE.put(player.getUUID(), player.serverLevel().getGameTime() + 240L);
         }
         Vec3 step = player.position().add(0, 0.20, 0);
         SkillVfx.ring(player.serverLevel(), step, 0.82, 0, 10, SkillVfx.Tint.AIR);
         SkillVfx.wake(player.serverLevel(), step, direction.scale(-1), 1.8, 0.45, true, SkillVfx.Tint.AIR);
         player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
-                SoundEvents.ELYTRA_FLYING, SoundSource.PLAYERS, 0.8F, 1.25F);
+                SoundEvents.WIND_CHARGE_BURST.value(), SoundSource.PLAYERS, 0.72F, 1.35F);
         player.displayClientMessage(Component.translatable("message.universal_tool.skills.air_step"), true);
         return true;
     }
@@ -653,14 +735,14 @@ final class SkillActiveExecutor {
         return true;
     }
 
-    // ===== 8. 狂战爆发 =====
+    // ===== 8. 狂战爆发（持续流火光环 + 炽焰余波 3% 当前生命 + Lv.3 杀敌续时攻速/吸血） =====
 
     private static boolean castBerserk(ServerPlayer player, int level) {
         int dur = 200;
         player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, dur, level - 1, false, true, true));
         player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_BOOST, dur, level - 1, false, true, true));
 
-        BERSERK_STATES.put(player.getUUID(), new BerserkState(level, player.serverLevel().getGameTime() + dur, 0));
+        BERSERK_STATES.put(player.getUUID(), new BerserkState(level, player.serverLevel().getGameTime() + dur, 0, 0L));
         var attackAttr = player.getAttribute(Attributes.ATTACK_DAMAGE);
         if (attackAttr != null) {
             attackAttr.removeModifier(BERSERK_ATTACK_DAMAGE_ID);
@@ -676,63 +758,113 @@ final class SkillActiveExecutor {
         return true;
     }
 
-    /** 狂战爆发 Lv.3 觉醒：期间击杀延长持续时间最多 6 秒并回血。 */
+    static void onBerserkHit(ServerPlayer player, LivingEntity target, float damageDealt) {
+        BerserkState state = BERSERK_STATES.get(player.getUUID());
+        if (state == null || target == player) return;
+        long now = player.serverLevel().getGameTime();
+        if (now >= state.expiresAt()) return;
+        float ember = pctDamage(target, 0.0F, 0.0F, 0.03F, 0.0F);
+        if (ember > 0.2F) {
+            target.hurt(player.serverLevel().damageSources().indirectMagic(player, player), ember);
+            player.serverLevel().sendParticles(ParticleTypes.FLAME,
+                    target.getX(), target.getY() + target.getBbHeight() * 0.5, target.getZ(),
+                    5, 0.2, 0.2, 0.2, 0.04);
+        }
+        if (now < state.bonusLifestealUntil() && damageDealt > 0.0F) {
+            player.heal(Math.max(0.5F, damageDealt * 0.10F));
+        }
+    }
+
+    /** 狂战爆发 Lv.3 觉醒：期间击杀延长持续时间最多 6 秒、回血 2 点并刷新 4 秒急迫 II 与 10% 额外吸血。 */
     static void onBerserkKill(ServerPlayer player) {
         BerserkState state = BERSERK_STATES.get(player.getUUID());
         if (state == null || state.skillLevel() < 3) return;
         long now = player.serverLevel().getGameTime();
-        if (now >= state.expiresAt() || state.extendedSeconds() >= 6) return;
-        long nextExp = state.expiresAt() + 40;
-        BERSERK_STATES.put(player.getUUID(), new BerserkState(state.skillLevel(), nextExp, state.extendedSeconds() + 2));
+        if (now >= state.expiresAt()) return;
+        int addedSec = state.extendedSeconds() < 6 ? 2 : 0;
+        long nextExp = state.expiresAt() + addedSec * 20L;
+        BERSERK_STATES.put(player.getUUID(),
+                new BerserkState(state.skillLevel(), nextExp, state.extendedSeconds() + addedSec, now + 80));
         int rem = (int) Math.max(40, nextExp - now);
         player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, rem, state.skillLevel() - 1, false, true, true));
         player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_BOOST, rem, state.skillLevel() - 1, false, true, true));
+        player.addEffect(new MobEffectInstance(MobEffects.DIG_SPEED, 80, 1, false, true, true));
         player.heal(2.0F);
+        SkillVfx.ring(player.serverLevel(), player.position().add(0, 0.3, 0), 1.6, 0, 12, SkillVfx.Tint.RAGE);
     }
 
     // ===== Tick 调度 =====
 
     static void tickServer(MinecraftServer server) {
-        long gameTime = server.overworld().getGameTime();
-        if (gameTime % 2 == 0) {
-            tickFrozen(gameTime);
+        if (server.overworld().getGameTime() % 2 == 0) {
+            tickFrozen();
         }
-        tickGravityWells(gameTime);
+        tickGravityWells();
         SkillNewActivesHelper.tickServer(server);
     }
 
     static void tickPlayerActives(ServerPlayer player, long gameTime) {
         tickAirStep(player, gameTime);
         tickBerserk(player, gameTime);
+        tickChargingVisual(player, gameTime);
         if (GUARDS.containsKey(player.getUUID())) {
             tickCounterGuardProjectiles(player);
         }
         tickOreSight(player, gameTime);
     }
 
+    private static void tickChargingVisual(ServerPlayer player, long now) {
+        ChargeState state = CHARGES.get(player.getUUID());
+        if (state != null && ModSkills.LIGHTNING_SPEAR.equals(state.skillId()) && now % 3 == 0) {
+            Vec3 focus = player.getEyePosition().add(player.getLookAngle().scale(0.95)).add(0, -0.15, 0);
+            SkillVfx.ring(player.serverLevel(), focus, 0.55, now * 0.45, 8, SkillVfx.Tint.SPEAR);
+            player.serverLevel().sendParticles(ParticleTypes.ELECTRIC_SPARK,
+                    focus.x, focus.y, focus.z, 3, 0.14, 0.14, 0.14, 0.04);
+        }
+    }
+
     private static void tickBerserk(ServerPlayer player, long now) {
         BerserkState state = BERSERK_STATES.get(player.getUUID());
-        if (state != null && now >= state.expiresAt()) {
+        if (state == null) return;
+        if (now >= state.expiresAt()) {
             BERSERK_STATES.remove(player.getUUID());
             var attackAttr = player.getAttribute(Attributes.ATTACK_DAMAGE);
             if (attackAttr != null) {
                 attackAttr.removeModifier(BERSERK_ATTACK_DAMAGE_ID);
             }
+            return;
+        }
+        if (now % 4 == 0) {
+            double ang = now * 0.45;
+            Vec3 pt = player.position().add(Math.cos(ang) * 0.75, 0.9 + Math.sin(ang * 2) * 0.3, Math.sin(ang) * 0.75);
+            SkillVfx.point(player.serverLevel(), pt, SkillVfx.Tint.RAGE.dust);
         }
     }
 
     private static void tickAirStep(ServerPlayer player, long now) {
-        if (player.onGround() && AIR_STEP_LANDING_SHOCKWAVE.remove(player.getUUID())) {
-            player.resetFallDistance();
-            for (LivingEntity nearby : player.serverLevel().getEntitiesOfClass(LivingEntity.class,
-                    player.getBoundingBox().inflate(4.5), e -> canAffect(player, e))) {
-                Vec3 push = nearby.position().subtract(player.position()).normalize().scale(1.1);
-                nearby.setDeltaMovement(push.x, 0.35, push.z);
-                nearby.hurtMarked = true;
-                nearby.hurt(player.serverLevel().damageSources().indirectMagic(player, player), 5.0F);
+        Long expireAt = AIR_STEP_LANDING_SHOCKWAVE.get(player.getUUID());
+        if (expireAt != null) {
+            if (now >= expireAt || player.isInWaterOrBubble() || player.isInLava()
+                    || player.getAbilities().flying || player.isFallFlying() || player.isPassenger()) {
+                AIR_STEP_LANDING_SHOCKWAVE.remove(player.getUUID());
+            } else if (player.onGround()) {
+                AIR_STEP_LANDING_SHOCKWAVE.remove(player.getUUID());
+                player.resetFallDistance();
+                for (LivingEntity nearby : player.serverLevel().getEntitiesOfClass(LivingEntity.class,
+                        player.getBoundingBox().inflate(4.5), e -> canAffect(player, e))) {
+                    Vec3 diff = nearby.position().subtract(player.position());
+                    Vec3 push = diff.lengthSqr() > 1.0E-4 ? diff.normalize().scale(1.2) : new Vec3(0, 0, 1.2);
+                    nearby.setDeltaMovement(push.x, 0.38, push.z);
+                    nearby.hurtMarked = true;
+                    nearby.hurt(player.serverLevel().damageSources().indirectMagic(player, player),
+                            pctDamage(nearby, 6.0F, 0.06F, 0.0F, 0.0F));
+                }
+                Skill3dEffectPayload.spawn(player.serverLevel(), EffectKind.AIR_SHOCKWAVE,
+                        player.position(), Vec3.ZERO, 4.5F, 14, 0x76E7FF);
+                SkillVfx.ring(player.serverLevel(), player.position().add(0, 0.12, 0), 3.4, 0, 14, SkillVfx.Tint.AIR);
+                player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.WIND_CHARGE_BURST.value(), SoundSource.PLAYERS, 0.7F, 0.9F);
             }
-            SkillVfx.ring(player.serverLevel(), player.position().add(0, 0.12, 0), 3.4, 0, 14, SkillVfx.Tint.AIR);
-            SkillVfx.sparks(player.serverLevel(), player.position(), 1.15, 0.15, 18, SkillVfx.Tint.AIR);
         }
 
         ChargeState state = CHARGES.get(player.getUUID());
@@ -750,9 +882,12 @@ final class SkillActiveExecutor {
         player.setDeltaMovement(direction.scale(0.65 + 0.1 * level));
         player.resetFallDistance();
         player.hurtMarked = true;
-        if (now % 4 == 0) {
-            player.serverLevel().sendParticles(ParticleTypes.CLOUD, player.getX(), player.getY(),
-                    player.getZ(), 2, 0.15, 0.05, 0.15, 0.01);
+        if (now % 2 == 0) {
+            Vec3 side = direction.cross(new Vec3(0, 1, 0));
+            if (side.lengthSqr() > 1.0E-4) side = side.normalize().scale(0.55);
+            Vec3 mid = player.position().add(0, 0.7, 0);
+            SkillVfx.point(player.serverLevel(), mid.add(side), SkillVfx.Tint.AIR.dust);
+            SkillVfx.point(player.serverLevel(), mid.subtract(side), SkillVfx.Tint.AIR.dust);
         }
     }
 
@@ -774,42 +909,51 @@ final class SkillActiveExecutor {
 
     // ===== 反击护体拦截与反弹 =====
 
-    static void applyGuard(ServerPlayer player, LivingIncomingDamageEvent event) {
+    static boolean applyGuard(ServerPlayer player, LivingIncomingDamageEvent event) {
         if (!GUARDS.containsKey(player.getUUID())) {
-            return;
+            return false;
         }
         if (event.getSource().is(DamageTypeTags.IS_PROJECTILE)
                 || event.getSource().getDirectEntity() instanceof Projectile) {
             event.setAmount(0.0F);
+            event.setCanceled(true);
             if (event.getSource().getDirectEntity() instanceof Projectile proj) {
                 deflectProjectile(player, proj);
             }
-            return;
+            return true;
         }
         Entity damageOwner = event.getSource().getEntity();
         if (damageOwner == null) damageOwner = event.getSource().getDirectEntity();
-        if (!(damageOwner instanceof LivingEntity attacker)) {
-            return;
+        if (damageOwner == player || !(damageOwner instanceof LivingEntity attacker)) {
+            return false;
         }
         GuardState guard = GUARDS.remove(player.getUUID());
-        if (guard == null) return;
+        if (guard == null) return false;
         float incoming = event.getOriginalAmount();
         if (incoming <= 0) {
             GUARDS.put(player.getUUID(), guard);
-            return;
+            return false;
         }
         event.setAmount(0.0F);
-        attacker.hurt(player.damageSources().thorns(player), incoming * guard.reflectMultiplier());
+        event.setCanceled(true);
+        if (canAffect(player, attacker)) {
+            attacker.hurt(player.damageSources().thorns(player), incoming * guard.reflectMultiplier());
+        }
         broadcastGuardEffect(player, CounterGuardEffectPayload.Action.TRIGGER);
 
         if (guard.level() >= 3) {
             player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 80, 1, false, true, true));
             for (LivingEntity nearby : player.serverLevel().getEntitiesOfClass(LivingEntity.class,
                     player.getBoundingBox().inflate(6.0), e -> canAffect(player, e))) {
-                Vec3 push = nearby.position().subtract(player.position()).normalize().scale(1.2);
-                nearby.setDeltaMovement(push.x, 0.38, push.z);
+                Vec3 diff = nearby.position().subtract(player.position());
+                Vec3 push = diff.lengthSqr() > 1.0E-4 ? diff.normalize().scale(1.3) : new Vec3(0, 0, 1.3);
+                nearby.setDeltaMovement(push.x, 0.42, push.z);
                 nearby.hurtMarked = true;
+                nearby.hurt(player.serverLevel().damageSources().indirectMagic(player, player),
+                        pctDamage(nearby, 6.0F, 0.06F, 0.0F, 0.0F));
             }
+            Skill3dEffectPayload.spawn(player.serverLevel(), EffectKind.RESONANCE_AEGIS,
+                    player.position(), Vec3.ZERO, 6.0F, 14, 0x59FFF2);
         }
 
         SkillVfx.ring(player.serverLevel(), player.position().add(0, 0.32, 0),
@@ -820,6 +964,7 @@ final class SkillActiveExecutor {
                 SoundEvents.ANVIL_PLACE, SoundSource.PLAYERS, 0.9F, 1.7F);
         player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.SHIELD_BLOCK, SoundSource.PLAYERS, 1.0F, 0.9F);
+        return true;
     }
 
     static void deflectProjectile(ServerPlayer player, Projectile projectile) {
@@ -848,7 +993,8 @@ final class SkillActiveExecutor {
     private static void tickCounterGuardProjectiles(ServerPlayer player) {
         AABB zone = player.getBoundingBox().inflate(2.2);
         List<Projectile> projectiles = player.serverLevel().getEntitiesOfClass(
-                Projectile.class, zone, p -> p.isAlive() && p.getOwner() != player);
+                Projectile.class, zone,
+                p -> p.isAlive() && !p.onGround() && p.getDeltaMovement().lengthSqr() > 0.01D && p.getOwner() != player);
         for (Projectile p : projectiles) {
             deflectProjectile(player, p);
         }
@@ -874,12 +1020,21 @@ final class SkillActiveExecutor {
     }
 
     private static void syncOreMarkers(ServerPlayer player, Set<BlockPos> ores, Set<BlockPos> specials, int ticks) {
-        CompoundTag tag = new CompoundTag();
-        tag.putString("dimension", player.level().dimension().location().toString());
-        tag.putInt("ticks", ticks);
-        tag.putLongArray("positions", ores.stream()
+        List<BlockPos> sortedOres = ores.stream()
                 .sorted(Comparator.comparingDouble(pos -> player.distanceToSqr(Vec3.atCenterOf(pos))))
-                .limit(512).mapToLong(BlockPos::asLong).toArray());
+                .limit(512)
+                .toList();
+        int[] colors = new int[sortedOres.size()];
+        ServerLevel world = player.serverLevel();
+        for (int i = 0; i < sortedOres.size(); i++) {
+            BlockPos p = sortedOres.get(i);
+            colors[i] = world.isLoaded(p) ? oreColor(world.getBlockState(p)) : 0xFF62E9F2;
+        }
+        CompoundTag tag = new CompoundTag();
+        tag.putString("dimension", world.dimension().location().toString());
+        tag.putInt("ticks", ticks);
+        tag.putLongArray("positions", sortedOres.stream().mapToLong(BlockPos::asLong).toArray());
+        tag.putIntArray("colors", colors);
         tag.putLongArray("specialPositions", specials.stream()
                 .sorted(Comparator.comparingDouble(pos -> player.distanceToSqr(Vec3.atCenterOf(pos))))
                 .limit(128).mapToLong(BlockPos::asLong).toArray());
@@ -892,7 +1047,7 @@ final class SkillActiveExecutor {
         return level.getEntitiesOfClass(LivingEntity.class, bounds, entity -> canAffect(source, entity));
     }
 
-    private static LivingEntity findCrosshairTarget(ServerPlayer player, double maxRange) {
+    static LivingEntity findCrosshairTarget(ServerPlayer player, double maxRange) {
         Vec3 eyePos = player.getEyePosition();
         Vec3 look = player.getViewVector(1.0F).normalize();
         Vec3 end = eyePos.add(look.scale(maxRange));
@@ -935,7 +1090,6 @@ final class SkillActiveExecutor {
         return best;
     }
 
-    /** 牵引与范围技能的统一友好目标保护（修复历史缺陷 #3 & #4）。 */
     static boolean canPull(ServerPlayer source, LivingEntity target) {
         return canAffect(source, target);
     }
@@ -954,7 +1108,7 @@ final class SkillActiveExecutor {
                 if (tameable.getOwner() instanceof Player owner) {
                     return source.server.isPvpAllowed() && !source.isAlliedTo(owner);
                 }
-                return false; // 主人离线时保护其宠物
+                return false;
             }
         }
         if (target instanceof Player other) {
@@ -966,16 +1120,23 @@ final class SkillActiveExecutor {
     }
 
     static void clearOnUnsetActive(ServerPlayer player) {
-        if (GUARDS.remove(player.getUUID()) != null) {
+        var active = SkillManager.data(player).activeLoadout();
+        if (!active.contains(ModSkills.COUNTER_GUARD) && GUARDS.remove(player.getUUID()) != null) {
             broadcastGuardEffect(player, CounterGuardEffectPayload.Action.CLEAR);
         }
-        var active = SkillManager.data(player).activeLoadout();
+        if (!active.contains(ModSkills.AIR_STEP)) {
+            AIR_STEP_LANDING_SHOCKWAVE.remove(player.getUUID());
+        }
         if (!active.contains(ModSkills.ORE_SIGHT)) {
             ORE_SIGHT.remove(player.getUUID());
             syncOreMarkers(player, Set.of(), Set.of(), 0);
         }
         if (!active.contains(ModSkills.GRAVITY_WELL)) {
-            GRAVITY_WELLS.removeIf(well -> well.ownerId().equals(player.getUUID()));
+            GRAVITY_WELLS.removeIf(well -> {
+                if (!well.ownerId().equals(player.getUUID())) return false;
+                if (well.visualId() > 0) Skill3dEffectPayload.fade(well.level(), well.center(), well.visualId());
+                return true;
+            });
         }
         if (!active.contains(ModSkills.BERSERK)) {
             BERSERK_STATES.remove(player.getUUID());
@@ -1001,7 +1162,11 @@ final class SkillActiveExecutor {
             ORE_SIGHT.remove(player.getUUID());
             syncOreMarkers(player, Set.of(), Set.of(), 0);
         } else if (ModSkills.GRAVITY_WELL.equals(skillId)) {
-            GRAVITY_WELLS.removeIf(well -> well.ownerId().equals(player.getUUID()));
+            GRAVITY_WELLS.removeIf(well -> {
+                if (!well.ownerId().equals(player.getUUID())) return false;
+                if (well.visualId() > 0) Skill3dEffectPayload.fade(well.level(), well.center(), well.visualId());
+                return true;
+            });
         } else if (ModSkills.BERSERK.equals(skillId)) {
             BERSERK_STATES.remove(player.getUUID());
             var attackAttr = player.getAttribute(Attributes.ATTACK_DAMAGE);
@@ -1022,9 +1187,14 @@ final class SkillActiveExecutor {
         }
         ORE_SIGHT.remove(id);
         syncOreMarkers(player, Set.of(), Set.of(), 0);
-        GRAVITY_WELLS.removeIf(well -> well.ownerId().equals(id));
+        GRAVITY_WELLS.removeIf(well -> {
+            if (!well.ownerId().equals(id)) return false;
+            if (well.visualId() > 0) Skill3dEffectPayload.fade(well.level(), well.center(), well.visualId());
+            return true;
+        });
         BERSERK_STATES.remove(id);
         AIR_STEP_LANDING_SHOCKWAVE.remove(id);
+        VOID_BACKSTABS.remove(id);
         var attackAttr = player.getAttribute(Attributes.ATTACK_DAMAGE);
         if (attackAttr != null) {
             attackAttr.removeModifier(BERSERK_ATTACK_DAMAGE_ID);
@@ -1040,8 +1210,13 @@ final class SkillActiveExecutor {
         }
         CHARGES.remove(id);
         FrozenState selfFrozen = FROZEN.remove(id);
-        if (selfFrozen != null && selfFrozen.entity() instanceof Mob mob && !mob.isRemoved()) {
-            mob.setNoAi(selfFrozen.previousNoAi());
+        if (selfFrozen != null) {
+            if (selfFrozen.entity() instanceof Mob mob && !mob.isRemoved()) {
+                mob.setNoAi(selfFrozen.previousNoAi());
+            }
+            if (selfFrozen.visualId() > 0) {
+                Skill3dEffectPayload.fade(selfFrozen.level(), selfFrozen.entity().position(), selfFrozen.visualId());
+            }
         }
         STASIS.entrySet().removeIf(entry -> entry.getValue().owner().getUUID().equals(id));
         clearAllForPlayer(player);

@@ -298,9 +298,13 @@ public final class PhainonNormalSkillHandler {
             }
         }
 
+        PhainonWeaponState damageState = ModDataComponents.getPhainonWeaponState(stack);
+        float primaryDamage = damageState.scaleSkillDamage(PRIMARY_DAMAGE);
+        float adjacentDamage = damageState.scaleSkillDamage(ADJACENT_DAMAGE);
+
         int hitCount = 0;
         if (primaryTarget != null) {
-            boolean hurt = primaryTarget.hurt(player.damageSources().playerAttack(player), PRIMARY_DAMAGE);
+            boolean hurt = primaryTarget.hurt(player.damageSources().playerAttack(player), primaryDamage);
             if (hurt) {
                 hitCount++;
             }
@@ -309,7 +313,7 @@ public final class PhainonNormalSkillHandler {
         }
 
         for (LivingEntity adjacent : adjacentTargets) {
-            boolean hurt = adjacent.hurt(player.damageSources().playerAttack(player), ADJACENT_DAMAGE);
+            boolean hurt = adjacent.hurt(player.damageSources().playerAttack(player), adjacentDamage);
             if (hurt) {
                 hitCount++;
             }

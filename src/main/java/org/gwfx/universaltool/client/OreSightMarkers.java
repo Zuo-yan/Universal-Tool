@@ -15,11 +15,12 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /**
- * 矿脉感知客户端透视标记（青金高亮矿石；Lv.3 觉醒额外以琥珀紫光高亮宝箱与刷怪笼）。
+ * 矿脉感知客户端透视标记（按稀有度分色高亮矿石；Lv.3 觉醒额外以琥珀紫光高亮宝箱与刷怪笼）。
  */
 @EventBusSubscriber(modid = UniversalToolMod.MODID, value = Dist.CLIENT)
 public final class OreSightMarkers {
     private static long[] positions = new long[0];
+    private static int[] positionColors = new int[0];
     private static long[] specialPositions = new long[0];
     private static ClientLevel sourceLevel;
     private static long expiresAt;
@@ -29,8 +30,9 @@ public final class OreSightMarkers {
         if (mc.level == null || !mc.level.dimension().location().toString().equals(tag.getString("dimension"))) return;
         sourceLevel = mc.level;
         positions = tag.getLongArray("positions");
+        positionColors = tag.contains("colors") ? tag.getIntArray("colors") : new int[0];
         specialPositions = tag.contains("specialPositions") ? tag.getLongArray("specialPositions") : new long[0];
-        expiresAt = mc.level.getGameTime() + Math.max(0, Math.min(200, tag.getInt("ticks")));
+        expiresAt = mc.level.getGameTime() + Math.max(0, Math.min(320, tag.getInt("ticks")));
     }
 
     @SubscribeEvent
@@ -40,6 +42,7 @@ public final class OreSightMarkers {
         if (!ClientSkillCache.isSystemEnabled() || mc.level == null || sourceLevel != mc.level
                 || mc.level.getGameTime() >= expiresAt) {
             positions = new long[0];
+            positionColors = new int[0];
             specialPositions = new long[0];
             sourceLevel = null;
             return;
@@ -54,14 +57,17 @@ public final class OreSightMarkers {
         double fov = mc.options.fov().get() * mc.player.getFieldOfViewModifier();
         double focal = halfH / Math.tan(Math.toRadians(fov) / 2.0);
 
-        drawList(mc, g, positions, 0xFF62E9F2, 128, origin, inverse, halfW, halfH, focal);
-        drawList(mc, g, specialPositions, 0xFFF2B649, 64, origin, inverse, halfW, halfH, focal);
+        drawList(mc, g, positions, positionColors, 0xFF62E9F2, 160, origin, inverse, halfW, halfH, focal);
+        drawList(mc, g, specialPositions, null, 0xFFF2B649, 64, origin, inverse, halfW, halfH, focal);
     }
 
-    private static void drawList(Minecraft mc, net.minecraft.client.gui.GuiGraphics g, long[] list, int color, int cap,
-                                 Vec3 origin, Quaternionf inverse, double halfW, double halfH, double focal) {
+    private static void drawList(Minecraft mc, net.minecraft.client.gui.GuiGraphics g, long[] list, int[] colors,
+                                 int defaultColor, int cap, Vec3 origin, Quaternionf inverse,
+                                 double halfW, double halfH, double focal) {
         int count = 0;
-        for (long packed : list) {
+        for (int i = 0; i < list.length; i++) {
+            long packed = list[i];
+            int color = (colors != null && i < colors.length && colors[i] != 0) ? colors[i] : defaultColor;
             BlockPos pos = BlockPos.of(packed);
             if (mc.level.hasChunkAt(pos) && mc.level.getBlockState(pos).isAir()) continue;
             Vec3 delta = Vec3.atCenterOf(pos).subtract(origin);

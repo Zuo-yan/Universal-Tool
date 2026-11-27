@@ -5,22 +5,26 @@ import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.drawable.IDrawable;
+import mezz.jei.api.gui.handlers.IGuiContainerHandler;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
+import mezz.jei.api.registration.IGuiHandlerRegistration;
 import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
 import mezz.jei.api.registration.IRecipeTransferRegistration;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import org.gwfx.universaltool.UniversalToolMod;
+import org.gwfx.universaltool.client.KleinScreen;
 import org.gwfx.universaltool.init.ModItems;
 import org.gwfx.universaltool.init.ModRecipes;
 import org.gwfx.universaltool.recipe.PolymerizerRecipe;
@@ -86,5 +90,15 @@ public class UniversalToolJeiPlugin implements IModPlugin {
         registration.addRecipeTransferHandler(
                 new KleinRecipeTransferHandler(registration.getTransferHelper()),
                 mezz.jei.api.constants.RecipeTypes.CRAFTING);
+    }
+
+    @Override
+    public void registerGuiHandlers(IGuiHandlerRegistration registration) {
+        registration.addGuiContainerHandler(KleinScreen.class, new IGuiContainerHandler<>() {
+            @Override
+            public List<Rect2i> getGuiExtraAreas(KleinScreen screen) {
+                return screen.getJeiExtraAreas();
+            }
+        });
     }
 }

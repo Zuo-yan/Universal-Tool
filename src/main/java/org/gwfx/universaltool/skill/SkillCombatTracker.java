@@ -31,6 +31,7 @@ final class SkillCombatTracker {
     static final int MAX_PLACED_BLOCK_HISTORY = 16384;
 
     private static final Map<UUID, LinkedHashMap<String, Boolean>> PLACED_BLOCKS = new ConcurrentHashMap<>();
+    private static final Map<UUID, String> LAST_BROKEN_PLACED = new ConcurrentHashMap<>();
     private static final Set<UUID> DIRTY = ConcurrentHashMap.newKeySet();
 
     private SkillCombatTracker() {}
@@ -49,6 +50,7 @@ final class SkillCombatTracker {
 
     static void clearAll() {
         PLACED_BLOCKS.clear();
+        LAST_BROKEN_PLACED.clear();
         DIRTY.clear();
     }
 
@@ -84,6 +86,11 @@ final class SkillCombatTracker {
     }
 
     static void onLivingDamage(ServerPlayer player, LivingEntity target, float newDamage, boolean isSkillDamage) {
+        onLivingDamage(player, target, newDamage, isSkillDamage, false);
+    }
+
+    static void onLivingDamage(ServerPlayer player, LivingEntity target, float newDamage,
+                               boolean isSkillDamage, boolean isProjectileDamage) {
         if (!SkillManager.isEnabled(player.serverLevel())) return;
         long gameTime = player.serverLevel().getGameTime();
         PlayerSkillData data = SkillManager.data(player);
@@ -93,8 +100,13 @@ final class SkillCombatTracker {
         if (newDamage > 0 && target != player) {
             int dmgInt = Math.max(1, Math.round(newDamage));
             data.incrementStat("damage_dealt", dmgInt, s -> SkillManager.notifySkillUnlocked(player, s));
-            if (!isSkillDamage && SkillModSynergyHandler.universalToolTierRank(player.getMainHandItem()) > 0) {
+            if (!isSkillDamage && !isProjectileDamage
+                    && SkillModSynergyHandler.modWeaponTierRank(player.getMainHandItem()) > 0) {
                 data.incrementStat("universal_tool_hits", 1, s -> SkillManager.notifySkillUnlocked(player, s));
+            }
+            if (!isSkillDamage && !isProjectileDamage) {
+                SkillPassiveHandler.tryFortuneToolSave(player);
+                SkillActiveExecutor.onBerserkHit(player, target, newDamage);
             }
         }
 
@@ -113,7 +125,7 @@ final class SkillCombatTracker {
             return;
         }
 
-        recordKillDiscoveries(player, data, target, gameTime, isSkillDamage);
+        recordKillDiscoveries(player, data, target, gameTime, isSkillDamage, isProjectileDamage);
         SkillActiveExecutor.onBerserkKill(player);
         if (target instanceof Enemy) {
             SkillResonanceHandler.onHostileKill(player, target);
@@ -132,13 +144,15 @@ final class SkillCombatTracker {
     }
 
     private static void recordKillDiscoveries(ServerPlayer player, PlayerSkillData data,
-                                              LivingEntity target, long gameTime, boolean isSkillDamage) {
+                                              LivingEntity target, long gameTime,
+                                              boolean isSkillDamage, boolean isProjectileDamage) {
         if (target instanceof Enemy || isBoss(target)) {
             data.incrementStat("kills_hostile", 1, s -> SkillManager.notifySkillUnlocked(player, s));
             if (isBoss(target)) {
                 data.incrementStat("boss_kills", 1, s -> SkillManager.notifySkillUnlocked(player, s));
             }
-            if (isSkillDamage || target.getPersistentData().getBoolean("universal_tool_ranged_enemy")) {
+            if (isSkillDamage || isProjectileDamage
+                    || target.getPersistentData().getBoolean("universal_tool_ranged_enemy")) {
                 data.incrementStat("ranged_or_skill_kills", 1, s -> SkillManager.notifySkillUnlocked(player, s));
             }
 
@@ -269,18 +283,20 @@ final class SkillCombatTracker {
     static void onBlockBreak(ServerPlayer player, BlockPos pos, BlockState state) {
         if (!SkillManager.isEnabled(player.serverLevel())) return;
         if (isPlayerPlaced(player, pos)) {
+            LAST_BROKEN_PLACED.put(player.getUUID(), placementKey(player, pos));
             forgetPlacement(player, pos);
             return;
         }
+        LAST_BROKEN_PLACED.remove(player.getUUID());
         recordMinedBlock(player, state);
         if (SkillPassiveHandler.equippedLevel(player, ModSkills.FOCUS_MINING) >= 3
+                && state.getDestroySpeed(player.serverLevel(), pos) > 0.0F
                 && player.getRandom().nextFloat() < 0.25F) {
             var held = player.getMainHandItem();
             if (held.isDamageableItem() && held.isDamaged()) {
                 held.setDamageValue(Math.max(0, held.getDamageValue() - 1));
             }
         }
-        SkillNewActivesHelper.tryChainVeinMine(player, pos, state);
     }
 
     static void recordMinedBlock(ServerPlayer player, BlockState state) {
@@ -318,10 +334,11 @@ final class SkillCombatTracker {
 
     static void award(ServerPlayer player, long xp, boolean immediate) {
         if (xp <= 0 || !SkillManager.isEnabled(player.serverLevel())) return;
+        long scaledXp = Math.max(1L, Math.round(xp * SkillResonanceHandler.skillXpMultiplier(player)));
         PlayerSkillData data = SkillManager.data(player);
         StarRank oldRank = data.starRank();
         int oldLevel = data.level();
-        int levels = data.addExperience(xp, skill -> SkillManager.notifySkillUnlocked(player, skill));
+        int levels = data.addExperience(scaledXp, skill -> SkillManager.notifySkillUnlocked(player, skill));
         if (levels > 0) {
             StarRank newRank = data.starRank();
             if (newRank != oldRank) {
@@ -331,7 +348,7 @@ final class SkillCombatTracker {
             }
             SkillManager.applyPassiveEffects(player);
         } else {
-            SkillManager.notifyXpGain(player, (int) Math.min(Integer.MAX_VALUE, xp));
+            SkillManager.notifyXpGain(player, (int) Math.min(Integer.MAX_VALUE, scaledXp));
         }
         if (levels > 0 || immediate || data.level() != oldLevel) {
             SkillManager.sync(player);
@@ -353,7 +370,7 @@ final class SkillCombatTracker {
                 || state.is(Blocks.NETHER_QUARTZ_ORE);
     }
 
-    private static boolean isMatureCrop(BlockState state) {
+    static boolean isMatureCrop(BlockState state) {
         if (state.getBlock() instanceof CropBlock crop) {
             return crop.isMaxAge(state);
         }
@@ -369,6 +386,15 @@ final class SkillCombatTracker {
         synchronized (placed) {
             return placed.containsKey(placementKey(player, pos));
         }
+    }
+
+    /** 供 BlockDropsEvent 校验本次破坏是否为玩家自行放置方块（兼容 onBlockBreak 先行移除的时序）。 */
+    static boolean wasPlayerPlacedBreak(ServerPlayer player, BlockPos pos) {
+        String key = placementKey(player, pos);
+        if (key.equals(LAST_BROKEN_PLACED.get(player.getUUID()))) {
+            return true;
+        }
+        return isPlayerPlaced(player, pos);
     }
 
     private static void forgetPlacement(ServerPlayer player, BlockPos pos) {

@@ -13,11 +13,15 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.Vec3;
 import org.gwfx.universaltool.init.ModEntities;
 import org.gwfx.universaltool.init.ModItems;
+import org.gwfx.universaltool.network.Skill3dEffectPayload;
+import org.gwfx.universaltool.network.Skill3dEffectPayload.EffectKind;
 
 /**
- * 3D 雷霆之矛投射物：沿视线飞出，造成带施法者归属的魔法伤害与视觉落雷；Lv.3 觉醒支持连锁雷电溅射。
+ * 3D 雷霆之矛投射物：沿视线飞出并带电弧拖尾，造成带施法者归属的百分比强化魔法伤与 3D 雷爆；
+ * Lv.3 觉醒支持最多 5 个敌人之间的真实 3D 折线连锁闪电链。
  */
 public final class LightningSpearProjectile extends ThrowableProjectile implements ItemSupplier {
     private static final int MAX_LIFETIME = 60;
@@ -60,8 +64,14 @@ public final class LightningSpearProjectile extends ThrowableProjectile implemen
     @Override
     public void tick() {
         super.tick();
-        if (!level().isClientSide && tickCount >= MAX_LIFETIME) {
-            discard();
+        if (!level().isClientSide) {
+            if (level() instanceof ServerLevel sl) {
+                sl.sendParticles(ParticleTypes.ELECTRIC_SPARK, getX(), getY(), getZ(), 2, 0.06, 0.06, 0.06, 0.02);
+                SkillVfx.point(sl, position(), SkillVfx.Tint.SPEAR.dust);
+            }
+            if (tickCount >= MAX_LIFETIME) {
+                discard();
+            }
         }
     }
 
@@ -80,24 +90,39 @@ public final class LightningSpearProjectile extends ThrowableProjectile implemen
         if (!level().isClientSide) {
             Entity target = hit.getEntity();
             LivingEntity owner = getOwner() instanceof LivingEntity livingOwner ? livingOwner : null;
+            float maxPct = skillLevel == 1 ? 0.05F : (skillLevel == 2 ? 0.08F : 0.12F);
+            float totalDmg = target instanceof LivingEntity livingTarget
+                    ? SkillActiveExecutor.pctDamage(livingTarget, damage, maxPct, 0.0F, 0.0F)
+                    : damage;
+
             if (owner != null) {
-                target.hurt(damageSources().indirectMagic(this, owner), damage);
+                target.hurt(damageSources().indirectMagic(this, owner), totalDmg);
             } else {
-                target.hurt(damageSources().magic(), damage);
+                target.hurt(damageSources().magic(), totalDmg);
             }
 
             if (level() instanceof ServerLevel serverLevel) {
                 spawnVisualBolt(serverLevel, target.position(), owner);
-                // Lv.3 星辉觉醒：向周围 6 格最多 3 个敌人释放连锁雷电溅射
+                Vec3 impactPos = target.position().add(0, target.getBbHeight() * 0.5, 0);
+                Skill3dEffectPayload.spawn(serverLevel, EffectKind.LIGHTNING_CHAIN,
+                        impactPos, impactPos, 3.2F, 14, 0xA88BFF);
+
+                // Lv.3 星辉觉醒：向周围 6 格最多 5 个敌人拉出 3D 折线闪电链
                 if (skillLevel >= 3 && owner instanceof ServerPlayer sp) {
                     int chains = 0;
+                    Vec3 prevNode = impactPos;
                     for (LivingEntity extra : serverLevel.getEntitiesOfClass(LivingEntity.class,
                             target.getBoundingBox().inflate(6.0),
                             e -> e != target && SkillManager.canAffect(sp, e))) {
-                        extra.hurt(damageSources().indirectMagic(this, sp), damage * 0.45F);
+                        float chainDmg = SkillActiveExecutor.pctDamage(extra, damage * 0.45F, 0.06F, 0.0F, 0.0F);
+                        extra.hurt(damageSources().indirectMagic(this, sp), chainDmg);
+                        Vec3 nextNode = extra.position().add(0, extra.getBbHeight() * 0.5, 0);
+                        Skill3dEffectPayload.spawn(serverLevel, EffectKind.LIGHTNING_CHAIN,
+                                prevNode, nextNode, 2.0F, 12, 0xC69CFF);
                         serverLevel.sendParticles(ParticleTypes.ELECTRIC_SPARK,
-                                extra.getX(), extra.getY() + 0.8, extra.getZ(), 12, 0.25, 0.35, 0.25, 0.08);
-                        if (++chains >= 3) break;
+                                nextNode.x, nextNode.y, nextNode.z, 10, 0.25, 0.35, 0.25, 0.08);
+                        prevNode = nextNode;
+                        if (++chains >= 5) break;
                     }
                 }
             }
@@ -112,12 +137,14 @@ public final class LightningSpearProjectile extends ThrowableProjectile implemen
             if (level() instanceof ServerLevel serverLevel) {
                 LivingEntity owner = getOwner() instanceof LivingEntity livingOwner ? livingOwner : null;
                 spawnVisualBolt(serverLevel, hit.getLocation(), owner);
+                Skill3dEffectPayload.spawn(serverLevel, EffectKind.LIGHTNING_CHAIN,
+                        hit.getLocation(), hit.getLocation(), 2.6F, 12, 0xA88BFF);
             }
             discard();
         }
     }
 
-    private static void spawnVisualBolt(ServerLevel serverLevel, net.minecraft.world.phys.Vec3 pos, LivingEntity owner) {
+    private static void spawnVisualBolt(ServerLevel serverLevel, Vec3 pos, LivingEntity owner) {
         LightningBolt bolt = EntityType.LIGHTNING_BOLT.create(serverLevel);
         if (bolt != null) {
             bolt.moveTo(pos);
