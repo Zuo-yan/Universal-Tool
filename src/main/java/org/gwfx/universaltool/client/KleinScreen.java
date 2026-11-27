@@ -47,37 +47,46 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private static final int WING_H = KleinMenu.DRAWER_HEIGHT;
 
     private static final int COLUMNS = 9;
-    private static final int CELL = 18;
-    private static final int GRID_HEIGHT = KleinMenu.VISIBLE_ROWS * CELL;
-    private static final int SCROLL_X = 186;
+    private static final int COLUMN_STEP = KleinMenu.SLOT_COLUMN_STEP;
+    private static final int ROW_STEP = KleinMenu.SLOT_ROW_STEP;
+    private static final int GRID_WIDTH = COLUMNS * COLUMN_STEP;
+    private static final int GRID_HEIGHT = KleinMenu.VISIBLE_ROWS * ROW_STEP;
+    private static final int SCROLL_X = KleinMenu.GRID_X + GRID_WIDTH + 2;
+    // Keep the main panel above the screen's bottom controls at large GUI scales.
+    private static final int FOOTER_CLEARANCE = 24;
 
     private static final int SEARCH_X = 8;
-    private static final int SEARCH_Y = 24;
-    private static final int SEARCH_W = 114;
+    private static final int SEARCH_Y = 19;
+    private static final int SORT_X = MAIN_W - 79;
+    private static final int SEARCH_W = SORT_X - SEARCH_X - 3;
     private static final int SEARCH_H = 13;
+    private static final int CATEGORY_Y = 33;
+    private static final int TRANSFER_Y = 132;
+    private static final int AUTO_W = 68;
+    private static final int AUTO_X = MAIN_W - 8 - AUTO_W;
 
     private enum Control {
         // 顶栏（右侧唯一工作翼切换组 + 关闭）
-        STAT_BADGE(64, 5, 42, 13),
-        TOOL_CRAFT(122, 4, 18, 15),
-        TOOL_SMELT(142, 4, 18, 15),
-        TOOL_ANVIL(162, 4, 18, 15),
-        CLOSE(184, 5, 13, 13),
+        STAT_BADGE(MAIN_W - 112, 5, 26, 13),
+        TOOL_CRAFT(MAIN_W - 82, 3, 18, 15),
+        TOOL_SMELT(MAIN_W - 62, 3, 18, 15),
+        TOOL_ANVIL(MAIN_W - 42, 3, 18, 15),
+        CLOSE(MAIN_W - 20, 4, 13, 13),
 
         // 搜索与排序行
         CLEAR(SEARCH_X + SEARCH_W - 12, SEARCH_Y + 1, 11, 11),
-        SORT(125, SEARCH_Y, 48, SEARCH_H),
-        DIRECTION(176, SEARCH_Y, 20, SEARCH_H),
+        SORT(SORT_X, SEARCH_Y, 48, SEARCH_H),
+        DIRECTION(MAIN_W - 28, SEARCH_Y, 20, SEARCH_H),
 
         // 4 维智能分类药丸
-        CAT_ALL(8, 40, 45, 11),
-        CAT_BLOCKS(56, 40, 45, 11),
-        CAT_GEAR(104, 40, 45, 11),
-        CAT_OTHER(152, 40, 44, 11),
+        CAT_ALL(8, CATEGORY_Y, 41, 11),
+        CAT_BLOCKS(52, CATEGORY_Y, 41, 11),
+        CAT_GEAR(96, CATEGORY_Y, 41, 11),
+        CAT_OTHER(140, CATEGORY_Y, 42, 11),
 
         // 仓库与背包交界传输带（全屏唯一入库 & 自动开关）
-        DEPOSIT(78, 148, 52, 13),
-        AUTO(134, 148, 62, 13),
+        DEPOSIT(AUTO_X - 57, TRANSFER_Y, 53, 13),
+        AUTO(AUTO_X, TRANSFER_Y, AUTO_W, 13),
 
         // 折叠工作翼右上角收起键
         WING_COLLAPSE(WING_X + WING_W - 17, WING_Y + 4, 12, 12);
@@ -114,6 +123,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private long drawerChangedAt;
     private long viewChangedAt;
     private long depositPressedAt;
+    private long autoPressedAt;
 
     private float searchFocus;
     private float autoSwitch;
@@ -157,6 +167,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
 
     @Override protected void init() {
         super.init();
+        topPos = Math.max(0, Math.min(topPos, height - imageHeight - FOOTER_CLEARANCE));
         String priorQuery = search == null ? "" : search.getValue();
         search = new EditBox(font, leftPos + SEARCH_X + 13, topPos + SEARCH_Y + 3, SEARCH_W - 25, 9, label("search"));
         search.setBordered(false);
@@ -338,7 +349,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             drawSearchAndSort(g);
             drawCategoryBar(g, mouseX, mouseY);
             drawWarehouse(g, mouseX, mouseY, timeSec);
-            drawTransferBridge(g, timeSec);
+            drawTransferBridge(g);
             drawInventory(g);
         });
     }
@@ -355,7 +366,8 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         g.renderItem(bottleIcon, 0, 0);
         g.pose().popPose();
 
-        g.drawString(font, Component.translatable("item.universal_tool.klein_bottle"), x + 22, y + 7, TEXT_BRIGHT, true);
+        drawFittedLabel(g, Component.translatable("item.universal_tool.klein_bottle").getString(),
+                x + 22, y + 7, Control.STAT_BADGE.x - 25, TEXT_BRIGHT);
 
         // 种类微标（悬停查看完整藏品总数与操作速查，零占用空间）
         String countStr = menu.filtered().size() + "/\u221e";
@@ -363,7 +375,9 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         int by = topPos + Control.STAT_BADGE.y;
         boolean statHover = hoveredControls[Control.STAT_BADGE.ordinal()] > 0.2f;
         well(g, bx, by, Control.STAT_BADGE.w, Control.STAT_BADGE.h, statHover ? CYAN : BORDER_SUBTLE);
-        g.drawCenteredString(font, countStr, bx + Control.STAT_BADGE.w / 2, by + 3, CYAN_GLOW);
+        int countWidth = Math.min(font.width(countStr), Control.STAT_BADGE.w - 4);
+        drawFittedLabel(g, countStr, bx + (Control.STAT_BADGE.w - countWidth) / 2,
+                by + 3, countWidth, CYAN_GLOW);
 
         // 全屏唯一的 3 枚工作翼快捷图标按钮（点开即右侧滑出，再点收回）
         drawToolIconBtn(g, Control.TOOL_CRAFT, craftIcon, workspaceMode == KleinMenu.DRAWER_CRAFTING, CYAN, timeSec);
@@ -427,7 +441,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private void drawWarehouse(GuiGraphics g, int mouseX, int mouseY, float timeSec) {
         int gx = leftPos + KleinMenu.GRID_X;
         int gy = topPos + KleinMenu.GRID_Y;
-        well(g, leftPos + 8, gy - 2, MAIN_W - 16, GRID_HEIGHT + 3, BORDER_SUBTLE);
+        well(g, leftPos + 8, gy - 1, MAIN_W - 16, GRID_HEIGHT + 2, BORDER_SUBTLE);
 
         int start = menu.scroll() * COLUMNS;
         int hoverCell = cellAt(mouseX, mouseY);
@@ -435,8 +449,8 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         float pulse = 0.5f + 0.5f * (float) Math.sin(timeSec * 5.0f);
 
         for (int cell = 0; cell < KleinMenu.VISIBLE_ROWS * COLUMNS; cell++) {
-            int sx = gx + cell % COLUMNS * CELL;
-            int sy = gy + cell / COLUMNS * CELL;
+            int sx = gx + cell % COLUMNS * COLUMN_STEP;
+            int sy = gy + cell / COLUMNS * ROW_STEP;
             socket(g, sx, sy, false);
             if (cell == hoverCell) {
                 g.fill(sx + 1, sy + 1, sx + 16, sy + 16, SLOT_HOVER_BG);
@@ -456,7 +470,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
 
         if (entries.isEmpty()) {
             Component msg = label(search.getValue().isBlank() && menu.category() == KleinMenu.CATEGORY_ALL ? "empty" : "no_results");
-            int cx = gx + COLUMNS * CELL / 2;
+            int cx = gx + GRID_WIDTH / 2;
             int py = gy + GRID_HEIGHT / 2 - 9;
             int half = font.width(msg) / 2 + 10;
             well(g, cx - half, py, half * 2, 18, opacity(CYAN, 0.5f));
@@ -469,9 +483,9 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         if (view < 1f && !entries.isEmpty()) drawScan(g, gx, gy, view, 0.34f, CYAN);
 
         // 纤巧霓虹滚动条
-        int trackX = leftPos + SCROLL_X;
-        g.fill(trackX + 2, gy + 1, trackX + 4, gy + GRID_HEIGHT - 1, BORDER_SUBTLE);
         if (menu.maxScroll() > 0) {
+            int trackX = leftPos + SCROLL_X;
+            g.fill(trackX + 2, gy + 1, trackX + 4, gy + GRID_HEIGHT - 1, BORDER_SUBTLE);
             int ty = gy + Math.round(scrollThumb);
             int h = thumbHeight();
             g.fill(trackX + 1, ty, trackX + 5, ty + h, CYAN);
@@ -480,9 +494,9 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     }
 
     /** 仓库与背包交界处的「传输交互过渡带」：全屏唯一的「一键入库」与「自动入库」物理开关。 */
-    private void drawTransferBridge(GuiGraphics g, float timeSec) {
-        int y = topPos + 148;
-        g.drawString(font, label("inventory"), leftPos + 10, y + 3, TEXT_MAIN, false);
+    private void drawTransferBridge(GuiGraphics g) {
+        int y = topPos + TRANSFER_Y;
+        drawFittedLabel(g, label("inventory").getString(), leftPos + 10, y + 3, Control.DEPOSIT.x - 13, TEXT_MAIN);
 
         // 一键匹配入库按钮
         boolean depositPulse = progress(now, depositPressedAt, 340) < 0.7f;
@@ -490,22 +504,27 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         int dx = leftPos + Control.DEPOSIT.x;
         int dy = topPos + Control.DEPOSIT.y;
         arrow(g, dx + 7, dy + 6, -1, depositPulse ? TEXT_BRIGHT : CYAN_GLOW);
-        g.drawString(font, label("deposit_button"), dx + 13, dy + 3, depositPulse ? TEXT_BRIGHT : TEXT_MAIN, false);
+        drawFittedLabel(g, label("deposit_button").getString(), dx + 13, dy + 3,
+                Control.DEPOSIT.w - 16, depositPulse ? TEXT_BRIGHT : TEXT_MAIN);
 
-        // 自动拾取入库（带精致物理滑块）
-        boolean autoOn = menu.autoDeposit();
-        drawControl(g, Control.AUTO, autoOn ? EMERALD : CYAN, autoOn);
+        drawControl(g, Control.AUTO, CYAN, false);
         int ax = leftPos + Control.AUTO.x;
         int ay = topPos + Control.AUTO.y;
-        g.drawString(font, label("pickup_button"), ax + 5, ay + 3, autoOn ? TEXT_BRIGHT : TEXT_MUTED, false);
+        float flash = 1f - smooth(progress(now, autoPressedAt, 250));
+        if (flash > 0f) {
+            g.fill(ax + 1, ay + 1, ax + Control.AUTO.w - 1, ay + Control.AUTO.h - 1,
+                    opacity(EMERALD, flash * 0.26f));
+            frame(g, ax, ay, Control.AUTO.w, Control.AUTO.h, opacity(EMERALD, flash * 0.72f));
+        }
+        drawFittedLabel(g, label("pickup_button").getString(), ax + 5, ay + 3, Control.AUTO.w - 25, TEXT_MAIN);
         toggleSwitch(g, ax + Control.AUTO.w - 17, ay + 3, autoSwitch);
     }
 
     private void drawInventory(GuiGraphics g) {
-        int px = leftPos + KleinMenu.PLAYER_X - 1;
-        int py = topPos + KleinMenu.PLAYER_Y - 1;
-        well(g, leftPos + 8, py - 2, MAIN_W - 16, 57, BORDER_SUBTLE);
-        well(g, leftPos + 8, topPos + KleinMenu.HOTBAR_Y - 2, MAIN_W - 16, 21, opacity(CYAN, 0.30f));
+        int wellX = leftPos + KleinMenu.PLAYER_X - 5;
+        int wellWidth = GRID_WIDTH + 7;
+        well(g, wellX, topPos + KleinMenu.PLAYER_Y - 2, wellWidth, 3 * ROW_STEP + 2, BORDER_SUBTLE);
+        well(g, wellX, topPos + KleinMenu.HOTBAR_Y - 2, wellWidth, ROW_STEP + 2, opacity(CYAN, 0.30f));
 
         for (Slot slot : menu.slots) {
             if (isDrawerSlot(slot)) break;
@@ -614,10 +633,23 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     }
 
     private static void drawScan(GuiGraphics g, int x, int y, float progress, float alpha, int color) {
-        int w = COLUMNS * CELL - 1;
+        int w = GRID_WIDTH - 1;
         int py = y + (int) ((GRID_HEIGHT - 1) * easeOut(progress));
         g.fill(x, Math.max(y, py - 2), x + w, py + 1, opacity(color, alpha * 0.25f * (1f - progress)));
         g.fill(x, py, x + w, py + 1, opacity(color, alpha * (1f - progress)));
+    }
+
+    private void drawFittedLabel(GuiGraphics g, String text, int x, int y, int width, int color) {
+        float scale = Math.min(1f, width / (float) Math.max(1, font.width(text)));
+        if (scale == 1f) {
+            g.drawString(font, text, x, y, color, false);
+            return;
+        }
+        g.pose().pushPose();
+        g.pose().translate(x, y + 4 * (1f - scale), 0);
+        g.pose().scale(scale, scale, 1f);
+        g.drawString(font, text, 0, 0, color, false);
+        g.pose().popPose();
     }
 
     private void drawAmount(GuiGraphics g, String amount, int x, int y) {
@@ -747,6 +779,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
                 menu.sendDepositMatching();
             }
             case AUTO -> {
+                autoPressedAt = Util.getMillis();
                 boolean enabled = !menu.autoDeposit();
                 menu.setAutoDeposit(enabled);
                 PacketDistributor.sendToServer(new KleinAutoDepositPayload(enabled));
@@ -844,8 +877,8 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private int cellAt(double mouseX, double mouseY) {
         double x = mouseX - leftPos - KleinMenu.GRID_X;
         double y = mouseY - topPos - KleinMenu.GRID_Y;
-        if (x < 0 || x >= COLUMNS * CELL || y < 0 || y >= GRID_HEIGHT) return -1;
-        return (int) (y / CELL) * COLUMNS + (int) (x / CELL);
+        if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) return -1;
+        return (int) (y / ROW_STEP) * COLUMNS + (int) (x / COLUMN_STEP);
     }
 
     private KleinEntryData entryAt(double mouseX, double mouseY) {

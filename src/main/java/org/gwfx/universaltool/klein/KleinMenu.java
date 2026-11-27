@@ -41,8 +41,10 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.init.ModMenuTypes;
 
 public final class KleinMenu extends AbstractContainerMenu {
-    public static final int MAIN_WIDTH = 204, HEIGHT = 244;
-    public static final int GRID_X = 12, GRID_Y = 55, PLAYER_X = 21, PLAYER_Y = 164, HOTBAR_Y = 221;
+    public static final int MAIN_WIDTH = 190, HEIGHT = 218;
+    public static final int SLOT_COLUMN_STEP = 18, SLOT_ROW_STEP = 17;
+    public static final int GRID_X = 11, GRID_Y = 45;
+    public static final int PLAYER_X = 15, PLAYER_Y = 147, HOTBAR_Y = 200;
     public static final int VISIBLE_ROWS = 5;
     public static final int DRAWER_WIDTH = 114, DRAWER_HEIGHT = 132;
     public static final int DRAWER_X = MAIN_WIDTH + 4, DRAWER_Y = 22;
@@ -110,9 +112,9 @@ public final class KleinMenu extends AbstractContainerMenu {
         this.autoDeposit = initialAutoDeposit;
         this.openingBottle = inventory.getItem(lockedInventorySlot).copy();
         for (int row = 0; row < 3; row++) for (int col = 0; col < 9; col++) {
-            addSlot(new ProtectedSlot(inventory, col + row * 9 + 9, PLAYER_X + col * 18, PLAYER_Y + row * 18));
+            addSlot(new ProtectedSlot(inventory, col + row * 9 + 9, PLAYER_X + col * SLOT_COLUMN_STEP, PLAYER_Y + row * SLOT_ROW_STEP));
         }
-        for (int col = 0; col < 9; col++) addSlot(new ProtectedSlot(inventory, col, PLAYER_X + col * 18, HOTBAR_Y));
+        for (int col = 0; col < 9; col++) addSlot(new ProtectedSlot(inventory, col, PLAYER_X + col * SLOT_COLUMN_STEP, HOTBAR_Y));
 
         craftSlots = new TransientCraftingContainer(this, 3, 3);
         craftResult = new ResultContainer();

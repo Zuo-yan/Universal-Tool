@@ -314,7 +314,7 @@
   "gui.universal_tool.klein.jei_too_large": "Recipe does not fit the 3x3 grid",
   "gui.universal_tool.klein.warehouse": "Warehouse",
   "gui.universal_tool.klein.tools": "Tools",
-  "gui.universal_tool.klein.deposit_button": "Quick deposit",
+  "gui.universal_tool.klein.deposit_button": "Deposit",
   "gui.universal_tool.klein.pickup_button": "Auto-deposit",
   "gui.universal_tool.klein.craft_short": "Craft",
   "gui.universal_tool.klein.smelt_short": "Smelt",
