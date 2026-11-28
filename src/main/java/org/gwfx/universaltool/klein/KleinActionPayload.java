@@ -11,7 +11,7 @@ import org.gwfx.universaltool.UniversalToolMod;
 
 public record KleinActionPayload(long entryId, int operation, int sourceSlot, int sequence) implements CustomPacketPayload {
     public static final int EXTRACT = 0, EXTRACT_HALF = 1, EXTRACT_INVENTORY = 2, INSERT_CARRIED = 3,
-            INSERT_ONE = 4, EXTRACT_ONE = 5, DEPOSIT_MATCHING = 6, EXTRACT_CURSOR_ONE = 7;
+            INSERT_ONE = 4, EXTRACT_ONE = 5, DEPOSIT_MATCHING = 6, EXTRACT_CURSOR_ONE = 7, RIGHT_CLICK = 8;
     public static final Type<KleinActionPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "klein_action"));
     public static final StreamCodec<ByteBuf, KleinActionPayload> STREAM_CODEC = StreamCodec.composite(
             ByteBufCodecs.VAR_LONG, KleinActionPayload::entryId,

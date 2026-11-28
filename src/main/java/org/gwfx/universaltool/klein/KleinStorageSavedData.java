@@ -24,6 +24,7 @@ public final class KleinStorageSavedData extends SavedData {
     private static final int FORMAT = 2;
     private final Map<UUID, KleinWarehouse> warehouses = new HashMap<>();
     private final Map<UUID, Boolean> autoDeposit = new HashMap<>();
+    private final Map<UUID, KleinSortOrder> sortOrders = new HashMap<>();
     private final Map<UUID, Set<KleinMenu>> viewers = new HashMap<>();
 
     public static KleinStorageSavedData get(MinecraftServer server) {
@@ -37,6 +38,17 @@ public final class KleinStorageSavedData extends SavedData {
 
     public boolean autoDeposit(UUID owner) {
         return autoDeposit.getOrDefault(owner, false);
+    }
+
+    public KleinSortOrder sortOrder(UUID owner) {
+        return sortOrders.getOrDefault(owner, KleinSortOrder.DEFAULT);
+    }
+
+    public void setSortOrder(UUID owner, KleinSortOrder order) {
+        if (sortOrder(owner).equals(order)) return;
+        if (order.equals(KleinSortOrder.DEFAULT)) sortOrders.remove(owner);
+        else sortOrders.put(owner, order);
+        changed();
     }
 
     public void setAutoDeposit(UUID owner, boolean enabled) {
@@ -83,6 +95,10 @@ public final class KleinStorageSavedData extends SavedData {
             UUID owner = player.getUUID("Owner");
             KleinWarehouse warehouse = data.warehouse(owner);
             if (player.getBoolean("AutoDeposit")) data.autoDeposit.put(owner, true);
+            if (player.contains("SortMode", Tag.TAG_INT)) {
+                KleinSortOrder sort = new KleinSortOrder(player.getInt("SortMode"), player.getBoolean("SortDescending"));
+                if (!sort.equals(KleinSortOrder.DEFAULT)) data.sortOrders.put(owner, sort);
+            }
             ListTag entries = player.getList("Entries", Tag.TAG_COMPOUND);
             for (int j = 0; j < entries.size(); j++) {
                 CompoundTag entry = entries.getCompound(j);
@@ -107,12 +123,18 @@ public final class KleinStorageSavedData extends SavedData {
         ListTag players = new ListTag();
         java.util.Set<UUID> owners = new java.util.HashSet<>(warehouses.keySet());
         owners.addAll(autoDeposit.keySet());
+        owners.addAll(sortOrders.keySet());
         owners.forEach(owner -> {
             KleinWarehouse warehouse = warehouses.computeIfAbsent(owner, ignored -> new KleinWarehouse());
-            if (warehouse.size() == 0 && !autoDeposit.getOrDefault(owner, false)) return;
+            KleinSortOrder sort = sortOrder(owner);
+            if (warehouse.size() == 0 && !autoDeposit(owner) && sort.equals(KleinSortOrder.DEFAULT)) return;
             CompoundTag player = new CompoundTag();
             player.putUUID("Owner", owner);
-            player.putBoolean("AutoDeposit", autoDeposit.getOrDefault(owner, false));
+            player.putBoolean("AutoDeposit", autoDeposit(owner));
+            if (!sort.equals(KleinSortOrder.DEFAULT)) {
+                player.putInt("SortMode", sort.mode());
+                player.putBoolean("SortDescending", sort.descending());
+            }
             ListTag entries = new ListTag();
             for (KleinWarehouse.Entry entry : warehouse.entries()) {
                 CompoundTag tag = new CompoundTag();

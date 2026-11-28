@@ -23,6 +23,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.gwfx.universaltool.init.ModItems;
 import org.gwfx.universaltool.klein.KleinAutoDepositPayload;
 import org.gwfx.universaltool.klein.KleinDrawerPayload;
+import org.gwfx.universaltool.klein.KleinSortPayload;
 import org.gwfx.universaltool.klein.KleinEntryData;
 import org.gwfx.universaltool.klein.KleinMenu;
 import org.gwfx.universaltool.klein.KleinRenamePayload;
@@ -185,13 +186,15 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
         anvilName.setTextColor(TEXT_BRIGHT);
         anvilName.setHint(label("anvil_name_hint").withStyle(s -> s.withColor(TEXT_MUTED)));
         anvilName.setValue(priorName);
-        anvilName.setResponder(name -> {
-            menu.setAnvilItemName(name);
-            PacketDistributor.sendToServer(new KleinRenamePayload(name));
-        });
+        anvilName.setResponder(this::renameAnvilItem);
         anvilName.setVisible(menu.drawerMode() == KleinMenu.DRAWER_ANVIL);
         addRenderableWidget(anvilName);
         scrollThumb = targetThumb();
+    }
+
+    private void renameAnvilItem(String name) {
+        menu.setAnvilItemName(name);
+        PacketDistributor.sendToServer(new KleinRenamePayload(name));
     }
 
     @Override protected void containerTick() {
@@ -203,6 +206,9 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     }
 
     private void changeView(String query, int sortMode, boolean descending) {
+        if (sortMode != menu.sortMode() || descending != menu.descending()) {
+            PacketDistributor.sendToServer(new KleinSortPayload(menu.containerId, sortMode, descending));
+        }
         menu.setView(query, sortMode, descending);
         viewChangedAt = Util.getMillis();
         visibleAmounts.clear();
@@ -220,7 +226,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
     private void toggleWing(int mode) {
         int next = menu.drawerMode() == mode ? KleinMenu.DRAWER_NONE : mode;
         menu.setDrawerMode(next);
-        PacketDistributor.sendToServer(new KleinDrawerPayload(next));
+        PacketDistributor.sendToServer(new KleinDrawerPayload(menu.containerId, next));
         updateWingState(next, Util.getMillis());
     }
 
@@ -232,6 +238,12 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             }
             drawerChangedAt = time;
             if (mode != KleinMenu.DRAWER_ANVIL && getFocused() == anvilName) setFocused(null);
+            if (mode == KleinMenu.DRAWER_NONE && lastVisibleWingMode == KleinMenu.DRAWER_ANVIL) {
+                previousAnvilInput = ItemStack.EMPTY;
+                anvilName.setResponder(null);
+                anvilName.setValue("");
+                anvilName.setResponder(this::renameAnvilItem);
+            }
             anvilName.setVisible(mode == KleinMenu.DRAWER_ANVIL && wingOpen > 0.7f);
         }
         wingShiftX = Math.round(-(1f - easeOut(wingOpen)) * 18f);
@@ -771,7 +783,7 @@ public final class KleinScreen extends AbstractContainerScreen<KleinMenu> {
             case TOOL_ANVIL -> toggleWing(KleinMenu.DRAWER_ANVIL);
             case WING_COLLAPSE -> {
                 menu.setDrawerMode(KleinMenu.DRAWER_NONE);
-                PacketDistributor.sendToServer(new KleinDrawerPayload(KleinMenu.DRAWER_NONE));
+                PacketDistributor.sendToServer(new KleinDrawerPayload(menu.containerId, KleinMenu.DRAWER_NONE));
                 updateWingState(KleinMenu.DRAWER_NONE, Util.getMillis());
             }
             case DEPOSIT -> {

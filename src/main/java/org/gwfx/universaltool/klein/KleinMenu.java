@@ -8,13 +8,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import net.minecraft.core.Holder;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
@@ -27,14 +26,13 @@ import net.minecraft.world.inventory.ResultSlot;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.TransientCraftingContainer;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.AbstractCookingRecipe;
 import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.SingleRecipeInput;
-import net.minecraft.world.item.enchantment.Enchantment;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
-import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.Level;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -69,6 +67,7 @@ public final class KleinMenu extends AbstractContainerMenu {
     private KleinStorageSavedData savedData;
     private int lastSequence = -1;
     private int clientSequence = -1;
+    private long syncedWarehouseRevision = -1;
     private final Map<Long, KleinEntryData> clientEntries = new LinkedHashMap<>();
     private final Map<Long, KleinEntryData> pendingEntries = new LinkedHashMap<>();
     private final List<KleinEntryData> filtered = new ArrayList<>();
@@ -88,13 +87,15 @@ public final class KleinMenu extends AbstractContainerMenu {
     private final DrawerContainer anvilRight;
     private final ResultContainer anvilResult;
     private boolean recomputeGuard;
+    private ResourceLocation queuedCookingRecipe;
     private String anvilItemName = "";
     private final AnvilMenu internalAnvil;
     private int anvilCost;
     private int anvilMaterialCost;
 
     public KleinMenu(int id, Inventory inventory, FriendlyByteBuf extra) {
-        this(id, inventory, extra.readVarInt(), extra.isReadable() && extra.readBoolean());
+        this(id, inventory, extra.readVarInt(), extra.isReadable() && extra.readBoolean(),
+                extra.isReadable() ? new KleinSortOrder(extra.readVarInt(), extra.readBoolean()) : KleinSortOrder.DEFAULT);
     }
 
     public KleinMenu(int id, Inventory inventory, InteractionHand hand) {
@@ -106,10 +107,16 @@ public final class KleinMenu extends AbstractContainerMenu {
     }
 
     public KleinMenu(int id, Inventory inventory, int bottleSlot, boolean initialAutoDeposit) {
+        this(id, inventory, bottleSlot, initialAutoDeposit, KleinSortOrder.DEFAULT);
+    }
+
+    private KleinMenu(int id, Inventory inventory, int bottleSlot, boolean initialAutoDeposit, KleinSortOrder sort) {
         super(ModMenuTypes.KLEIN_MENU.get(), id);
         this.inventory = inventory;
         this.lockedInventorySlot = bottleSlot;
         this.autoDeposit = initialAutoDeposit;
+        this.sortMode = sort.mode();
+        this.descending = sort.descending();
         this.openingBottle = inventory.getItem(lockedInventorySlot).copy();
         for (int row = 0; row < 3; row++) for (int col = 0; col < 9; col++) {
             addSlot(new ProtectedSlot(inventory, col + row * 9 + 9, PLAYER_X + col * SLOT_COLUMN_STEP, PLAYER_Y + row * SLOT_ROW_STEP));
@@ -128,6 +135,16 @@ public final class KleinMenu extends AbstractContainerMenu {
         addSlot(new ResultSlot(inventory.player, craftSlots, craftResult, 0,
                 DRAWER_X + DRAWER_RESULT_X + 1, DRAWER_Y + DRAWER_RESULT_Y + 1) {
             @Override public boolean isActive() { return drawerMode == DRAWER_CRAFTING; }
+
+            @Override public void onTake(Player player, ItemStack stack) {
+                recomputeGuard = true;
+                try {
+                    super.onTake(player, stack);
+                } finally {
+                    recomputeGuard = false;
+                }
+                updateCraftResult();
+            }
         });
         for (int row = 0; row < 3; row++) for (int col = 0; col < 3; col++) {
             addSlot(new DrawerSlot(craftSlots, col + row * 3, DRAWER_X + DRAWER_GRID_X + 1 + col * DRAWER_SLOT_STEP,
@@ -148,6 +165,9 @@ public final class KleinMenu extends AbstractContainerMenu {
             if (!initialAutoDeposit) {
                 autoDeposit = savedData.autoDeposit(player.getUUID());
             }
+            KleinSortOrder savedSort = savedData.sortOrder(player.getUUID());
+            sortMode = savedSort.mode();
+            descending = savedSort.descending();
             clientEntries.clear();
             for (KleinWarehouse.Entry entry : warehouse.entries()) {
                 clientEntries.put(entry.id(), new KleinEntryData(entry.id(), entry.template(), entry.amount()));
@@ -166,6 +186,12 @@ public final class KleinMenu extends AbstractContainerMenu {
 
     public int nextSequence() { return ++clientSequence; }
 
+    private boolean acceptSequence(int sequence) {
+        if (sequence != lastSequence + 1) return false;
+        lastSequence = sequence;
+        return true;
+    }
+
     @Override public void clicked(int slotId, int button, ClickType type, Player player) {
         if (slotId >= 0 && slotId < slots.size()) {
             Slot target = slots.get(slotId);
@@ -183,8 +209,8 @@ public final class KleinMenu extends AbstractContainerMenu {
     @Override public ItemStack quickMoveStack(Player player, int index) {
         if (!validAction(player) || index < 0 || index >= slots.size()) return ItemStack.EMPTY;
         Slot slot = slots.get(index);
-        if (slot.container != inventory) return ItemStack.EMPTY;
-        if (slot.getContainerSlot() == lockedInventorySlot || !slot.hasItem()) return ItemStack.EMPTY;
+        if (!slot.isActive() || !slot.mayPickup(player) || !slot.hasItem()) return ItemStack.EMPTY;
+        if (index == CRAFT_RESULT_SLOT || index == ANVIL_RESULT_SLOT) return quickMoveResult(player, slot);
         ItemStack before = slot.getItem().copy();
         BigInteger accepted = warehouse.insert(before, BigInteger.valueOf(before.getCount()));
         int count = accepted.intValue();
@@ -197,12 +223,33 @@ public final class KleinMenu extends AbstractContainerMenu {
         return ItemStack.EMPTY;
     }
 
+    private ItemStack quickMoveResult(Player player, Slot slot) {
+        ItemStack result = slot.getItem().copy();
+        ItemStack remaining = result.copy();
+        if (!moveItemStackTo(remaining, 0, CRAFT_RESULT_SLOT, true)) return ItemStack.EMPTY;
+
+        ItemStack taken = slot.remove(result.getCount());
+        slot.onTake(player, taken);
+        if (!remaining.isEmpty()) player.drop(remaining, false);
+        return result;
+    }
+
+    @Override public boolean canTakeItemForPickAll(ItemStack stack, Slot slot) {
+        return slot.isActive() && slot.container != craftResult && slot.container != anvilResult
+                && super.canTakeItemForPickAll(stack, slot);
+    }
+
+    @Override public boolean canDragTo(Slot slot) {
+        return slot.isActive() && super.canDragTo(slot);
+    }
+
     void handleAction(KleinActionPayload action) {
         ServerPlayer player = (ServerPlayer) inventory.player;
         if (!validAction(player)) return;
-        if (action.sequence() != lastSequence + 1) return;
-        lastSequence = action.sequence();
-        if (action.operation() == KleinActionPayload.INSERT_CARRIED || action.operation() == KleinActionPayload.INSERT_ONE) {
+        if (!acceptSequence(action.sequence())) return;
+        if (action.operation() == KleinActionPayload.RIGHT_CLICK) {
+            rightClickWarehouse(action.entryId());
+        } else if (action.operation() == KleinActionPayload.INSERT_CARRIED || action.operation() == KleinActionPayload.INSERT_ONE) {
             ItemStack carried = getCarried();
             if (action.operation() == KleinActionPayload.INSERT_ONE && carried.isEmpty()
                     && action.sourceSlot() >= 0 && action.sourceSlot() < slots.size()) {
@@ -270,110 +317,130 @@ public final class KleinMenu extends AbstractContainerMenu {
         broadcastChanges();
     }
 
-    /** Fills the crafting matrix with concrete stacks chosen by the client's JEI transfer. */
+    private void rightClickWarehouse(long entryId) {
+        ItemStack carried = getCarried();
+        KleinWarehouse.Entry entry = warehouse.entry(entryId);
+        if (entry != null && (carried.isEmpty() || ItemStack.isSameItemSameComponents(carried, entry.template()))) {
+            if (!carried.isEmpty() && carried.getCount() >= carried.getMaxStackSize()) return;
+            ItemStack taken = warehouse.extract(entryId, 1);
+            if (taken.isEmpty()) return;
+            if (carried.isEmpty()) setCarried(taken);
+            else carried.grow(1);
+            savedData.changed();
+        } else if (entryId < 0 || entry != null) {
+            if (warehouse.insert(carried, BigInteger.ONE).signum() > 0) {
+                carried.shrink(1);
+                savedData.changed();
+            }
+        }
+    }
+
+    public KleinRecipeTransfer.Plan planRecipe(Recipe<?> recipe, boolean maxTransfer) {
+        return KleinRecipeTransfer.plan(KleinRecipeTransfer.layout(recipe), recipeStock(KleinRecipeTransfer.drawer(recipe)), maxTransfer);
+    }
+
+    private Map<KleinWarehouse.ItemKey, KleinRecipeTransfer.Stock> recipeStock(int drawer) {
+        Map<KleinWarehouse.ItemKey, KleinRecipeTransfer.Stock> stock = new LinkedHashMap<>();
+        Container input = recipeInput(drawer);
+        if (input == null) return stock;
+        for (int i = 0; i < input.getContainerSize(); i++) {
+            ItemStack stack = input.getItem(i);
+            KleinRecipeTransfer.addStock(stock, stack, BigInteger.valueOf(stack.getCount()));
+        }
+        if (warehouse != null) {
+            for (KleinWarehouse.Entry entry : warehouse.entries()) {
+                KleinRecipeTransfer.addStock(stock, entry.template(), entry.amount());
+            }
+        } else {
+            for (KleinEntryData entry : clientEntries.values()) {
+                KleinRecipeTransfer.addStock(stock, entry.template(), entry.amount());
+            }
+        }
+        for (int i = 0; i < CRAFT_RESULT_SLOT; i++) {
+            Slot slot = slots.get(i);
+            if (!slot.mayPickup(inventory.player)) continue;
+            ItemStack stack = slot.getItem();
+            KleinRecipeTransfer.addStock(stock, stack, BigInteger.valueOf(stack.getCount()));
+        }
+        return stock;
+    }
+
+    public void submitRecipeFill(ResourceLocation recipeId, int drawer, boolean maxTransfer) {
+        if (drawerMode != drawer) {
+            setDrawerMode(drawer);
+            PacketDistributor.sendToServer(new KleinDrawerPayload(containerId, drawer));
+        }
+        PacketDistributor.sendToServer(new KleinCraftFillPayload(containerId, recipeId, nextSequence(), maxTransfer));
+    }
+
     void handleCraftFill(KleinCraftFillPayload payload) {
-        if (!(inventory.player instanceof ServerPlayer player) || !validAction(player)) return;
-        if (payload.sequence() != lastSequence + 1) return;
-        lastSequence = payload.sequence();
-        List<ItemStack> grid = payload.grid();
-        int sets = payload.maxTransfer() ? maxCraftSets(grid) : oneCraftSet(grid);
-        if (sets < 1 || !canTakeCompleteSets(grid, sets)) return;
-        boolean changed = false;
+        if (!(inventory.player instanceof ServerPlayer player) || !validAction(player)
+                || payload.containerId() != containerId || !acceptSequence(payload.sequence())) return;
+        var holder = level().getRecipeManager().byKey(payload.recipeId()).orElse(null);
+        if (holder == null) return;
+
+        Recipe<?> recipe = holder.value();
+        int drawer = KleinRecipeTransfer.drawer(recipe);
+        KleinRecipeTransfer.Plan plan = planRecipe(recipe, payload.maxTransfer());
+        if (!plan.complete() || plan.grid().isEmpty()) return;
+        List<ItemStack> grid = plan.grid();
+        ItemStack cookingResult = ItemStack.EMPTY;
+        if (recipe instanceof CraftingRecipe crafting) {
+            if (!crafting.matches(CraftingInput.ofPositioned(3, 3, grid).input(), level())) return;
+        } else if (recipe instanceof AbstractCookingRecipe cooking) {
+            SingleRecipeInput input = new SingleRecipeInput(grid.getFirst());
+            if (!cooking.matches(input, level())) return;
+            cookingResult = cooking.assemble(input, level().registryAccess());
+            if (cookingResult.isEmpty() || !cookingResult.isItemEnabled(level().enabledFeatures())) return;
+        }
+
+        Container input = recipeInput(drawer);
         recomputeGuard = true;
         try {
-            // Recycle whatever the player had staged before JEI replaces the matrix.
-            returnToWarehouse(craftSlots);
-            craftResult.clearContent();
-            for (int i = 0; i < 9 && i < grid.size(); i++) {
-                ItemStack wanted = grid.get(i);
-                craftSlots.setItem(i, ItemStack.EMPTY);
-                if (wanted.isEmpty()) continue;
-                ItemStack taken = ItemStack.EMPTY;
-                for (int count = 0; count < sets; count++) taken = appendOne(taken, wanted);
-                if (!taken.isEmpty()) { craftSlots.setItem(i, taken); changed = true; }
+            for (ItemStack wanted : grid) {
+                if (!wanted.isEmpty()) takeRecipeIngredients(input, wanted);
             }
+            returnToWarehouse(input);
+            if (drawer == DRAWER_SMELTING) {
+                ItemStack output = smeltOutput.getItem(0);
+                if (!output.isEmpty() && !ItemStack.isSameItemSameComponents(output, cookingResult)) {
+                    returnToWarehouse(smeltOutput);
+                }
+                queuedCookingRecipe = holder.id();
+            }
+            for (int i = 0; i < grid.size(); i++) input.setItem(i, grid.get(i));
+            drawerMode = drawer;
         } finally {
             recomputeGuard = false;
         }
-        if (changed) savedData.changed();
-        updateCraftResult();
-        syncChanges(player);
+        savedData.changed();
+        if (drawer == DRAWER_CRAFTING) updateCraftResult();
+        else updateSmeltResult();
         broadcastChanges();
     }
 
-    private ItemStack appendOne(ItemStack collected, ItemStack wanted) {
-        ItemStack one = takeOneMatching(wanted);
-        if (one.isEmpty()) return collected;
-        if (collected.isEmpty()) return one;
-        collected.grow(one.getCount());
-        return collected;
+    private Container recipeInput(int drawer) {
+        return switch (drawer) {
+            case DRAWER_CRAFTING -> craftSlots;
+            case DRAWER_SMELTING -> smeltInput;
+            default -> null;
+        };
     }
 
-    private boolean canTakeCompleteSets(List<ItemStack> grid, int sets) {
-        for (int i = 0; i < 9 && i < grid.size(); i++) {
-            ItemStack wanted = grid.get(i);
-            if (wanted.isEmpty()) continue;
-            if (availableMatching(wanted).compareTo(BigInteger.valueOf(sets)) < 0) return false;
-        }
-        return true;
-    }
-
-    private BigInteger availableMatching(ItemStack wanted) {
-        BigInteger available = BigInteger.ZERO;
-        for (KleinWarehouse.Entry entry : warehouse.entries()) {
-            if (ItemStack.isSameItemSameComponents(entry.template(), wanted)) {
-                available = available.add(entry.amount());
+    private void takeRecipeIngredients(Container input, ItemStack wanted) {
+        int remaining = wanted.getCount();
+        for (int i = 0; i < input.getContainerSize() && remaining > 0; i++) {
+            if (ItemStack.isSameItemSameComponents(input.getItem(i), wanted)) {
+                remaining -= input.removeItem(i, remaining).getCount();
             }
         }
-        for (Slot slot : slots) {
-            if (slot.container == inventory && slot.getContainerSlot() != lockedInventorySlot && slot.hasItem()
-                    && ItemStack.isSameItemSameComponents(slot.getItem(), wanted)) {
-                available = available.add(BigInteger.valueOf(slot.getItem().getCount()));
+        remaining -= warehouse.extractMatching(wanted, remaining);
+        for (int i = 0; i < CRAFT_RESULT_SLOT && remaining > 0; i++) {
+            Slot slot = slots.get(i);
+            if (slot.mayPickup(inventory.player) && ItemStack.isSameItemSameComponents(slot.getItem(), wanted)) {
+                remaining -= slot.remove(remaining).getCount();
             }
         }
-        return available;
-    }
-
-    private int maxCraftSets(List<ItemStack> grid) {
-        int max = Integer.MAX_VALUE;
-        boolean any = false;
-        for (ItemStack wanted : grid) {
-            if (wanted.isEmpty()) continue;
-            any = true;
-            int occurrences = 0;
-            for (ItemStack other : grid) {
-                if (ItemStack.isSameItemSameComponents(wanted, other)) occurrences++;
-            }
-            int sets = availableMatching(wanted).divide(BigInteger.valueOf(occurrences))
-                    .min(BigInteger.valueOf(wanted.getMaxStackSize())).intValue();
-            max = Math.min(max, sets);
-        }
-        return any ? max : 0;
-    }
-
-    private static int oneCraftSet(List<ItemStack> grid) {
-        return grid.stream().anyMatch(stack -> !stack.isEmpty()) ? 1 : 0;
-    }
-
-    private ItemStack takeOneMatching(ItemStack wanted) {
-        long entryId = -1;
-        for (KleinWarehouse.Entry entry : warehouse.entries()) {
-            if (ItemStack.isSameItemSameComponents(entry.template(), wanted)) {
-                entryId = entry.id();
-                break;
-            }
-        }
-        if (entryId >= 0) {
-            ItemStack extracted = warehouse.extract(entryId, 1);
-            if (!extracted.isEmpty()) return extracted;
-        }
-        for (Slot slot : slots) {
-            if (slot.container != inventory || slot.getContainerSlot() == lockedInventorySlot || !slot.hasItem()) continue;
-            if (ItemStack.isSameItemSameComponents(slot.getItem(), wanted)) {
-                return slot.remove(1);
-            }
-        }
-        return ItemStack.EMPTY;
     }
 
     private void extractToInventory(long entryId, int limit) {
@@ -424,7 +491,7 @@ public final class KleinMenu extends AbstractContainerMenu {
         super.slotsChanged(container);
         if (recomputeGuard) return;
         if (container == craftSlots) updateCraftResult();
-        else if (container == smeltInput) updateSmeltResult();
+        else if (container == smeltInput || container == smeltOutput) updateSmeltResult();
         else if (container == anvilLeft || container == anvilRight) updateAnvilResult();
     }
 
@@ -436,7 +503,8 @@ public final class KleinMenu extends AbstractContainerMenu {
         ItemStack result = ItemStack.EMPTY;
         Optional<RecipeHolder<CraftingRecipe>> found = level().getRecipeManager()
                 .getRecipeFor(RecipeType.CRAFTING, input, level());
-        if (found.isPresent()) {
+        if (found.isPresent() && inventory.player instanceof ServerPlayer player
+                && craftResult.setRecipeUsed(level(), player, found.get())) {
             ItemStack assembled = found.get().value().assemble(input, level().registryAccess());
             if (assembled.isItemEnabled(level().enabledFeatures())) result = assembled;
         }
@@ -448,28 +516,36 @@ public final class KleinMenu extends AbstractContainerMenu {
 
     void updateSmeltResult() {
         if (level().isClientSide || recomputeGuard) return;
-        ItemStack input = smeltInput.getItem(0);
-        if (input.isEmpty()) return;
-        ItemStack produced = findSmelting(input);
-        if (produced.isEmpty()) return;
-        ItemStack output = smeltOutput.getItem(0);
-        if (!output.isEmpty() && (!ItemStack.isSameItemSameComponents(output, produced)
-                || output.getCount() + produced.getCount() > output.getMaxStackSize())) {
-            return;
-        }
         recomputeGuard = true;
         try {
-            smeltInput.removeItem(0, 1);
-            if (output.isEmpty()) smeltOutput.setItem(0, produced.copy());
-            else output.grow(produced.getCount());
+            ItemStack input = smeltInput.getItem(0);
+            while (!input.isEmpty()) {
+                ItemStack produced = findSmelting(input);
+                ItemStack output = smeltOutput.getItem(0);
+                if (produced.isEmpty() || produced.getCount() > produced.getMaxStackSize()
+                        || (!output.isEmpty() && (!ItemStack.isSameItemSameComponents(output, produced)
+                        || output.getCount() + produced.getCount() > output.getMaxStackSize()))) break;
+                smeltInput.removeItem(0, 1);
+                if (output.isEmpty()) smeltOutput.setItem(0, produced.copy());
+                else output.grow(produced.getCount());
+                input = smeltInput.getItem(0);
+            }
+            if (input.isEmpty()) queuedCookingRecipe = null;
         } finally {
             recomputeGuard = false;
         }
-        updateSmeltResult();
     }
 
     private ItemStack findSmelting(ItemStack input) {
         SingleRecipeInput recipeInput = new SingleRecipeInput(input);
+        if (queuedCookingRecipe != null) {
+            var holder = level().getRecipeManager().byKey(queuedCookingRecipe).orElse(null);
+            if (holder != null && holder.value() instanceof AbstractCookingRecipe cooking && cooking.matches(recipeInput, level())) {
+                ItemStack result = cooking.assemble(recipeInput, level().registryAccess());
+                return result.isItemEnabled(level().enabledFeatures()) ? result : ItemStack.EMPTY;
+            }
+            queuedCookingRecipe = null;
+        }
         ItemStack smelting = resultOf(RecipeType.SMELTING, recipeInput);
         if (!smelting.isEmpty()) return smelting;
         ItemStack blasting = resultOf(RecipeType.BLASTING, recipeInput);
@@ -541,7 +617,9 @@ public final class KleinMenu extends AbstractContainerMenu {
     }
 
     void syncFromWarehouse() {
-        if (inventory.player instanceof ServerPlayer player) {
+        if (inventory.player instanceof ServerPlayer player && player.connection != null && player.containerMenu == this
+                && syncedWarehouseRevision != warehouse.revision()) {
+            syncedWarehouseRevision = warehouse.revision();
             List<KleinWarehouse.Entry> entries = warehouse.entries().stream().toList();
             if (entries.isEmpty()) {
                 PacketDistributor.sendToPlayer(player, new KleinSyncPayload(List.of(), true));
@@ -558,47 +636,42 @@ public final class KleinMenu extends AbstractContainerMenu {
 
     @Override public void removed(Player player) {
         super.removed(player);
-        returnToWarehouse(craftSlots);
-        returnToWarehouse(smeltInput);
-        returnToWarehouse(smeltOutput);
-        returnToWarehouse(anvilLeft);
-        returnToWarehouse(anvilRight);
-        craftResult.clearContent();
-        anvilResult.clearContent();
-        if (savedData != null) savedData.unwatch(player.getUUID(), this);
+        if (savedData == null) return;
+        savedData.unwatch(player.getUUID(), this);
+        flushDrawer(DRAWER_CRAFTING);
+        flushDrawer(DRAWER_SMELTING);
+        flushDrawer(DRAWER_ANVIL);
     }
 
-    /** Returns the given drawer mode's contents when switching tabs, so nothing is lost. */
-    public void flushDrawer(int mode) {
-        switch (mode) {
-            case DRAWER_CRAFTING -> {
-                returnToWarehouse(craftSlots);
-                craftResult.clearContent();
+    private void flushDrawer(int mode) {
+        recomputeGuard = true;
+        try {
+            switch (mode) {
+                case DRAWER_CRAFTING -> {
+                    returnToWarehouse(craftSlots);
+                    craftResult.clearContent();
+                }
+                case DRAWER_SMELTING -> {
+                    returnToWarehouse(smeltInput);
+                    returnToWarehouse(smeltOutput);
+                    queuedCookingRecipe = null;
+                }
+                case DRAWER_ANVIL -> {
+                    returnToWarehouse(anvilLeft);
+                    returnToWarehouse(anvilRight);
+                    anvilResult.clearContent();
+                    anvilItemName = "";
+                    anvilCost = 0;
+                    anvilMaterialCost = 0;
+                }
+                default -> { }
             }
-            case DRAWER_SMELTING -> {
-                returnToWarehouse(smeltInput);
-                returnToWarehouse(smeltOutput);
-            }
-            case DRAWER_ANVIL -> {
-                returnToWarehouse(anvilLeft);
-                returnToWarehouse(anvilRight);
-                anvilResult.clearContent();
-            }
-            default -> { }
+        } finally {
+            recomputeGuard = false;
         }
     }
 
     private void returnToWarehouse(net.minecraft.world.Container container) {
-        if (warehouse == null) {
-            for (int i = 0; i < container.getContainerSize(); i++) {
-                ItemStack stack = container.getItem(i);
-                if (!stack.isEmpty() && !inventory.player.getInventory().add(stack)) {
-                    inventory.player.drop(stack, false);
-                }
-                container.setItem(i, ItemStack.EMPTY);
-            }
-            return;
-        }
         boolean changed = false;
         for (int i = 0; i < container.getContainerSize(); i++) {
             ItemStack stack = container.getItem(i);
@@ -642,6 +715,11 @@ public final class KleinMenu extends AbstractContainerMenu {
         this.descending = descending;
         scroll = 0;
         refilter();
+    }
+
+    void saveSort(KleinSortOrder sort) {
+        setView(query, sort.mode(), sort.descending());
+        if (savedData != null) savedData.setSortOrder(inventory.player.getUUID(), sort);
     }
 
     public void setCategory(int category) {
@@ -752,42 +830,30 @@ public final class KleinMenu extends AbstractContainerMenu {
     public void setDrawerMode(int mode) {
         int next = Math.max(DRAWER_NONE, Math.min(mode, DRAWER_ANVIL));
         if (next != drawerMode) {
-            boolean server = !inventory.player.level().isClientSide;
-            if (server) flushDrawer(drawerMode);
+            if (savedData != null && next == DRAWER_NONE) flushDrawer(drawerMode);
+            if (next == DRAWER_NONE && drawerMode == DRAWER_ANVIL) anvilItemName = "";
             drawerMode = next;
-            if (server) {
-                updateCraftResult();
-                updateAnvilResult();
-                syncFromWarehouse();
-            }
             broadcastChanges();
         }
     }
     public void cycleDrawerMode(int mode) { setDrawerMode(drawerMode == mode ? DRAWER_NONE : mode); }
 
-    /** Client-side helper for JEI: pick a concrete stack that satisfies an ingredient. */
-    public ItemStack pickIngredientStack(net.minecraft.world.item.crafting.Ingredient ingredient) {
-        for (KleinEntryData entry : clientEntries.values()) {
-            ItemStack template = entry.template();
-            if (ingredient.test(template)) return template.copyWithCount(1);
-        }
-        for (Slot slot : slots) {
-            if (slot.container != inventory || slot.getContainerSlot() == lockedInventorySlot || !slot.hasItem()) continue;
-            if (ingredient.test(slot.getItem())) return slot.getItem().copyWithCount(1);
-        }
-        return ItemStack.EMPTY;
-    }
-
     public void virtualClick(KleinEntryData entry, int button, boolean shift) {
+        if (button == 1 && (!shift || !getCarried().isEmpty())) {
+            if (entry != null || !getCarried().isEmpty()) {
+                PacketDistributor.sendToServer(new KleinActionPayload(entry == null ? -1 : entry.id(),
+                        KleinActionPayload.RIGHT_CLICK, -1, nextSequence()));
+            }
+            return;
+        }
         if (!getCarried().isEmpty()) {
             PacketDistributor.sendToServer(new KleinActionPayload(entry == null ? -1 : entry.id(),
-                    button == 1 ? KleinActionPayload.INSERT_ONE : KleinActionPayload.INSERT_CARRIED, -1, nextSequence()));
+                    KleinActionPayload.INSERT_CARRIED, -1, nextSequence()));
             return;
         }
         if (entry == null) return;
         int operation = shift ? KleinActionPayload.EXTRACT_INVENTORY
                 : button == 2 ? KleinActionPayload.EXTRACT_HALF
-                : button == 1 ? KleinActionPayload.EXTRACT_CURSOR_ONE
                 : KleinActionPayload.EXTRACT;
         PacketDistributor.sendToServer(new KleinActionPayload(entry.id(), operation, -1, nextSequence()));
     }
@@ -843,7 +909,7 @@ public final class KleinMenu extends AbstractContainerMenu {
         }
         @Override public boolean mayPlace(ItemStack stack) { return false; }
         @Override public boolean mayPickup(Player player) {
-            return player.getAbilities().instabuild || player.experienceLevel >= anvilCost;
+            return anvilCost > 0 && (player.getAbilities().instabuild || player.experienceLevel >= anvilCost);
         }
         @Override public void onTake(Player player, ItemStack stack) {
             recomputeGuard = true;
@@ -854,11 +920,9 @@ public final class KleinMenu extends AbstractContainerMenu {
                 net.neoforged.neoforge.common.CommonHooks.onAnvilRepair(
                         player, stack, anvilLeft.getItem(0), anvilRight.getItem(0));
 
-                anvilLeft.removeItem(0, 1);
-                int consumeRight = anvilMaterialCost > 0 ? anvilMaterialCost : 1;
-                if (!anvilRight.getItem(0).isEmpty()) {
-                    anvilRight.removeItem(0, consumeRight);
-                }
+                anvilLeft.setItem(0, ItemStack.EMPTY);
+                if (anvilMaterialCost > 0) anvilRight.removeItem(0, anvilMaterialCost);
+                else anvilRight.setItem(0, ItemStack.EMPTY);
 
                 player.level().playSound(null, player.blockPosition(),
                         net.minecraft.sounds.SoundEvents.ANVIL_USE,

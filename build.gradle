@@ -103,6 +103,10 @@ dependencies {
     // Compile the optional integration and include JEI in development runs.
     compileOnly "curse.maven:jei-238222:8964989"
     runtimeOnly "curse.maven:jei-238222:8964989"
+    compileOnly "curse.maven:lootr-361276:8968561"
+    if (providers.gradleProperty('kleinLootrTests').isPresent()) {
+        runtimeOnly "curse.maven:lootr-361276:8968561"
+    }
 
     // MCphone (1.21.1-neoforge) already embeds javamp3 & private Rhino via its own META-INF/jarjar/.
     // Expose javamp3 at compileOnly for client MP3 decoding without duplicating runtime/JarJar modules.

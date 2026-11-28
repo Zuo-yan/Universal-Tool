@@ -10,10 +10,11 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.gwfx.universaltool.UniversalToolMod;
 
 /** Keeps the server's drawer mode in sync with the client's tab selection. */
-public record KleinDrawerPayload(int mode) implements CustomPacketPayload {
+public record KleinDrawerPayload(int containerId, int mode) implements CustomPacketPayload {
     public static final Type<KleinDrawerPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(UniversalToolMod.MODID, "klein_drawer"));
     public static final StreamCodec<ByteBuf, KleinDrawerPayload> STREAM_CODEC = StreamCodec.composite(
+            ByteBufCodecs.VAR_INT, KleinDrawerPayload::containerId,
             ByteBufCodecs.VAR_INT, KleinDrawerPayload::mode,
             KleinDrawerPayload::new);
 
@@ -21,7 +22,8 @@ public record KleinDrawerPayload(int mode) implements CustomPacketPayload {
 
     public static void handle(KleinDrawerPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
-            if (context.player() instanceof ServerPlayer player && player.containerMenu instanceof KleinMenu menu) {
+            if (context.player() instanceof ServerPlayer player && player.containerMenu instanceof KleinMenu menu
+                    && menu.containerId == payload.containerId() && menu.stillValid(player)) {
                 menu.setDrawerMode(payload.mode());
             }
         });

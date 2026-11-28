@@ -16,8 +16,10 @@ import net.minecraft.world.level.block.entity.BrewingStandBlockEntity;
 import net.minecraft.world.level.block.entity.CrafterBlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.items.IItemHandler;
+import org.gwfx.universaltool.compat.lootr.KleinLootrCompat;
 import org.jetbrains.annotations.Nullable;
 
 /** Transfers item-handler storage from a block into the server-authoritative warehouse. */
@@ -26,12 +28,17 @@ public final class KleinContainerTransfer {
     private static final int MAX_STACKS_PER_SLOT = 1024;
 
     public static boolean isSupported(Level level, BlockPos pos, Player player, @Nullable Direction face) {
-        return findStorage(level, pos, player, face, false) != null;
+        return player != null && !player.isSpectator()
+                && (isLootrContainer(level.getBlockEntity(pos)) || findStorage(level, pos, player, face, false) != null);
     }
 
     /** Returns the number of items moved. */
     public static int transfer(ServerPlayer player, BlockPos pos, @Nullable Direction face) {
-        IItemHandler storage = findStorage(player.level(), pos, player, face, true);
+        if (player.isSpectator()) return 0;
+        BlockEntity entity = player.level().getBlockEntity(pos);
+        IItemHandler storage = isLootrContainer(entity) && entity != null
+                ? KleinLootrCompat.findPersonalStorage(entity, player)
+                : findStorage(player.level(), pos, player, face, true);
         if (storage == null) return 0;
 
         KleinStorageSavedData saved = KleinStorageSavedData.get(player.server);
@@ -58,6 +65,10 @@ public final class KleinContainerTransfer {
             saved.syncViewers(player.getUUID());
         }
         return moved;
+    }
+
+    private static boolean isLootrContainer(@Nullable BlockEntity entity) {
+        return ModList.get().isLoaded("lootr") && KleinLootrCompat.isLootrContainer(entity);
     }
 
     private static void restoreRemainder(Player player, IItemHandler storage, int slot,

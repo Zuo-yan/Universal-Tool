@@ -1,14 +1,18 @@
 package org.gwfx.universaltool.klein;
 
+import java.math.BigInteger;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.MenuProvider;
+import net.minecraft.world.entity.SlotAccess;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ClickAction;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
@@ -26,6 +30,49 @@ public final class KleinBottleItem extends Item {
                 .withStyle(net.minecraft.ChatFormatting.GRAY));
         tooltipComponents.add(Component.translatable("item.universal_tool.klein_bottle.desc.container_transfer")
                 .withStyle(net.minecraft.ChatFormatting.GRAY));
+        tooltipComponents.add(Component.translatable("item.universal_tool.klein_bottle.desc.right_click_deposit")
+                .withStyle(net.minecraft.ChatFormatting.GRAY));
+    }
+
+    @Override
+    public boolean overrideStackedOnOther(ItemStack bottle, Slot slot, ClickAction click, Player player) {
+        ItemStack source = slot.getItem();
+        if (!canDeposit(source, slot, click, player)) return false;
+        if (player instanceof ServerPlayer serverPlayer) {
+            ItemStack taken = slot.safeTake(source.getCount(), source.getCount(), player);
+            taken.shrink(deposit(serverPlayer, taken));
+            if (!taken.isEmpty()) {
+                ItemStack leftover = slot.safeInsert(taken);
+                if (!leftover.isEmpty()) player.getInventory().placeItemBackInInventory(leftover);
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean overrideOtherStackedOnMe(ItemStack bottle, ItemStack source, Slot slot, ClickAction click,
+                                            Player player, SlotAccess carried) {
+        if (!canDeposit(source, slot, click, player)) return false;
+        if (player instanceof ServerPlayer serverPlayer) {
+            source.shrink(deposit(serverPlayer, source));
+            carried.set(source);
+        }
+        return true;
+    }
+
+    private static boolean canDeposit(ItemStack source, Slot slot, ClickAction click, Player player) {
+        return click == ClickAction.SECONDARY && !player.isSpectator() && slot.allowModification(player)
+                && KleinWarehouse.canStore(source);
+    }
+
+    private static int deposit(ServerPlayer player, ItemStack source) {
+        KleinStorageSavedData saved = KleinStorageSavedData.get(player.server);
+        int accepted = saved.warehouse(player.getUUID()).insert(source, BigInteger.valueOf(source.getCount())).intValue();
+        if (accepted > 0) {
+            saved.changed();
+            saved.syncViewers(player.getUUID());
+        }
+        return accepted;
     }
 
     @Override
@@ -64,6 +111,7 @@ public final class KleinBottleItem extends Item {
                 || !(player.getInventory().getItem(slot).getItem() instanceof KleinBottleItem)) return;
         KleinStorageSavedData saved = KleinStorageSavedData.get(player.server);
         boolean autoDeposit = saved.autoDeposit(player.getUUID());
+        KleinSortOrder sort = saved.sortOrder(player.getUUID());
         player.openMenu(new MenuProvider() {
             @Override public Component getDisplayName() { return Component.translatable("item.universal_tool.klein_bottle"); }
             @Override public AbstractContainerMenu createMenu(int id, Inventory inventory, Player opener) {
@@ -74,6 +122,8 @@ public final class KleinBottleItem extends Item {
         }, buffer -> {
             buffer.writeVarInt(slot);
             buffer.writeBoolean(autoDeposit);
+            buffer.writeVarInt(sort.mode());
+            buffer.writeBoolean(sort.descending());
         });
     }
 }

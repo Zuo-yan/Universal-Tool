@@ -1,31 +1,31 @@
 package org.gwfx.universaltool.compat.jei;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import mezz.jei.api.constants.RecipeTypes;
+import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
+import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.transfer.IRecipeTransferError;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandler;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandlerHelper;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
-import net.minecraft.world.item.crafting.ShapedRecipe;
 import org.gwfx.universaltool.init.ModMenuTypes;
-import org.gwfx.universaltool.klein.KleinCraftFillPayload;
 import org.gwfx.universaltool.klein.KleinMenu;
+import org.gwfx.universaltool.klein.KleinRecipeTransfer;
 
-/** Fills the Klein crafting drawer from the infinite warehouse when JEI's + button is pressed. */
-public final class KleinRecipeTransferHandler
-        implements IRecipeTransferHandler<KleinMenu, RecipeHolder<CraftingRecipe>> {
+/** Uses the same transfer planner for JEI and EMI's JEI bridge. */
+public final class KleinRecipeTransferHandler<R extends Recipe<?>>
+        implements IRecipeTransferHandler<KleinMenu, RecipeHolder<R>> {
     private final IRecipeTransferHandlerHelper helper;
+    private final RecipeType<RecipeHolder<R>> recipeType;
 
-    public KleinRecipeTransferHandler(IRecipeTransferHandlerHelper helper) {
+    public KleinRecipeTransferHandler(IRecipeTransferHandlerHelper helper, RecipeType<RecipeHolder<R>> recipeType) {
         this.helper = helper;
+        this.recipeType = recipeType;
     }
 
     @Override public Class<? extends KleinMenu> getContainerClass() { return KleinMenu.class; }
@@ -37,38 +37,34 @@ public final class KleinRecipeTransferHandler
         return Optional.of(type);
     }
 
-    @Override public RecipeType<RecipeHolder<CraftingRecipe>> getRecipeType() { return RecipeTypes.CRAFTING; }
+    @Override public RecipeType<RecipeHolder<R>> getRecipeType() { return recipeType; }
 
     @Override
-    @SuppressWarnings("removal")
-    public IRecipeTransferError transferRecipe(KleinMenu menu, RecipeHolder<CraftingRecipe> holder,
+    @SuppressWarnings("removal") // EMI 1.1.24 calls this JEI overload directly.
+    public IRecipeTransferError transferRecipe(KleinMenu menu, RecipeHolder<R> holder,
                                                IRecipeSlotsView slots, Player player,
                                                boolean maxTransfer, boolean doTransfer) {
-        CraftingRecipe recipe = holder.value();
-        List<ItemStack> grid = new ArrayList<>(java.util.Collections.nCopies(KleinCraftFillPayload.GRID_SIZE, ItemStack.EMPTY));
-        List<Ingredient> ingredients = recipe.getIngredients();
-        int width = recipe instanceof ShapedRecipe shaped ? shaped.getWidth() : 3;
-        int height = recipe instanceof ShapedRecipe shaped ? shaped.getHeight() : 3;
-        if (recipe instanceof ShapedRecipe && (width > 3 || height > 3)) {
-            return helper.createUserErrorWithTooltip(
-                    net.minecraft.network.chat.Component.translatable("gui.universal_tool.klein.jei_too_large"));
+        Recipe<?> recipe = player.level().getRecipeManager().byKey(holder.id()).map(RecipeHolder::value).orElse(null);
+        if (recipe == null || KleinRecipeTransfer.drawer(recipe) == KleinMenu.DRAWER_NONE) {
+            return helper.createUserErrorWithTooltip(Component.translatable("gui.universal_tool.klein.recipe_unsupported"));
         }
-        int index = 0;
-        for (int row = 0; row < height && index < ingredients.size(); row++) {
-            for (int col = 0; col < width && index < ingredients.size(); col++, index++) {
-                Ingredient ingredient = ingredients.get(index);
-                if (ingredient.isEmpty()) continue;
-                ItemStack picked = menu.pickIngredientStack(ingredient);
-                if (picked.isEmpty()) continue;
-                grid.set(col + row * 3, picked);
-            }
+        var plan = menu.planRecipe(recipe, doTransfer && maxTransfer);
+        if (!plan.complete()) {
+            List<IRecipeSlotView> inputs = slots.getSlotViews(RecipeIngredientRole.INPUT).stream()
+                    .filter(slot -> !slot.isEmpty()).toList();
+            List<IRecipeSlotView> missing = plan.missingIngredients().stream()
+                    .filter(i -> i < inputs.size()).map(inputs::get).toList();
+            Component message = Component.translatable("jei.tooltip.error.recipe.transfer.missing");
+            return missing.isEmpty() ? helper.createUserErrorWithTooltip(message)
+                    : helper.createUserErrorForMissingSlots(message, missing);
         }
+        if (plan.grid().isEmpty()) {
+            String key = recipe.canCraftInDimensions(3, 3) ? "recipe_unsupported" : "jei_too_large";
+            return helper.createUserErrorWithTooltip(Component.translatable("gui.universal_tool.klein." + key));
+        }
+
         if (doTransfer) {
-            menu.setDrawerMode(KleinMenu.DRAWER_CRAFTING);
-            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                    new org.gwfx.universaltool.klein.KleinDrawerPayload(KleinMenu.DRAWER_CRAFTING));
-            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                    new KleinCraftFillPayload(grid, menu.nextSequence(), maxTransfer));
+            menu.submitRecipeFill(holder.id(), KleinRecipeTransfer.drawer(recipe), maxTransfer);
         }
         return null;
     }

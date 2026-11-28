@@ -13,7 +13,7 @@ import net.minecraft.world.item.Item;
 
 /** Aggregate quantities live here, never in an ItemStack or a physical container slot. */
 public final class KleinWarehouse {
-    private record ItemKey(Item item, DataComponentPatch components) {
+    record ItemKey(Item item, DataComponentPatch components) {
         static ItemKey of(ItemStack stack) { return new ItemKey(stack.getItem(), stack.getComponentsPatch()); }
     }
     static final int MAX_AMOUNT_DIGITS = 128;
@@ -41,6 +41,7 @@ public final class KleinWarehouse {
     private final Map<ItemKey, Long> stackableTypes = new HashMap<>();
     private final Map<ItemKey, List<Long>> singleTypes = new HashMap<>();
     private long nextId = 1;
+    private long revision;
 
     public Collection<Entry> entries() { return entries.values(); }
     public java.math.BigInteger amount(long id) {
@@ -50,6 +51,7 @@ public final class KleinWarehouse {
     public Entry entry(long id) { return entries.get(id); }
     public int size() { return entries.size(); }
     long nextId() { return nextId; }
+    long revision() { return revision; }
 
     public static boolean canStore(ItemStack stack) {
         return !stack.isEmpty() && !(stack.getItem() instanceof KleinBottleItem);
@@ -70,6 +72,7 @@ public final class KleinWarehouse {
                 ids.add(nextId - 1);
                 remaining = remaining.subtract(BigInteger.ONE);
             }
+            revision++;
             return accepted;
         }
         Entry entry = entries.get(stackableTypes.get(key));
@@ -80,6 +83,7 @@ public final class KleinWarehouse {
         }
         accepted = accepted.min(MAX_AMOUNT.subtract(entry.amount));
         entry.amount = entry.amount.add(accepted);
+        if (accepted.signum() > 0) revision++;
         return accepted;
     }
 
@@ -90,7 +94,22 @@ public final class KleinWarehouse {
         if (count == 0) return ItemStack.EMPTY;
         ItemStack result = entry.template.copyWithCount(count);
         removeAmount(entry, BigInteger.valueOf(count));
+        revision++;
         return result;
+    }
+
+    int extractMatching(ItemStack template, int requested) {
+        if (requested <= 0) return 0;
+        ItemKey key = ItemKey.of(template);
+        Long stackable = stackableTypes.get(key);
+        if (stackable != null) return extract(stackable, requested).getCount();
+
+        int taken = 0;
+        List<Long> singles = singleTypes.get(key);
+        while (taken < requested && singles != null && !singles.isEmpty()) {
+            taken += extract(singles.getFirst(), 1).getCount();
+        }
+        return taken;
     }
 
     public boolean containsType(ItemStack stack) {
@@ -105,6 +124,7 @@ public final class KleinWarehouse {
 
     void addLoaded(long id, ItemStack template, BigInteger amount) {
         addEntry(id, template, amount);
+        revision++;
         nextId = Math.max(nextId, id + 1);
         ItemKey key = ItemKey.of(template);
         if (template.getMaxStackSize() == 1) singleTypes.computeIfAbsent(key, ignored -> new ArrayList<>()).add(id);

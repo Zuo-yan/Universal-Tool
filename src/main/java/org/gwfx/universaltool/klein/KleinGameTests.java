@@ -1,14 +1,18 @@
 package org.gwfx.universaltool.klein;
 
 import java.math.BigInteger;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -19,11 +23,14 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import net.neoforged.fml.ModList;
+import noobanidus.mods.lootr.common.api.LootrAPI;
 
 @PrefixGameTestTemplate(false)
 public final class KleinGameTests {
@@ -293,9 +300,7 @@ public final class KleinGameTests {
         ItemStack staged = new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get());
         menu.slots.get(KleinMenu.CRAFT_GRID_START + 8).set(staged);
 
-        var grid = new java.util.ArrayList<ItemStack>(java.util.Collections.nCopies(9, ItemStack.EMPTY));
-        grid.set(0, new ItemStack(Items.OAK_LOG));
-        menu.handleCraftFill(new KleinCraftFillPayload(grid, 0, false));
+        fill(menu, "oak_planks", 0, false);
         helper.assertTrue(menu.slots.get(KleinMenu.CRAFT_RESULT_SLOT).getItem().is(Items.OAK_PLANKS),
                 "JEI transfer calculates the resulting planks");
         helper.assertTrue(player.getInventory().contains(staged), "Existing unstoreable ingredient is preserved");
@@ -317,9 +322,7 @@ public final class KleinGameTests {
         KleinWarehouse warehouse = KleinStorageSavedData.get(player.server).warehouse(player.getUUID());
         warehouse.insert(new ItemStack(Items.OAK_PLANKS), BigInteger.valueOf(130));
         menu.setDrawerMode(KleinMenu.DRAWER_CRAFTING);
-        var grid = new java.util.ArrayList<ItemStack>(java.util.Collections.nCopies(9, ItemStack.EMPTY));
-        for (int i = 0; i < 3; i++) grid.set(i, new ItemStack(Items.OAK_PLANKS));
-        menu.handleCraftFill(new KleinCraftFillPayload(grid, 0, true));
+        fill(menu, "oak_slab", 0, true);
         for (int i = 0; i < 3; i++) {
             helper.assertTrue(menu.slots.get(KleinMenu.CRAFT_GRID_START + i).getItem().getCount() == 44,
                     "Shift transfer distributes complete sets across matching ingredients");
@@ -327,6 +330,10 @@ public final class KleinGameTests {
         helper.assertTrue(menu.slots.get(KleinMenu.CRAFT_RESULT_SLOT).getItem().is(Items.OAK_SLAB),
                 "Shift transfer still produces a valid recipe result");
         helper.assertTrue(player.getInventory().getItem(1).isEmpty(), "Shift transfer uses inventory after warehouse");
+        menu.clicked(KleinMenu.CRAFT_RESULT_SLOT, 0, ClickType.QUICK_MOVE, player);
+        helper.assertTrue(player.getInventory().countItem(Items.OAK_SLAB) == 264,
+                "Shift-click output performs every craft that fits in the inventory");
+        helper.assertTrue(menu.craftSlots().isEmpty(), "Batched crafting consumes every complete set");
         helper.succeed();
     }
 
@@ -334,20 +341,199 @@ public final class KleinGameTests {
     public static void jeiShiftFillNeverConsumesIncompleteIngredients(GameTestHelper helper) {
         ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-jei-incomplete");
         player.getInventory().setItem(0, new ItemStack(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()));
-        player.getInventory().setItem(1, new ItemStack(Items.ENDER_PEARL, 1));
+        player.getInventory().setItem(1, new ItemStack(Items.OAK_PLANKS));
         var saved = KleinStorageSavedData.get(player.server).warehouse(player.getUUID());
-        saved.insert(new ItemStack(Items.ENDER_PEARL), BigInteger.valueOf(40));
+        saved.insert(new ItemStack(Items.OAK_PLANKS), BigInteger.ONE);
         KleinMenu menu = new KleinMenu(7, player.getInventory(), InteractionHand.MAIN_HAND);
         player.containerMenu = menu;
         menu.setDrawerMode(KleinMenu.DRAWER_CRAFTING);
         ItemStack before = player.getInventory().getItem(1).copy();
-        var grid = new java.util.ArrayList<ItemStack>(java.util.Collections.nCopies(9, ItemStack.EMPTY));
-        for (int i = 0; i < 3; i++) grid.set(i, new ItemStack(Items.ENDER_PEARL));
-        menu.handleCraftFill(new KleinCraftFillPayload(grid, 0, true));
+        menu.craftSlots().setItem(8, new ItemStack(Items.CARROT, 2));
+        var recipe = player.level().getRecipeManager().byKey(ResourceLocation.withDefaultNamespace("oak_slab")).orElseThrow();
+        helper.assertTrue(menu.planRecipe(recipe.value(), false).missingIngredients().equals(List.of(2)),
+                "Only the third repeated ingredient is missing");
+        fill(menu, "oak_slab", 0, true);
+        fill(menu, "oak_slab", 1, false);
         helper.assertTrue(player.getInventory().getItem(1).getCount() == before.getCount(),
                 "Incomplete shift recipe leaves all player ingredients untouched");
         helper.assertTrue(menu.slots.get(KleinMenu.CRAFT_RESULT_SLOT).getItem().isEmpty(),
                 "Incomplete shift recipe never produces a misleading result");
+        helper.assertTrue(menu.craftSlots().getItem(8).getCount() == 2 && saved.size() == 1,
+                "An unsuccessful transfer leaves the previous grid and warehouse unchanged");
+        helper.succeed();
+    }
+
+    private static void fill(KleinMenu menu, String recipe, int sequence, boolean max) {
+        menu.handleCraftFill(new KleinCraftFillPayload(menu.containerId, ResourceLocation.withDefaultNamespace(recipe), sequence, max));
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void recipeReplacementAndQuickMoveReturnOldMaterials(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-replace");
+        player.getInventory().setItem(0, org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get().getDefaultInstance());
+        KleinMenu menu = new KleinMenu(3, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        KleinWarehouse warehouse = KleinStorageSavedData.get(player.server).warehouse(player.getUUID());
+        menu.setDrawerMode(KleinMenu.DRAWER_CRAFTING);
+        menu.craftSlots().setItem(1, new ItemStack(Items.OAK_PLANKS, 4));
+        menu.craftSlots().setItem(8, new ItemStack(Items.CARROT, 2));
+        fill(menu, "oak_slab", 0, false);
+        helper.assertTrue(menu.slots.get(KleinMenu.CRAFT_RESULT_SLOT).getItem().is(Items.OAK_SLAB),
+                "Already staged planks can fully supply the replacement recipe");
+        helper.assertTrue(total(warehouse, Items.OAK_PLANKS) == 1 && total(warehouse, Items.CARROT) == 2,
+                "Both the surplus and unrelated material return to the terminal");
+        menu.clicked(KleinMenu.CRAFT_GRID_START + 1, 0, ClickType.QUICK_MOVE, player);
+        helper.assertTrue(total(warehouse, Items.OAK_PLANKS) == 2
+                        && menu.slots.get(KleinMenu.CRAFT_RESULT_SLOT).getItem().isEmpty(),
+                "Shift-clicking an ingredient returns it and invalidates the output");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void cookingRecipeUsesMatchingDrawerAndReturnsOldOutput(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-cooking");
+        player.getInventory().setItem(0, org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get().getDefaultInstance());
+        KleinMenu menu = new KleinMenu(3, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        KleinWarehouse warehouse = KleinStorageSavedData.get(player.server).warehouse(player.getUUID());
+        warehouse.insert(new ItemStack(Items.RAW_IRON), BigInteger.valueOf(5));
+        player.getInventory().setItem(1, new ItemStack(Items.POTATO, 2));
+        fill(menu, "iron_ingot_from_blasting_raw_iron", 0, true);
+        helper.assertTrue(menu.drawerMode() == KleinMenu.DRAWER_SMELTING
+                        && menu.getSlot(KleinMenu.SMELT_OUTPUT_SLOT).getItem().is(Items.IRON_INGOT)
+                        && menu.getSlot(KleinMenu.SMELT_OUTPUT_SLOT).getItem().getCount() == 5,
+                "Shift transfer smelts the maximum from the selected blasting recipe");
+        fill(menu, "baked_potato_from_smoking", 1, false);
+        helper.assertTrue(total(warehouse, Items.IRON_INGOT) == 5
+                        && menu.getSlot(KleinMenu.SMELT_OUTPUT_SLOT).getItem().is(Items.BAKED_POTATO)
+                        && player.getInventory().getItem(1).getCount() == 1,
+                "A new cooking recipe returns incompatible output and transfers one ingredient");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void repeatedRightClickAndInventoryDeposit(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-right-click");
+        ItemStack bottle = org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get().getDefaultInstance();
+        player.getInventory().setItem(0, bottle);
+        var inventoryMenu = player.inventoryMenu;
+        Slot bottleSlot = inventoryMenu.slots.stream().filter(slot -> slot.getItem() == bottle).findFirst().orElseThrow();
+        inventoryMenu.setCarried(new ItemStack(Items.APPLE, 5));
+        inventoryMenu.clicked(bottleSlot.index, 1, ClickType.PICKUP, player);
+        helper.assertTrue(inventoryMenu.getCarried().isEmpty() && bottleSlot.getItem() == bottle,
+                "Right-click with items on the bottle stores the cursor stack");
+        player.getInventory().setItem(9, new ItemStack(Items.APPLE, 3));
+        Slot appleSlot = inventoryMenu.slots.stream().filter(slot -> slot.getItem().is(Items.APPLE)).findFirst().orElseThrow();
+        inventoryMenu.setCarried(bottleSlot.remove(1));
+        inventoryMenu.clicked(appleSlot.index, 1, ClickType.PICKUP, player);
+        helper.assertTrue(appleSlot.getItem().isEmpty()
+                        && inventoryMenu.getCarried().is(org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get()),
+                "Right-click with the bottle on an inventory item stores that stack: cursor="
+                        + inventoryMenu.getCarried() + ", slot=" + appleSlot.getItem());
+        player.getInventory().setItem(0, inventoryMenu.getCarried());
+        inventoryMenu.setCarried(ItemStack.EMPTY);
+
+        KleinMenu menu = new KleinMenu(3, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        KleinWarehouse warehouse = KleinStorageSavedData.get(player.server).warehouse(player.getUUID());
+        long entryId = warehouse.entries().iterator().next().id();
+        for (int i = 0; i < 3; i++) menu.handleAction(new KleinActionPayload(entryId, KleinActionPayload.RIGHT_CLICK, -1, i));
+        helper.assertTrue(menu.getCarried().is(Items.APPLE) && menu.getCarried().getCount() == 3
+                        && total(warehouse, Items.APPLE) == 5,
+                "Three consecutive right-clicks take three apples onto the same cursor stack");
+        menu.handleAction(new KleinActionPayload(-1, KleinActionPayload.RIGHT_CLICK, -1, 3));
+        helper.assertTrue(menu.getCarried().getCount() == 2 && total(warehouse, Items.APPLE) == 6,
+                "Right-clicking an empty warehouse cell deposits one item");
+        helper.succeed();
+    }
+
+    private static int total(KleinWarehouse warehouse, net.minecraft.world.item.Item item) {
+        return warehouse.entries().stream().filter(entry -> entry.template().is(item))
+                .mapToInt(entry -> entry.amount().intValueExact()).sum();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void lootrTransferUsesOnlyExistingPersonalLoot(GameTestHelper helper) {
+        if (!ModList.get().isLoaded("lootr")) {
+            helper.succeed();
+            return;
+        }
+        var level = helper.getLevel();
+        var chest = BuiltInRegistries.BLOCK.get(ResourceLocation.fromNamespaceAndPath("lootr", "lootr_chest"));
+        BlockPos pos = helper.absolutePos(new BlockPos(1, 2, 1));
+        level.setBlockAndUpdate(pos, chest.defaultBlockState());
+        var provider = LootrAPI.resolveBlockEntity(level.getBlockEntity(pos));
+        if (provider == null) throw new AssertionError("Expected a Lootr chest");
+        ServerPlayer owner = mockPlayer(level.getServer(), level, "klein-lootr-owner");
+        ServerPlayer other = mockPlayer(level.getServer(), level, "klein-lootr-other");
+        owner.setPos(Vec3.atCenterOf(pos));
+        other.setPos(Vec3.atCenterOf(pos));
+        var data = LootrAPI.getData(provider);
+        helper.assertTrue(KleinContainerTransfer.isSupported(level, pos, owner, Direction.UP), "Lootr chest is recognized");
+        helper.assertTrue(KleinContainerTransfer.transfer(owner, pos, Direction.UP) == 0
+                        && data.getInventory(owner.getUUID()) == null,
+                "Attempting to transfer never generates unopened loot");
+
+        var personal = data.createInventory(provider, owner.getUUID(), (info, player, container) -> {});
+        var otherLoot = data.createInventory(provider, other.getUUID(), (info, player, container) -> {});
+        personal.setItem(0, new ItemStack(Items.EMERALD, 3));
+        otherLoot.setItem(0, new ItemStack(Items.DIAMOND, 7));
+        owner.setItemInHand(InteractionHand.MAIN_HAND, org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get().getDefaultInstance());
+        owner.setShiftKeyDown(true);
+        var hit = new BlockHitResult(Vec3.atCenterOf(pos), Direction.UP, pos, false);
+        owner.gameMode.useItemOn(owner, level, owner.getMainHandItem(), InteractionHand.MAIN_HAND, hit);
+        var warehouse = KleinStorageSavedData.get(owner.server).warehouse(owner.getUUID());
+        helper.assertTrue(personal.isEmpty() && total(warehouse, Items.EMERALD) == 3 && otherLoot.getItem(0).getCount() == 7,
+                "Shift-right-click drains only the interacting player's personal Lootr inventory");
+        helper.assertTrue(KleinContainerTransfer.transfer(owner, pos, Direction.UP) == 0 && total(warehouse, Items.EMERALD) == 3,
+                "Repeating the transfer cannot regenerate loot");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void sortOrderPersistsWithAnEmptyWarehouse(GameTestHelper helper) {
+        var level = helper.getLevel();
+        ServerPlayer player = mockPlayer(level.getServer(), level, "klein-sort");
+        KleinStorageSavedData saved = KleinStorageSavedData.get(player.server);
+        var sort = new KleinSortOrder(KleinMenu.SORT_MOD, false);
+        saved.setSortOrder(player.getUUID(), sort);
+        KleinMenu reopened = new KleinMenu(3, player.getInventory(), InteractionHand.MAIN_HAND);
+        var restored = KleinStorageSavedData.load(saved.save(new CompoundTag(), level.registryAccess()), level.registryAccess());
+        helper.assertTrue(reopened.sortMode() == sort.mode() && reopened.descending() == sort.descending()
+                        && restored.sortOrder(player.getUUID()).equals(sort),
+                "Sort mode and direction survive reopening and saving an empty warehouse");
+        helper.assertTrue(restored.sortOrder(UUID.randomUUID()).equals(KleinSortOrder.DEFAULT),
+                "Other players and older saves use the default sort order");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void anvilShiftRenameConsumesEntireInputStack(GameTestHelper helper) {
+        ServerPlayer player = mockPlayer(helper.getLevel().getServer(), helper.getLevel(), "klein-anvil-stack");
+        player.getInventory().setItem(0, org.gwfx.universaltool.init.ModItems.KLEIN_BOTTLE.get().getDefaultInstance());
+        KleinMenu menu = new KleinMenu(3, player.getInventory(), InteractionHand.MAIN_HAND);
+        player.containerMenu = menu;
+        menu.setDrawerMode(KleinMenu.DRAWER_ANVIL);
+        menu.getSlot(KleinMenu.ANVIL_LEFT_SLOT).set(new ItemStack(Items.STICK, 16));
+        menu.setAnvilItemName("Named sticks");
+        menu.clicked(KleinMenu.ANVIL_RESULT_SLOT, 0, ClickType.QUICK_MOVE, player);
+        helper.assertTrue(player.getInventory().countItem(Items.STICK) == 16
+                        && menu.getSlot(KleinMenu.ANVIL_LEFT_SLOT).getItem().isEmpty()
+                        && menu.getSlot(KleinMenu.ANVIL_RESULT_SLOT).getItem().isEmpty(),
+                "Renaming a stack consumes exactly the stack being renamed");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = "universal_tool", template = "empty")
+    public static void recipeVariantsAreAssignedAcrossSlots(GameTestHelper helper) {
+        var stock = new LinkedHashMap<KleinWarehouse.ItemKey, KleinRecipeTransfer.Stock>();
+        KleinRecipeTransfer.addStock(stock, new ItemStack(Items.OAK_PLANKS), BigInteger.valueOf(5));
+        KleinRecipeTransfer.addStock(stock, new ItemStack(Items.BIRCH_PLANKS), BigInteger.valueOf(11));
+        var layout = List.of(Ingredient.of(Items.OAK_PLANKS, Items.BIRCH_PLANKS), Ingredient.of(Items.OAK_PLANKS));
+        var plan = KleinRecipeTransfer.plan(layout, stock, true);
+        helper.assertTrue(plan.grid().getFirst().is(Items.BIRCH_PLANKS) && plan.grid().getFirst().getCount() == 5
+                        && plan.grid().get(1).is(Items.OAK_PLANKS) && plan.grid().get(1).getCount() == 5,
+                "An interchangeable ingredient leaves oak for the mandatory oak slot and maximizes complete sets");
         helper.succeed();
     }
 
@@ -418,15 +604,19 @@ public final class KleinGameTests {
                 "Renaming consumes the input item");
         player.containerMenu.setCarried(ItemStack.EMPTY);
 
+        helper.assertTrue(menu.slots.get(KleinMenu.SMELT_OUTPUT_SLOT).getItem().getCount() == 2,
+                "Switching away retains the smelter output");
+        menu.setDrawerMode(KleinMenu.DRAWER_SMELTING);
         menu.setDrawerMode(KleinMenu.DRAWER_NONE);
         helper.assertTrue(menu.slots.get(KleinMenu.SMELT_OUTPUT_SLOT).getItem().isEmpty(),
-                "Switching away returns pending drawer contents to the warehouse");
+                "Explicitly closing the drawer returns the smelter contents");
         helper.assertTrue(warehouse.entries().stream().anyMatch(e -> e.template().is(Items.CHARCOAL)),
                 "Returned charcoal is stored in the warehouse");
 
         menu.removed(player);
-        helper.assertTrue(warehouse.entries().stream().anyMatch(e -> e.template().is(Items.CHARCOAL)),
-                "Closing the terminal returns drawer contents to the warehouse");
+        helper.assertTrue(warehouse.entries().stream().filter(e -> e.template().is(Items.OAK_PLANKS))
+                        .anyMatch(e -> e.amount().intValue() == 12),
+                "Closing the terminal returns the retained crafting input without duplicating it");
         helper.succeed();
     }
 

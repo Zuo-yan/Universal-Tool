@@ -2,6 +2,7 @@ package org.gwfx.universaltool.compat.jei;
 
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
+import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.drawable.IDrawable;
@@ -22,6 +23,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import org.gwfx.universaltool.UniversalToolMod;
 import org.gwfx.universaltool.client.KleinScreen;
@@ -87,9 +89,17 @@ public class UniversalToolJeiPlugin implements IModPlugin {
 
     @Override
     public void registerRecipeTransferHandlers(IRecipeTransferRegistration registration) {
+        registerKleinTransfer(registration, RecipeTypes.CRAFTING);
+        registerKleinTransfer(registration, RecipeTypes.SMELTING);
+        registerKleinTransfer(registration, RecipeTypes.BLASTING);
+        registerKleinTransfer(registration, RecipeTypes.SMOKING);
+        registerKleinTransfer(registration, RecipeTypes.CAMPFIRE_COOKING);
+    }
+
+    private static <R extends Recipe<?>> void registerKleinTransfer(IRecipeTransferRegistration registration,
+                                                                      RecipeType<RecipeHolder<R>> type) {
         registration.addRecipeTransferHandler(
-                new KleinRecipeTransferHandler(registration.getTransferHelper()),
-                mezz.jei.api.constants.RecipeTypes.CRAFTING);
+                new KleinRecipeTransferHandler<>(registration.getTransferHelper(), type), type);
     }
 
     @Override
